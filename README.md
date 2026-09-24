@@ -14,10 +14,37 @@ ASP.NET Core 10 Web API, Angular 22, EF Core and SQL Server. This is an initial 
 
 ## Requirements
 
-- .NET SDK 10, Node.js 22+, npm and Docker with Compose (or your own SQL Server instance).
-- A development machine with SQL Server container support, or replace the connection string below.
+- .NET SDK 10, Node.js 22+ and npm.
+- SQL Server Express on Windows, or Docker with Compose for a separate SQL Server instance.
 
-## Run locally
+## Run on Windows with your SQL Server Express
+
+Set the connection string in your PowerShell session using your own SQL Server instance and application database. Do not use SQL Server's `master` system database. Keep the connection details out of the public repository.
+
+```powershell
+cd api
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+$env:ConnectionStrings__Store = 'Server=YOUR_SERVER;Database=YOUR_DATABASE;Integrated Security=True;Encrypt=True;TrustServerCertificate=True'
+$env:Jwt__Key = 'generate-a-random-secret-with-at-least-32-bytes'
+$env:Bootstrap__Email = 'owner@example.com'
+$env:Bootstrap__Password = 'choose-a-unique-strong-owner-password!'
+dotnet restore
+dotnet run --urls http://localhost:5080
+```
+
+The Windows account running the API must be allowed to access and create tables in the application database. For the first run, use an empty database: `EnsureCreated` creates the schema only when the database has no tables. It does not update an existing schema. Keep the connection string, JWT key and owner password private.
+
+In a second PowerShell terminal:
+
+```powershell
+cd web
+npm ci
+npm start
+```
+
+Visit `http://localhost:4200` and sign in with the owner credentials you set.
+
+## Alternative: run SQL Server with Docker
 
 From this folder in a terminal:
 

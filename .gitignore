@@ -3,4 +3,5 @@
 **/node_modules/
 **/dist/
 .env
+api/appsettings.Development.json
 .DS_Store
