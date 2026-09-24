@@ -2,7 +2,7 @@
 
 ASP.NET Core 10 Web API, Angular 22, EF Core and SQL Server. This is an initial **single-store cash-sales MVP**, not yet a complete pharmacy deployment.
 
-The API uses feature-based Minimal API modules in `api/Endpoints/` (auth, catalogue, inventory, purchases, sales and dashboard). Request models are in `api/Contracts/`, database entities and `StoreDb` are in `api/Data.cs`, and startup database setup is in `api/Infrastructure/DatabaseInitializer.cs`. `api/Program.cs` only configures services and maps the modules.
+The API is a modular monolith with one API host and one SQL Server database. Business modules live under `api/Modules/`. Each implemented module owns its endpoints, request models, entities and EF configurations. `api/Infrastructure/Persistence/StoreDb.cs` provides the shared database context; `api/Program.cs` configures the host and registers modules. See [module structure and status](api/Modules/README.md).
 
 ## Implemented
 

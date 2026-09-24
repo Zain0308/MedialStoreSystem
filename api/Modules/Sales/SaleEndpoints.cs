@@ -1,8 +1,10 @@
+using MedicalStore.Api.Modules.Inventory;
+using MedicalStore.Api.Infrastructure.Persistence;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedicalStore.Api;
+namespace MedicalStore.Api.Modules.Sales;
 
 public static class SaleEndpoints
 {

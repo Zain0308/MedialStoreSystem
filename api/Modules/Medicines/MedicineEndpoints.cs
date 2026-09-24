@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using MedicalStore.Api.Infrastructure.Persistence;
 
-namespace MedicalStore.Api;
+namespace MedicalStore.Api.Modules.Medicines;
 
-public static class CatalogEndpoints
+public static class MedicineEndpoints
 {
-    public static void MapCatalogEndpoints(this RouteGroupBuilder api)
+    public static void MapMedicineEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/medicines", async (StoreDb db) =>
         {
@@ -26,16 +27,6 @@ public static class CatalogEndpoints
             db.Medicines.Add(medicine);
             await db.SaveChangesAsync();
             return Results.Created($"/api/medicines/{medicine.Id}", new { medicine.Id });
-        });
-
-        api.MapGet("/suppliers", async (StoreDb db) => Results.Ok(await db.Suppliers.OrderBy(x => x.Name).ToListAsync()));
-        api.MapPost("/suppliers", async (SupplierRequest input, StoreDb db) =>
-        {
-            if (string.IsNullOrWhiteSpace(input.Name)) return Results.BadRequest("Supplier name is required.");
-            var supplier = new Supplier { Name = input.Name.Trim(), Phone = input.Phone?.Trim() };
-            db.Suppliers.Add(supplier);
-            await db.SaveChangesAsync();
-            return Results.Created($"/api/suppliers/{supplier.Id}", new { supplier.Id });
         });
     }
 }

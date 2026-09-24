@@ -1,7 +1,9 @@
+using MedicalStore.Api.Modules.Authentication;
+using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedicalStore.Api;
+namespace MedicalStore.Api.Infrastructure;
 
 public static class DatabaseInitializer
 {

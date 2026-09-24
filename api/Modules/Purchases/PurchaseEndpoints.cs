@@ -1,6 +1,8 @@
+using MedicalStore.Api.Modules.Inventory;
+using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedicalStore.Api;
+namespace MedicalStore.Api.Modules.Purchases;
 
 public static class PurchaseEndpoints
 {

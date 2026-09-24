@@ -4,11 +4,11 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 
-namespace MedicalStore.Api;
+namespace MedicalStore.Api.Modules.Authentication;
 
-public static class AuthEndpoints
+public static class AuthenticationEndpoints
 {
-    public static void MapAuthEndpoints(this IEndpointRouteBuilder app, string jwtKey)
+    public static void MapAuthenticationEndpoints(this IEndpointRouteBuilder app, string jwtKey)
     {
         app.MapPost("/api/auth/login", async (LoginRequest request, UserManager<AppUser> users) =>
         {

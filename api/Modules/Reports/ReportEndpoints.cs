@@ -1,10 +1,11 @@
+using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedicalStore.Api;
+namespace MedicalStore.Api.Modules.Reports;
 
-public static class DashboardEndpoints
+public static class ReportEndpoints
 {
-    public static void MapDashboardEndpoints(this RouteGroupBuilder api)
+    public static void MapReportEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/dashboard", async (StoreDb db) =>
         {

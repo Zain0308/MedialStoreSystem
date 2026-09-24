@@ -1,6 +1,7 @@
+using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace MedicalStore.Api;
+namespace MedicalStore.Api.Modules.Inventory;
 
 public static class InventoryEndpoints
 {
