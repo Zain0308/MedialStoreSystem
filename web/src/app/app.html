@@ -1,0 +1,97 @@
+@if (!token) {
+  <main class="login-shell">
+    <div class="login-art"><div class="mark">✚</div><h1>Good care starts<br>with good records.</h1><p>Inventory, billing and expiry tracking in one calm workspace.</p><span class="art-caption">MEDICAL STORE / DESK</span></div>
+    <form class="login-card" (ngSubmit)="login()">
+      <div class="mini-mark">✚</div><div class="eyebrow">WELCOME BACK</div><h2>Sign in to your store</h2><p>Enter the owner credentials configured for this installation.</p>
+      <label>Email <input name="email" type="email" [(ngModel)]="loginEmail" autocomplete="username" required placeholder="owner@store.com"></label>
+      <label>Password <input name="password" type="password" [(ngModel)]="loginPassword" autocomplete="current-password" required placeholder="••••••••••••"></label>
+      <button class="primary full" [disabled]="busy">{{ busy ? 'Signing in…' : 'Sign in →' }}</button>
+      @if (message) { <div class="notice error">{{ message }}</div> }
+    </form>
+  </main>
+} @else {
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-icon">✚</span><div>MEDICAL<br><strong>STORE</strong></div></div>
+      <div class="nav-label">WORKSPACE</div>
+      <nav>
+        <button [class.active]="tab === 'dashboard'" (click)="open('dashboard')"><span>◫</span> Dashboard</button>
+        <button [class.active]="tab === 'pos'" (click)="open('pos')"><span>▣</span> New sale <em>POS</em></button>
+        <button [class.active]="tab === 'medicines'" (click)="open('medicines')"><span>✚</span> Medicines</button>
+        <button [class.active]="tab === 'purchases'" (click)="open('purchases')"><span>↘</span> Purchases</button>
+        <button [class.active]="tab === 'inventory'" (click)="open('inventory')"><span>▦</span> Inventory</button>
+        <button [class.active]="tab === 'sales'" (click)="open('sales')"><span>≡</span> Sales history</button>
+      </nav>
+      <div class="sidebar-foot"><div class="avatar">{{ email.slice(0, 1).toUpperCase() }}</div><div class="account"><strong>Store owner</strong><small>{{ email }}</small></div><button class="logout" title="Sign out" (click)="logout()">↪</button></div>
+    </aside>
+
+    <main class="content">
+      <header class="topbar"><div><span class="eyebrow">PHARMACY MANAGEMENT</span><h1>{{ tab === 'pos' ? 'New sale' : tab === 'medicines' ? 'Medicines' : tab === 'purchases' ? 'Receive purchase' : tab === 'inventory' ? 'Inventory' : tab === 'sales' ? 'Sales history' : 'Overview' }}</h1></div><div class="date-tag">{{ today | date:'EEEE, d MMMM y' }}</div></header>
+      @if (message) { <div class="notice" [class.error]="message.includes('failed') || message.includes('not ') || message.includes('incorrect') || message.includes('required')">{{ message }}</div> }
+
+      @if (tab === 'dashboard') {
+        <div class="hero"><div><span class="eyebrow">YOUR STORE AT A GLANCE</span><h2>Every detail, in its place.</h2><p>Track your stock, stay ahead of expiry and serve customers with confidence.</p><button class="hero-button" (click)="open('pos')">Start a new sale <span>→</span></button></div><div class="hero-symbol">✚</div></div>
+        <div class="stats">
+          <div class="stat"><span>SALES TODAY</span><strong>Rs {{ dashboard?.todaySales ?? 0 | number:'1.2-2' }}</strong><small>{{ dashboard?.todayInvoices ?? 0 }} invoices</small></div>
+          <div class="stat"><span>MEDICINES</span><strong>{{ dashboard?.medicineCount ?? 0 }}</strong><small>In catalogue</small></div>
+          <div class="stat warning"><span>NEAR EXPIRY</span><strong>{{ dashboard?.expiringBatches ?? 0 }}</strong><small>Within 60 days</small></div>
+          <div class="stat danger"><span>EXPIRED BATCHES</span><strong>{{ dashboard?.expiredBatches ?? 0 }}</strong><small>Cannot be sold</small></div>
+        </div>
+        <div class="split"><section class="panel"><div class="panel-head"><h3>Low stock</h3><button class="text-button" (click)="open('inventory')">View inventory →</button></div>
+          @for (m of medicines; track m.id) { @if (m.stock <= m.minimumStock) { <div class="list-row"><div class="pill-icon">✚</div><div><strong>{{ m.name }}</strong><small>Minimum {{ m.minimumStock }} units</small></div><span class="badge bad">{{ m.stock }} left</span></div> } } @if (medicines.length === 0) { <p class="empty">Add your first medicine to begin tracking stock.</p> }
+        </section><section class="panel"><div class="panel-head"><h3>Recent sales</h3><button class="text-button" (click)="open('sales')">View all →</button></div>
+          @for (s of sales.slice(0, 5); track s.id) { <div class="list-row"><div class="pill-icon mint">↗</div><div><strong>{{ s.invoiceNumber }}</strong><small>{{ s.createdAt | date:'medium' }}</small></div><b>Rs {{ s.total | number:'1.2-2' }}</b></div> } @if (sales.length === 0) { <p class="empty">Your sales will appear here.</p> }
+        </section></div>
+      }
+
+      @if (tab === 'medicines') {
+        <div class="split wide-left"><section class="panel"><div class="panel-head"><h3>Medicine catalogue</h3><span class="count">{{ medicines.length }} items</span></div><div class="table-wrap"><table><thead><tr><th>Medicine</th><th>Barcode</th><th>Saleable stock</th><th>Prescription</th></tr></thead><tbody>
+          @for (m of medicines; track m.id) { <tr><td><strong>{{ m.name }}</strong><small>{{ m.genericName || '—' }}</small></td><td>{{ m.barcode || '—' }}</td><td><span class="badge" [class.bad]="m.stock <= m.minimumStock">{{ m.stock }} units</span></td><td>{{ m.requiresPrescription ? 'Required' : 'No' }}</td></tr> }
+        </tbody></table></div>@if (medicines.length === 0) { <p class="empty">No medicines added yet.</p> }</section>
+        <section class="panel form-panel"><h3>Add medicine</h3><p>Stock will be added when you receive a purchase.</p><form (ngSubmit)="addMedicine()">
+          <label>Medicine name <input name="m-name" [(ngModel)]="medicineForm.name" required placeholder="e.g. Paracetamol 500mg"></label>
+          <label>Generic name <input name="m-generic" [(ngModel)]="medicineForm.genericName" placeholder="Optional"></label>
+          <label>Barcode <input name="m-barcode" [(ngModel)]="medicineForm.barcode" placeholder="Scan or enter"></label>
+          <label>Minimum stock (units) <input name="m-min" type="number" min="0" [(ngModel)]="medicineForm.minimumStock" required></label>
+          <label class="check"><input name="m-rx" type="checkbox" [(ngModel)]="medicineForm.requiresPrescription"> Prescription required</label>
+          <button class="primary full" [disabled]="busy">Add medicine</button>
+        </form></section></div>
+      }
+
+      @if (tab === 'purchases') {
+        <div class="split"><section class="panel form-panel"><h3>Receive stock</h3><p>Each received line creates a traceable batch. Quantities are individual sale units.</p><form (ngSubmit)="receivePurchase()">
+          <div class="form-grid"><label>Supplier <select name="p-supplier" [(ngModel)]="purchase.supplierId" required><option [ngValue]="0" disabled>Select supplier</option>@for (s of suppliers; track s.id) { <option [ngValue]="s.id">{{ s.name }}</option> }</select></label>
+          <label>Supplier invoice <input name="p-invoice" [(ngModel)]="purchase.supplierInvoice" required placeholder="e.g. SUP-0042"></label>
+          <label>Medicine <select name="p-medicine" [(ngModel)]="purchase.medicineId" required><option [ngValue]="0" disabled>Select medicine</option>@for (m of medicines; track m.id) { <option [ngValue]="m.id">{{ m.name }}</option> }</select></label>
+          <label>Batch number <input name="p-batch" [(ngModel)]="purchase.batchNumber" required placeholder="e.g. LOT-123"></label>
+          <label>Expiry date <input name="p-expiry" type="date" [min]="today" [(ngModel)]="purchase.expiryDate" required></label>
+          <label>Quantity (units) <input name="p-qty" type="number" min="1" [(ngModel)]="purchase.quantity" required></label>
+          <label>Unit cost (Rs) <input name="p-cost" type="number" step="0.01" min="0" [(ngModel)]="purchase.costPrice" required></label>
+          <label>Sale price (Rs) <input name="p-price" type="number" step="0.01" min="0" [(ngModel)]="purchase.salePrice" required></label></div>
+          <div class="form-total"><span>Purchase total</span><strong>Rs {{ purchase.quantity * purchase.costPrice | number:'1.2-2' }}</strong></div><button class="primary" [disabled]="busy || !purchase.supplierId || !purchase.medicineId">Receive batch →</button>
+        </form></section><section class="panel form-panel"><h3>Suppliers</h3><p>Add a supplier before receiving stock.</p><form (ngSubmit)="addSupplier()"><label>Supplier name <input name="s-name" [(ngModel)]="supplierForm.name" required placeholder="e.g. ABC Pharma"></label><label>Phone <input name="s-phone" [(ngModel)]="supplierForm.phone" placeholder="Optional"></label><button class="secondary" [disabled]="busy">Add supplier</button></form><div class="supplier-list">@for (s of suppliers; track s.id) { <div class="list-row"><div class="pill-icon">↘</div><div><strong>{{ s.name }}</strong><small>{{ s.phone || 'Supplier' }}</small></div></div> }</div></section></div>
+      }
+
+      @if (tab === 'inventory') {
+        <section class="panel"><div class="panel-head"><div><h3>Batch inventory</h3><p>Expiry dates and quantities for each received lot</p></div><span class="count">{{ batches.length }} batches</span></div><div class="table-wrap"><table><thead><tr><th>Medicine / batch</th><th>Expiry</th><th>Cost</th><th>Sale price</th><th>Units</th><th>Status</th></tr></thead><tbody>
+          @for (b of batches; track b.id) { <tr><td><strong>{{ b.medicine }}</strong><small>{{ b.number }}</small></td><td>{{ b.expiryDate | date:'mediumDate' }}</td><td>Rs {{ b.costPrice | number:'1.2-2' }}</td><td>Rs {{ b.salePrice | number:'1.2-2' }}</td><td>{{ b.quantity }}</td><td><span class="badge" [class.bad]="status(b) === 'Expired'" [class.amber]="status(b) === 'Near expiry'">{{ status(b) }}</span></td></tr> }
+        </tbody></table></div>@if (batches.length === 0) { <p class="empty">No batches received yet. Receive a purchase to create stock.</p> }</section>
+      }
+
+      @if (tab === 'pos') {
+        <div class="pos-grid"><section class="panel pos-search"><div class="panel-head"><h3>Find medicine</h3><span class="count">{{ medicines.length }} in catalogue</span></div><label class="search-field">⌕ <input [(ngModel)]="search" placeholder="Search name or scan barcode" autofocus></label><div class="medicine-results">
+          @for (m of filteredMedicines; track m.id) { <button class="medicine-result" (click)="addToCart(m)"><div class="pill-icon">✚</div><div><strong>{{ m.name }}</strong><small>{{ m.stock }} units available · {{ m.requiresPrescription ? 'Prescription required' : (m.genericName || 'Medicine') }}</small></div><span>Rs {{ price(m) | number:'1.2-2' }} <b>＋</b></span></button> }
+          @if (filteredMedicines.length === 0) { <p class="empty">No matching medicines.</p> }
+        </div></section><section class="panel cart"><h3>Current sale</h3><p>Walk-in customer · Cash payment</p>
+          @for (row of cart; track row.medicine.id) { <div class="cart-row"><div><strong>{{ row.medicine.name }}</strong><small>Est. Rs {{ price(row.medicine) | number:'1.2-2' }} per unit</small></div><input type="number" min="1" [max]="row.medicine.stock" [(ngModel)]="row.quantity"><button (click)="removeFromCart(row.medicine.id)" title="Remove">×</button></div> }
+          @if (cart.length === 0) { <div class="cart-empty"><span>▣</span><strong>Your cart is empty</strong><small>Choose medicines to start a sale.</small></div> }
+          <div class="cart-bottom"><div class="estimate"><span>Estimated total <small>Final price follows FEFO batches</small></span><strong>Rs {{ estimate | number:'1.2-2' }}</strong></div><label>Cash received (Rs) <input type="number" min="0" step="0.01" [(ngModel)]="cashReceived"></label><button class="primary full" [disabled]="busy || cart.length === 0 || cashReceived < estimate" (click)="completeSale()">Complete sale →</button></div>
+        </section></div>
+      }
+
+      @if (tab === 'sales') { <section class="panel"><div class="panel-head"><h3>Recent invoices</h3><span class="count">Latest 50</span></div><div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Total</th><th></th></tr></thead><tbody>@for (s of sales; track s.id) { <tr><td><strong>{{ s.invoiceNumber }}</strong></td><td>{{ s.createdAt | date:'medium' }}</td><td>Rs {{ s.total | number:'1.2-2' }}</td><td><button class="text-button" (click)="viewReceipt(s.id)">View receipt →</button></td></tr> }</tbody></table></div>@if (sales.length === 0) { <p class="empty">No sales yet.</p> }</section> }
+
+      @if (receipt) { <section class="receipt panel"><div class="panel-head no-print"><h3>Receipt · {{ receipt.invoiceNumber }}</h3><div><button class="text-button" (click)="receipt = null">Close</button> <button class="secondary" (click)="printReceipt()">Print receipt</button></div></div><div class="receipt-paper"><div class="receipt-logo">✚</div><h3>MEDICAL STORE</h3><p>{{ receipt.invoiceNumber }}<br>{{ receipt.createdAt | date:'medium' }}</p><div class="receipt-rule"></div>@for (line of receipt.lines; track $index) { <div class="receipt-line"><span>{{ line.medicine }}<small>Batch {{ line.batch }} · {{ line.quantity }} × Rs {{ line.unitPrice | number:'1.2-2' }}</small></span><b>Rs {{ line.total | number:'1.2-2' }}</b></div> }<div class="receipt-rule"></div><div class="receipt-line"><b>TOTAL</b><b>Rs {{ receipt.total | number:'1.2-2' }}</b></div><div class="receipt-line"><span>Cash</span><span>Rs {{ receipt.cashReceived | number:'1.2-2' }}</span></div><div class="receipt-line"><span>Change</span><span>Rs {{ receipt.cashReceived - receipt.total | number:'1.2-2' }}</span></div><p class="receipt-thanks">Thank you for shopping with us.</p></div></section> }
+    </main>
+  </div>
+}
