@@ -246,9 +246,10 @@ test('switching stores persists the active store and reloads the workspace', asy
   await mockApi(page);
   await signIn(page, '/reports');
   await expect(page.getByLabel('Active store')).toHaveValue('1');
+  const reload = page.waitForNavigation({ waitUntil: 'load' });
   await page.getByLabel('Active store').selectOption('2');
+  await reload;
   await expect(page.getByLabel('Active store')).toHaveValue('2');
-  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('medical-store-id'))).toBe('2');
 });
 
 test('medicine, supplier and purchase pages keep their own forms and update inventory', async ({ page }) => {
