@@ -31,7 +31,15 @@ BEGIN
 END;
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Stores WHERE Code = N'MAIN')
-    INSERT dbo.Stores (Name, Code, IsActive, CreatedAt) VALUES (N'Main Store', N'MAIN', 1, SYSDATETIMEOFFSET());
+BEGIN
+    -- EnsureCreated may already have created the newer subscription columns.
+    -- Older databases reach this script before upgrade-v4 adds those columns.
+    IF COL_LENGTH(N'dbo.Stores', N'SubscriptionPlan') IS NOT NULL
+        INSERT dbo.Stores (Name, Code, IsActive, CreatedAt, SubscriptionPlan, SubscriptionStatus, TrialEndsAt)
+        VALUES (N'Main Store', N'MAIN', 1, SYSDATETIMEOFFSET(), N'Trial', N'Trial', DATEADD(day, 14, SYSDATETIMEOFFSET()));
+    ELSE
+        INSERT dbo.Stores (Name, Code, IsActive, CreatedAt) VALUES (N'Main Store', N'MAIN', 1, SYSDATETIMEOFFSET());
+END;
 
 DECLARE @DefaultStoreId bigint = (SELECT TOP (1) Id FROM dbo.Stores WHERE Code = N'MAIN');
 DECLARE @Tables TABLE (TableName sysname NOT NULL PRIMARY KEY);

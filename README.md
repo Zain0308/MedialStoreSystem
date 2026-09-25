@@ -21,7 +21,7 @@ The project uses **Modular Monolith** architecture: one API host, one SQL Server
 
 ## Requirements
 
-- .NET SDK 9, Node.js 22+ and npm.
+- .NET SDK 10, Node.js 22+ and npm.
 - SQL Server Express on Windows, or Docker with Compose for a separate SQL Server instance.
 
 ## Run on Windows with your SQL Server Express
