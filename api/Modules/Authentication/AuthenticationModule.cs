@@ -70,9 +70,12 @@ public static class AuthenticationModule
                         else
                         {
                             var store = await db.Stores.SingleAsync(x => x.Id == storeId);
-                            if (!isApplicationOwner && !IsSubscriptionAvailable(store, DateTimeOffset.UtcNow))
+                            var now = DateTimeOffset.UtcNow;
+                            var subscriptionExpired = !isApplicationOwner && StoreSubscriptionAccess.IsExpired(store, now);
+                            if (!isApplicationOwner && !StoreSubscriptionAccess.IsAvailable(store, now) && !subscriptionExpired)
                                 context.Fail("This store's subscription is inactive or expired.");
-                            else context.HttpContext.RequestServices.GetRequiredService<CurrentStoreContext>().Select(storeId);
+                            else context.HttpContext.RequestServices.GetRequiredService<CurrentStoreContext>()
+                                .Select(storeId, subscriptionExpired);
                         }
                     }
                 }
@@ -82,17 +85,14 @@ public static class AuthenticationModule
         {
             options.AddPolicy(StorePermissions.ApplicationOwnerPolicy,
                 policy => policy.RequireClaim("app_owner", "true"));
+            options.AddPolicy(StorePermissions.DashboardPolicy,
+                policy => policy.AddRequirements(new DashboardAccessRequirement()));
             foreach (var permission in StorePermissions.All.Keys)
                 options.AddPolicy(permission, policy => policy.AddRequirements(new StorePermissionRequirement(permission)));
         });
         services.AddScoped<IAuthorizationHandler, StorePermissionAuthorizationHandler>();
+        services.AddScoped<IAuthorizationHandler, DashboardAccessAuthorizationHandler>();
         return services;
     }
 
-    private static bool IsSubscriptionAvailable(Store store, DateTimeOffset now) =>
-        store.IsActive &&
-        ((string.Equals(store.SubscriptionStatus, "Active", StringComparison.OrdinalIgnoreCase) &&
-          (!store.SubscriptionExpiresAt.HasValue || store.SubscriptionExpiresAt.Value > now)) ||
-         (string.Equals(store.SubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase) &&
-          store.TrialEndsAt.HasValue && store.TrialEndsAt.Value > now));
 }

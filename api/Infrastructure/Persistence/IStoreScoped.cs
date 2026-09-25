@@ -8,6 +8,15 @@ public interface IStoreScoped
 public sealed class CurrentStoreContext
 {
     public long? StoreId { get; private set; }
-    public void Select(long storeId) => StoreId = storeId;
-    public void Clear() => StoreId = null;
+    public bool SubscriptionExpired { get; private set; }
+    public void Select(long storeId, bool subscriptionExpired = false)
+    {
+        StoreId = storeId;
+        SubscriptionExpired = subscriptionExpired;
+    }
+    public void Clear()
+    {
+        StoreId = null;
+        SubscriptionExpired = false;
+    }
 }

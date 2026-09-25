@@ -17,6 +17,15 @@ public static class MedicalStoreModules
     {
         app.MapAuthenticationEndpoints(jwtKey, ownerEmail);
         var api = app.MapGroup("/api").RequireAuthorization();
+        api.AddEndpointFilter(async (context, next) =>
+        {
+            var currentStore = context.HttpContext.RequestServices.GetRequiredService<MedicalStore.Api.Infrastructure.Persistence.CurrentStoreContext>();
+            var request = context.HttpContext.Request;
+            if (currentStore.SubscriptionExpired &&
+                !(HttpMethods.IsGet(request.Method) && request.Path.Equals("/api/dashboard", StringComparison.OrdinalIgnoreCase)))
+                return Results.Problem("This store's subscription has expired. Only the dashboard is available.", statusCode: 403);
+            return await next(context);
+        });
         api.MapMedicineEndpoints();
         api.MapInventoryEndpoints();
         api.MapPurchaseEndpoints();

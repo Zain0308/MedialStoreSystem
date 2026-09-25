@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './features/authentication/auth.guard';
 import { usersManageGuard } from './features/authentication/users-manage.guard';
 import { permissionGuard } from './features/authentication/permission.guard';
+import { subscriptionGuard } from './features/authentication/subscription.guard';
 
 export const APP_ROUTES: Routes = [
   {
@@ -14,7 +15,7 @@ export const APP_ROUTES: Routes = [
   {
     path: '',
     canActivate: [authGuard],
-    canActivateChild: [authGuard],
+    canActivateChild: [authGuard, subscriptionGuard],
     loadComponent: () => import('./core/layout/shell.component').then((m) => m.ShellComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'reports' },

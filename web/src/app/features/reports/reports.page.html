@@ -5,17 +5,22 @@
       <span class="eyebrow">YOUR STORE AT A GLANCE</span>
       <h2>Every detail, in its place.</h2>
       <p>Track your stock, stay ahead of expiry and serve customers with confidence.</p>
-      <button class="hero-button" routerLink="/sales/pos">Start a new sale <span>→</span></button>
+      @if (!dashboard()?.subscriptionExpired && !session.subscriptionExpired()) { <button class="hero-button" routerLink="/sales/pos">Start a new sale <span>→</span></button> }
     </div>
     <div class="hero-symbol">✚</div>
   </div>
-  @if (dashboard()?.subscriptionDaysRemaining != null) {
+  @if (dashboard()?.subscriptionExpired) {
+    <section class="subscription-warning expired" role="status">
+      <strong>Subscription expired</strong>
+      <span>Expired {{ dashboard()?.subscriptionExpiresAt | date:'mediumDate' }}. Only the dashboard is available. Contact the application owner to restore access.</span>
+    </section>
+  } @else if (dashboard()?.subscriptionDaysRemaining != null) {
     <section class="subscription-warning" role="status">
       <strong>Subscription expires in {{ dashboard()?.subscriptionDaysRemaining }} {{ dashboard()?.subscriptionDaysRemaining === 1 ? 'day' : 'days' }}</strong>
       <span>Expiry date: {{ dashboard()?.subscriptionExpiresAt | date:'mediumDate' }}. Contact the application owner to renew access.</span>
     </section>
   }
-  <div class="stats">
+  @if (!dashboard()?.subscriptionExpired && !session.subscriptionExpired()) { <div class="stats">
     <div class="stat">
       <span>SALES TODAY</span
       ><strong>Rs {{ dashboard()?.todaySales ?? 0 | number: '1.2-2' }}</strong
@@ -33,7 +38,8 @@
       <span>EXPIRED BATCHES</span><strong>{{ dashboard()?.expiredBatches ?? 0 }}</strong
       ><small>Cannot be sold</small>
     </div>
-  </div>
+  </div> }
+  @if (!dashboard()?.subscriptionExpired && !session.subscriptionExpired()) {
   <div class="split">
     <section class="panel">
       <div class="panel-head">
@@ -84,5 +90,6 @@
       <a class="financial-shortcut" routerLink="/reports/financial-accounts" [queryParams]="{tab: 'receivables'}"><strong>Receivables</strong><span>Customer payments and outstanding invoice balances</span><b>View customer accounts →</b></a>
     </div>
   </section>
+  }
 
 </div>

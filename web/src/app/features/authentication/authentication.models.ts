@@ -11,6 +11,8 @@ export interface LoginResponse {
   activeStoreId: number;
   stores: StoreSummary[];
   isApplicationOwner: boolean;
+  subscriptionExpired?: boolean;
+  subscriptionExpiresAt?: string | null;
 }
 
 export interface StoreSummary {
@@ -41,4 +43,3 @@ export interface StoreRole {
   availablePermissions: { key: string; label: string }[];
   canAssign: boolean;
 }
-

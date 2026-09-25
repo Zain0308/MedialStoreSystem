@@ -6,27 +6,27 @@
     </div>
     <div class="nav-label">WORKSPACE</div>
     <nav aria-label="Store navigation">
-      @if (session.hasPermission('reports.read') && session.hasPermission('medicines.read') && session.hasPermission('sales.read')) {
+      @if (session.subscriptionExpired() || (session.hasPermission('reports.read') && session.hasPermission('medicines.read') && session.hasPermission('sales.read'))) {
         <a routerLink="/reports" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><span>◫</span> Dashboard</a>
       }
-      @if (session.hasPermission('reports.read')) {
+      @if (!session.subscriptionExpired() && session.hasPermission('reports.read')) {
         <a routerLink="/reports/financial-accounts" routerLinkActive="active"><span>▤</span> Financial accounts</a>
       }
       @if (session.isApplicationOwner()) {
         <a routerLink="/owner" routerLinkActive="active"><span>♙</span> Owner panel</a>
       }
-      @if (session.hasPermission('sales.create') && session.hasPermission('medicines.read') && session.hasPermission('inventory.read')) {
+      @if (!session.subscriptionExpired() && session.hasPermission('sales.create') && session.hasPermission('medicines.read') && session.hasPermission('inventory.read')) {
         <a routerLink="/sales/pos" routerLinkActive="active"><span>▣</span> New sale <em>POS</em></a>
       }
-      @if (session.hasPermission('medicines.read')) { <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a> }
-      @if (session.hasPermission('purchases.read') && session.hasPermission('medicines.read') && session.hasPermission('suppliers.read')) {
+      @if (!session.subscriptionExpired() && session.hasPermission('medicines.read')) { <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a> }
+      @if (!session.subscriptionExpired() && session.hasPermission('purchases.read') && session.hasPermission('medicines.read') && session.hasPermission('suppliers.read')) {
         <a routerLink="/purchases" routerLinkActive="active"><span>↘</span> Purchases</a>
       }
-      @if (session.hasPermission('inventory.read')) { <a routerLink="/inventory" routerLinkActive="active"><span>▦</span> Inventory</a> }
-      @if (session.hasPermission('suppliers.read')) { <a routerLink="/suppliers" routerLinkActive="active"><span>↙</span> Suppliers</a> }
-      @if (session.hasPermission('customers.read')) { <a routerLink="/customers" routerLinkActive="active"><span>♙</span> Customers</a> }
-      @if (session.hasPermission('expenses.read')) { <a routerLink="/expenses" routerLinkActive="active"><span>−</span> Expenses</a> }
-      @if (session.hasPermission('sales.read')) {
+      @if (!session.subscriptionExpired() && session.hasPermission('inventory.read')) { <a routerLink="/inventory" routerLinkActive="active"><span>▦</span> Inventory</a> }
+      @if (!session.subscriptionExpired() && session.hasPermission('suppliers.read')) { <a routerLink="/suppliers" routerLinkActive="active"><span>↙</span> Suppliers</a> }
+      @if (!session.subscriptionExpired() && session.hasPermission('customers.read')) { <a routerLink="/customers" routerLinkActive="active"><span>♙</span> Customers</a> }
+      @if (!session.subscriptionExpired() && session.hasPermission('expenses.read')) { <a routerLink="/expenses" routerLinkActive="active"><span>−</span> Expenses</a> }
+      @if (!session.subscriptionExpired() && session.hasPermission('sales.read')) {
         <a routerLink="/sales" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><span>≡</span> Sales history</a>
       }
     </nav>

@@ -12,6 +12,7 @@ public static class StorePermissions
 {
     public const string UsersManage = "users.manage";
     public const string ApplicationOwnerPolicy = "application-owner";
+    public const string DashboardPolicy = "dashboard-access";
     public const string RolesManage = "roles.manage";
     public const string MedicinesRead = "medicines.read";
     public const string MedicinesManage = "medicines.manage";

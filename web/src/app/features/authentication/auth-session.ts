@@ -11,9 +11,18 @@ export class AuthSession {
   readonly stores = signal(this.readStores());
   readonly activeStoreId = signal(Number(sessionStorage.getItem('medical-store-id') ?? 0));
   readonly isApplicationOwner = signal(sessionStorage.getItem('medical-app-owner') === 'true');
+  private readonly expiryTick = signal(Date.now());
+  private readonly expiredByServer = signal(sessionStorage.getItem('medical-subscription-expired') === 'true');
+  readonly subscriptionExpiresAt = signal(sessionStorage.getItem('medical-subscription-expires-at') ?? '');
+  readonly subscriptionExpired = computed(() => {
+    const now = this.expiryTick();
+    const expiry = this.subscriptionExpiresAt();
+    return !this.isApplicationOwner() && (this.expiredByServer() || (!!expiry && Date.parse(expiry) <= now));
+  });
   readonly activeStoreName = computed(() => this.stores().find(x => x.id === this.activeStoreId())?.name ?? '');
   readonly isAdministrator = computed(() => this.roles().includes('Administrator'));
   readonly isAuthenticated = computed(() => this.token().length > 0);
+  constructor() { window.setInterval(() => this.expiryTick.set(Date.now()), 30_000); }
   accept(result: LoginResponse): void {
     sessionStorage.setItem('medical-token', result.token);
     sessionStorage.setItem('medical-email', result.email);
@@ -23,6 +32,8 @@ export class AuthSession {
     sessionStorage.setItem('medical-stores', JSON.stringify(result.stores ?? []));
     sessionStorage.setItem('medical-store-id', String(result.activeStoreId ?? result.stores?.[0]?.id ?? 0));
     sessionStorage.setItem('medical-app-owner', String(result.isApplicationOwner === true));
+    sessionStorage.setItem('medical-subscription-expired', String(result.subscriptionExpired === true));
+    sessionStorage.setItem('medical-subscription-expires-at', result.subscriptionExpiresAt ?? '');
     this.token.set(result.token);
     this.email.set(result.email);
     this.userId.set(result.userId ?? '');
@@ -31,6 +42,14 @@ export class AuthSession {
     this.stores.set(result.stores ?? []);
     this.activeStoreId.set(result.activeStoreId ?? result.stores?.[0]?.id ?? 0);
     this.isApplicationOwner.set(result.isApplicationOwner === true);
+    this.expiredByServer.set(result.subscriptionExpired === true);
+    this.subscriptionExpiresAt.set(result.subscriptionExpiresAt ?? '');
+    this.expiryTick.set(Date.now());
+  }
+  markSubscriptionExpired(): void {
+    if (this.isApplicationOwner()) return;
+    sessionStorage.setItem('medical-subscription-expired', 'true');
+    this.expiredByServer.set(true);
   }
   updateStores(stores: StoreSummary[]): void {
     sessionStorage.setItem('medical-stores', JSON.stringify(stores));
@@ -48,6 +67,8 @@ export class AuthSession {
     sessionStorage.removeItem('medical-stores');
     sessionStorage.removeItem('medical-store-id');
     sessionStorage.removeItem('medical-app-owner');
+    sessionStorage.removeItem('medical-subscription-expired');
+    sessionStorage.removeItem('medical-subscription-expires-at');
     this.token.set('');
     this.email.set('');
     this.userId.set('');
@@ -56,6 +77,8 @@ export class AuthSession {
     this.stores.set([]);
     this.activeStoreId.set(0);
     this.isApplicationOwner.set(false);
+    this.expiredByServer.set(false);
+    this.subscriptionExpiresAt.set('');
   }
   private readList(key: string): string[] {
     try {
@@ -76,4 +99,3 @@ export class AuthSession {
     }
   }
 }
-

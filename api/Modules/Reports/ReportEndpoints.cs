@@ -15,11 +15,14 @@ public static class ReportEndpoints
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var start = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
             var now = DateTimeOffset.UtcNow;
-            var expiry = currentStore.StoreId is long storeId
-                ? await db.Stores.Where(x => x.Id == storeId)
-                    .Select(x => x.SubscriptionStatus == "Active" ? x.SubscriptionExpiresAt : x.TrialEndsAt)
-                    .SingleOrDefaultAsync()
+            var store = currentStore.StoreId is long storeId
+                ? await db.Stores.SingleOrDefaultAsync(x => x.Id == storeId)
                 : null;
+            var expiry = store is null ? null : StoreSubscriptionAccess.GetExpiry(store);
+            if (currentStore.SubscriptionExpired)
+                return Results.Ok(new { todaySales = 0m, todayInvoices = 0, medicineCount = 0, expiringBatches = 0,
+                    expiredBatches = 0, subscriptionExpiresAt = expiry, subscriptionDaysRemaining = (int?)null,
+                    subscriptionExpired = true });
             var subscriptionDaysRemaining = expiry is { } end && end > now && end <= now.AddDays(5)
                 ? (int?)Math.Ceiling((end - now).TotalDays)
                 : null;
@@ -31,9 +34,10 @@ public static class ReportEndpoints
                 expiringBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate >= today && x.ExpiryDate <= today.AddDays(60)),
                 expiredBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate < today),
                 subscriptionExpiresAt = expiry,
-                subscriptionDaysRemaining
+                subscriptionDaysRemaining,
+                subscriptionExpired = false
             });
-        }).RequireAuthorization(StorePermissions.ReportsRead);
+        }).RequireAuthorization(StorePermissions.DashboardPolicy);
 
         api.MapGet("/reports/details", async (DateOnly? from, DateOnly? to, StoreDb db) =>
         {

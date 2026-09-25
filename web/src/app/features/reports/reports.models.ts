@@ -6,6 +6,7 @@ export interface Dashboard {
   expiredBatches: number;
   subscriptionExpiresAt?: string | null;
   subscriptionDaysRemaining?: number | null;
+  subscriptionExpired?: boolean;
 }
 export interface DetailedReport {
   from: string | null; to: string | null; netSales: number; costOfGoods: number; expenseTotal: number; netProfit: number;

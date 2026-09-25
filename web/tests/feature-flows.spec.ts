@@ -33,6 +33,7 @@ async function mockApi(page: Page) {
     roles: [] as { id: string; name: string; permissions: string[]; availablePermissions: { key: string; label: string }[]; canAssign: boolean }[],
     failReceipt: false,
     unauthorizedInventory: false,
+    subscriptionExpired: false,
     subscriptionDaysRemaining: null as number | null,
     subscriptionExpiresAt: null as string | null,
     salePosts: 0,
@@ -59,9 +60,12 @@ async function mockApi(page: Page) {
       const isStoreAdmin = body.email === 'storeadmin@example.com';
       isApplicationOwner = body.email === 'owner@example.com';
       return reply({ token: 'test-token', userId: isCashier ? 'cashier' : (isStoreAdmin ? 'store-admin' : 'owner'), email: body.email, activeStoreId: 1, stores: state.stores, roles: [isCashier ? 'Cashier' : 'Administrator'],
-        isApplicationOwner, permissions: isCashier ? ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'] : allPermissionKeys });
+        isApplicationOwner, subscriptionExpired: state.subscriptionExpired, subscriptionExpiresAt: state.subscriptionExpiresAt,
+        permissions: isCashier ? ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'] : allPermissionKeys });
     }
     if (request.headers()['authorization'] !== 'Bearer test-token') return reply({}, 401);
+    if (state.subscriptionExpired && path.startsWith('/api/') && path !== '/api/dashboard' && path !== '/api/auth/switch-store')
+      return reply({ message: 'Subscription expired; only dashboard access is available.' }, 403);
     if (!isApplicationOwner && ((path.startsWith('/api/stores/') && path !== '/api/stores') ||
       (path === '/api/stores' && method === 'POST') ||
       (path === '/api/auth/users' && (method === 'GET' || method === 'POST')) ||
@@ -291,7 +295,7 @@ async function mockApi(page: Page) {
         returns: [], payments: [] };
       state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total }, 201);
     }
-    if (path === '/api/dashboard') return reply({ todaySales: state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.sales.length, medicineCount: state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionDaysRemaining, subscriptionExpiresAt: state.subscriptionExpiresAt });
+    if (path === '/api/dashboard') return reply({ todaySales: state.subscriptionExpired ? 0 : state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.subscriptionExpired ? 0 : state.sales.length, medicineCount: state.subscriptionExpired ? 0 : state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionExpired ? null : state.subscriptionDaysRemaining, subscriptionExpiresAt: state.subscriptionExpiresAt, subscriptionExpired: state.subscriptionExpired });
     if (path === '/api/sales' && method === 'GET') return reply(state.sales);
     if (path === '/api/sales' && method === 'POST') {
       state.salePosts++;
@@ -395,6 +399,22 @@ test('dashboard shows the subscription countdown when five days remain', async (
   state.subscriptionExpiresAt = '2026-10-01T00:00:00Z';
   await page.reload();
   await expect(page.getByRole('status').filter({ hasText: 'Subscription expires in 5 days' })).toBeVisible();
+});
+
+test('expired store users can access only the dashboard', async ({ page }) => {
+  const state = await mockApi(page);
+  state.subscriptionExpired = true;
+  state.subscriptionExpiresAt = '2026-09-20T23:59:59Z';
+  await signIn(page, '/reports');
+  await expect(page.getByRole('status').filter({ hasText: 'Subscription expired' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Medicines' })).toHaveCount(0);
+  await page.goto('/medicines');
+  await expect(page).toHaveURL(/\/reports$/);
+  const status = await page.evaluate(async () => fetch('/api/medicines', {
+    headers: { Authorization: 'Bearer test-token' },
+  }).then(response => response.status));
+  expect(status).toBe(403);
 });
 
 test('switching stores persists the active store and reloads the workspace', async ({ page }) => {

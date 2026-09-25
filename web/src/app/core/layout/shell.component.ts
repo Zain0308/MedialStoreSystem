@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import {
   ActivatedRoute,
@@ -36,6 +36,12 @@ export class ShellComponent {
     while (current.firstChild) current = current.firstChild;
     return current.data['title'] ?? 'Medical Store';
   });
+  constructor() {
+    effect(() => {
+      if (!this.session.subscriptionExpired() || this.session.isApplicationOwner()) return;
+      if (this.router.url.split('?')[0] !== '/reports') void this.router.navigateByUrl('/reports');
+    });
+  }
   logout(): void {
     this.session.clear();
     void this.router.navigateByUrl('/login');

@@ -46,7 +46,7 @@ public static class AuthenticationEndpoints
             var isApplicationOwner = string.Equals(user.Email, ownerEmail, StringComparison.OrdinalIgnoreCase);
             var assignedStores = await db.UserStores.Include(x => x.Store)
                 .Where(x => x.UserId == user.Id).OrderByDescending(x => x.IsDefault).ThenBy(x => x.Store.Name).ToListAsync();
-            var activeStores = assignedStores.Where(x => IsSubscriptionAvailable(x.Store, DateTimeOffset.UtcNow)).ToList();
+            var activeStores = assignedStores.Where(x => StoreSubscriptionAccess.CanSignIn(x.Store, DateTimeOffset.UtcNow)).ToList();
             var memberships = isApplicationOwner && activeStores.Count == 0 ? assignedStores : activeStores;
             if (memberships.Count == 0) return Results.Problem("This user has no active store subscription.", statusCode: 403);
             return await CreateSessionAsync(user, memberships.First().StoreId, memberships, users, roles, jwtKey, ownerEmail);
@@ -59,8 +59,9 @@ public static class AuthenticationEndpoints
                 ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
             await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-            var memberships = await db.UserStores.Include(x => x.Store)
-                .Where(x => x.UserId == userId && x.Store.IsActive).ToListAsync();
+            var memberships = (await db.UserStores.Include(x => x.Store)
+                .Where(x => x.UserId == userId && x.Store.IsActive).ToListAsync())
+                .Where(x => StoreSubscriptionAccess.CanSignIn(x.Store, DateTimeOffset.UtcNow)).ToList();
             var selectedMembership = memberships.SingleOrDefault(x => x.StoreId == request.StoreId);
             if (selectedMembership is null) return Results.Forbid();
 
@@ -294,13 +295,6 @@ public static class AuthenticationEndpoints
         }
     }
 
-    private static bool IsSubscriptionAvailable(Store store, DateTimeOffset now) =>
-        store.IsActive &&
-        ((string.Equals(store.SubscriptionStatus, "Active", StringComparison.OrdinalIgnoreCase) &&
-          (!store.SubscriptionExpiresAt.HasValue || store.SubscriptionExpiresAt.Value > now)) ||
-         (string.Equals(store.SubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase) &&
-          store.TrialEndsAt.HasValue && store.TrialEndsAt.Value > now));
-
     private static List<string> NormalizeRoleNames(IEnumerable<string>? roleNames) =>
         (roleNames ?? []).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
@@ -337,6 +331,11 @@ public static class AuthenticationEndpoints
             foreach (var claim in await roles.GetClaimsAsync(role))
                 if (claim.Type == PermissionClaim && StorePermissions.All.ContainsKey(claim.Value)) permissions.Add(claim.Value);
         }
+        var selectedStore = memberships.Single(x => x.StoreId == storeId).Store;
+        var now = DateTimeOffset.UtcNow;
+        var subscriptionExpired = !string.Equals(user.Email, ownerEmail, StringComparison.OrdinalIgnoreCase) &&
+            StoreSubscriptionAccess.IsExpired(selectedStore, now);
+        var subscriptionExpiresAt = StoreSubscriptionAccess.GetExpiry(selectedStore);
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
@@ -354,7 +353,8 @@ public static class AuthenticationEndpoints
         var stores = memberships.Select(x => new StoreSummary(x.StoreId, x.Store.Name, x.Store.Code, x.IsDefault)).ToArray();
         return Results.Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token), userId = user.Id, email = user.Email,
             roles = userRoles, permissions = permissions.Order().ToArray(), activeStoreId = storeId, stores,
-            isApplicationOwner = string.Equals(user.Email, ownerEmail, StringComparison.OrdinalIgnoreCase) });
+            isApplicationOwner = string.Equals(user.Email, ownerEmail, StringComparison.OrdinalIgnoreCase),
+            subscriptionExpired, subscriptionExpiresAt });
     }
 
     private static async Task<bool> IsMemberOfStoreAsync(StoreDb db, string userId, CurrentStoreContext currentStore) =>
@@ -376,4 +376,3 @@ public static class AuthenticationEndpoints
     private sealed record RoleSummary(string Id, string Name, string[] Permissions, PermissionSummary[] AvailablePermissions, bool CanAssign);
     private sealed record PermissionSummary(string Key, string Label);
 }
-
