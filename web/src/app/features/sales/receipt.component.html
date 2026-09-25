@@ -3,7 +3,7 @@
     <h3>Receipt · {{ receipt().invoiceNumber }}</h3>
     <div>
       <button class="text-button" (click)="closed.emit()">Close</button>
-      <button class="secondary" (click)="printReceipt()">Print receipt</button>
+      <button class="secondary" (click)="printReceipt()">Print / save as PDF</button>
     </div>
   </div>
   <div class="receipt-paper">

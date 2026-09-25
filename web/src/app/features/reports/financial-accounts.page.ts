@@ -8,6 +8,7 @@ import { TablePaginationComponent } from '../../shared/ui/table-pagination.compo
 import { ReportsApi } from './reports.api';
 import { DetailedReport, PayablesReport, ReceivablesReport } from './reports.models';
 import { pageSlice, TABLE_PAGE_SIZE } from '../../shared/ui/table-pagination.component';
+import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
 
 type FinancialTab = 'profit-loss' | 'payables' | 'receivables';
 const currentMonth = new Date().toISOString().slice(0, 7);
@@ -166,6 +167,36 @@ export class FinancialAccountsPage extends PageFeedback implements OnInit {
     this.customerInvoicePage.update(current => ({ ...current, [id]: 1 }));
   }
   setCustomerInvoicePage(id: number, page: number): void { this.customerInvoicePage.update(current => ({ ...current, [id]: page })); }
+
+  downloadSupplierLedger(supplierId: number): void {
+    const supplier = this.payables()?.suppliers.find(row => row.supplierId === supplierId); if (!supplier) return;
+    const rows: (string | number | null | undefined)[][] = [];
+    for (const invoice of supplier.invoices) {
+      rows.push(['Invoice', invoice.supplierInvoice, invoice.createdAt, invoice.total, invoice.returned,
+        invoice.paid, invoice.balance, '', '', '']);
+      for (const item of invoice.returns) rows.push(['Return', invoice.supplierInvoice, item.createdAt,
+        '', item.amount, '', '', item.supplierReference, item.reason, '']);
+      for (const payment of invoice.payments) rows.push(['Payment', invoice.supplierInvoice, payment.paidAt,
+        '', '', payment.amount, '', payment.method, payment.reference, '']);
+    }
+    downloadCsv(`supplier-ledger-${safeFilename(supplier.supplier)}.csv`,
+      ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance', 'Method / reference', 'Return reason', 'Notes'], rows);
+  }
+
+  downloadCustomerLedger(customerId: number): void {
+    const customer = this.receivables()?.customers.find(row => row.customerId === customerId); if (!customer) return;
+    const rows: (string | number | null | undefined)[][] = [
+      ['Account summary', '', '', '', '', customer.paidTotal, customer.amountDue],
+    ];
+    for (const invoice of customer.invoices) {
+      rows.push(['Invoice', invoice.invoiceNumber, invoice.createdAt, invoice.total, invoice.returned, invoice.paid, invoice.due]);
+      for (const payment of invoice.payments) rows.push([
+        'Payment', invoice.invoiceNumber, payment.paidAt, '', '', payment.amount, '', payment.method, payment.reference,
+      ]);
+    }
+    downloadCsv(`customer-ledger-${safeFilename(customer.customer)}.csv`,
+      ['Record type', 'Invoice', 'Date', 'Sale total', 'Returned', 'Paid total', 'Due', 'Payment method', 'Payment reference'], rows);
+  }
 
   download(type: string): Promise<void> {
     return this.perform(async () => {

@@ -9,6 +9,7 @@ import { Supplier, CreateSupplier } from './suppliers.models';
 import { AuthSession } from '../authentication/public-api';
 import { PurchasesApi, SupplierStatement } from '../purchases/public-api';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
+import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
 
 @Component({
   selector: 'app-suppliers-page',
@@ -83,6 +84,23 @@ export class SuppliersPage extends PageFeedback implements OnInit {
     return this.perform(async () => this.statement.set(await this.purchasesApi.supplierStatement(supplier.id)));
   }
   closeLedger(): void { this.statement.set(null); }
+  downloadLedger(): void {
+    const account = this.statement(); if (!account) return;
+    const rows: (string | number | null | undefined)[][] = [];
+    for (const invoice of account.invoices) {
+      rows.push(['Invoice', invoice.supplierInvoice, invoice.createdAt, invoice.total, invoice.returnedTotal,
+        invoice.paidTotal, this.balance(invoice), '', '', '', '']);
+      for (const line of invoice.lines) rows.push(['Purchase line', invoice.supplierInvoice, invoice.createdAt,
+        line.quantity * line.unitCost, '', '', '', line.medicine, line.batch, line.quantity, line.unitCost]);
+      for (const item of invoice.returns) rows.push(['Return', invoice.supplierInvoice, item.createdAt,
+        '', item.total, '', '', item.supplierReference, item.reason, '', '']);
+      for (const payment of invoice.payments) rows.push(['Payment', invoice.supplierInvoice, payment.paidAt,
+        '', '', payment.amount, '', payment.method, payment.reference, '', '']);
+    }
+    downloadCsv(`supplier-ledger-${safeFilename(account.supplier)}.csv`,
+      ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance',
+        'Item / method / reference', 'Batch / reason', 'Quantity', 'Unit cost'], rows);
+  }
   balance(invoice: { total: number; returnedTotal: number; paidTotal: number }): number {
     return Math.max(0, invoice.total - invoice.returnedTotal - invoice.paidTotal);
   }

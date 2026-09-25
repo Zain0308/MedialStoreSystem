@@ -498,6 +498,10 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await accountRow.getByRole('button', { name: 'View statement' }).click();
   const statement = page.locator('.supplier-statement');
   await expect(statement).toContainText('SUP-002');
+  const [supplierLedgerDownload] = await Promise.all([
+    page.waitForEvent('download'), statement.getByRole('button', { name: 'Download full ledger CSV' }).click(),
+  ]);
+  expect(supplierLedgerDownload.suggestedFilename()).toBe('supplier-ledger-City-Pharma.csv');
   await statement.getByRole('button', { name: 'Invoice details' }).click();
   const invoiceDetail = page.locator('.panel.form-panel').filter({ hasText: 'Invoice SUP-002' });
   await expect(invoiceDetail).toContainText('RET-002');
@@ -539,6 +543,14 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await expect(customerRow).toContainText('Rs 0.00');
   await customerRow.getByRole('button', { name: 'Ledger' }).click();
   await expect(page.locator('.customer-ledger')).toContainText('INV-00000001');
+  const [customerLedgerDownload] = await Promise.all([
+    page.waitForEvent('download'), page.locator('.customer-ledger').getByRole('button', { name: 'Download full ledger CSV' }).click(),
+  ]);
+  expect(customerLedgerDownload.suggestedFilename()).toBe('customer-ledger-Ayesha-Khan.csv');
+  await page.locator('.customer-ledger').getByRole('button', { name: 'View / print receipt' }).click();
+  await expect(page.locator('.receipt')).toContainText('MEDICAL STORE');
+  await expect(page.locator('.receipt')).toContainText('INV-00000001');
+  await page.locator('.receipt').getByRole('button', { name: 'Close' }).click();
   await page.locator('.customer-ledger').getByLabel('Amount (Rs)').fill('5');
   await page.locator('.customer-ledger').getByRole('button', { name: 'Record payment' }).click();
   await expect(page.getByText('Customer payment recorded.')).toBeVisible();

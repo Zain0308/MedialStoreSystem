@@ -7,11 +7,16 @@ import { AuthSession } from '../authentication/public-api';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 import { CustomersApi } from './customers.api';
 import { Customer, CustomerLedger, SaveCustomer } from './customers.models';
+import { SalesApi } from '../sales/sales.api';
+import { Receipt } from '../sales/sales.models';
+import { ReceiptComponent } from '../sales/receipt.component';
+import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
 
-@Component({ selector: 'app-customers-page', imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
+@Component({ selector: 'app-customers-page', imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, ReceiptComponent],
   styleUrl: './customers.page.css', templateUrl: './customers.page.html' })
 export class CustomersPage extends PageFeedback implements OnInit {
   private readonly api = inject(CustomersApi);
+  private readonly salesApi = inject(SalesApi);
   readonly session = inject(AuthSession);
   readonly customers = signal<Customer[]>([]);
   readonly search = signal('');
@@ -20,6 +25,7 @@ export class CustomersPage extends PageFeedback implements OnInit {
   readonly ledgerPage = signal(1);
   readonly pageSize = TABLE_PAGE_SIZE;
   readonly ledger = signal<CustomerLedger | null>(null);
+  readonly receipt = signal<Receipt | null>(null);
   readonly editingId = signal<number | null>(null);
   readonly visibleCustomers = computed(() => {
     const term = this.search().trim().toLocaleLowerCase();
@@ -51,6 +57,23 @@ export class CustomersPage extends PageFeedback implements OnInit {
   }
   openLedger(customer: Customer): Promise<void> { this.ledgerPage.set(1); return this.perform(async () => this.ledger.set(await this.api.ledger(customer.id))); }
   closeLedger(): void { this.ledger.set(null); this.ledgerPage.set(1); }
+  downloadLedger(): void {
+    const account = this.ledger(); if (!account) return;
+    const rows: (string | number | null | undefined)[][] = [
+      ['Account summary', '', '', '', '', account.paidTotal, account.receivable],
+    ];
+    for (const invoice of account.invoices) {
+      rows.push(['Invoice', invoice.invoiceNumber, invoice.createdAt, invoice.total, invoice.returned, invoice.paid, this.due(invoice)]);
+      for (const payment of invoice.payments) rows.push([
+        'Payment', invoice.invoiceNumber, payment.paidAt, '', '', payment.amount, '', payment.method, payment.reference,
+      ]);
+    }
+    downloadCsv(`customer-ledger-${safeFilename(account.customer.name)}.csv`,
+      ['Record type', 'Invoice', 'Date', 'Sale total', 'Returned', 'Paid total', 'Due', 'Payment method', 'Payment reference'], rows);
+  }
+  viewReceipt(saleId: number): Promise<void> {
+    return this.perform(async () => this.receipt.set(await this.salesApi.receipt(saleId)));
+  }
   startPayment(invoiceId: number, due: number): void { this.payment = { invoiceId, amount: due, method: 'Cash', reference: '' }; }
   recordPayment(): Promise<void> {
     const ledger = this.ledger(); if (!ledger || this.payment.invoiceId === 0) return Promise.resolve();
