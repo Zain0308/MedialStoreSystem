@@ -35,8 +35,8 @@ BEGIN
     -- EnsureCreated may already have created the newer subscription columns.
     -- Older databases reach this script before upgrade-v4 adds those columns.
     IF COL_LENGTH(N'dbo.Stores', N'SubscriptionPlan') IS NOT NULL
-        INSERT dbo.Stores (Name, Code, IsActive, CreatedAt, SubscriptionPlan, SubscriptionStatus, TrialEndsAt)
-        VALUES (N'Main Store', N'MAIN', 1, SYSDATETIMEOFFSET(), N'Trial', N'Trial', DATEADD(day, 14, SYSDATETIMEOFFSET()));
+        EXEC sys.sp_executesql N'INSERT dbo.Stores (Name, Code, IsActive, CreatedAt, SubscriptionPlan, SubscriptionStatus, TrialEndsAt)
+            VALUES (N''Main Store'', N''MAIN'', 1, SYSDATETIMEOFFSET(), N''Trial'', N''Trial'', DATEADD(day, 14, SYSDATETIMEOFFSET()));';
     ELSE
         INSERT dbo.Stores (Name, Code, IsActive, CreatedAt) VALUES (N'Main Store', N'MAIN', 1, SYSDATETIMEOFFSET());
 END;
