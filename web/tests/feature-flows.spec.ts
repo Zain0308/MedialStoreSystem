@@ -302,17 +302,20 @@ async function mockApi(page: Page) {
         return { medicine: medicine.name, batch: 'LOT-01', quantity: line.quantity, unitPrice: 5, total: line.quantity * 5 };
       });
       const total = lines.reduce((sum: number, line: { total: number }) => sum + line.total, 0);
+      const totalDue = total - (body.discountAmount ?? 0);
+      const amountPaid = body.paymentMethod === 'Not Received' ? 0 : (body.paymentMethod === 'Cash' ? Math.min(body.cashReceived, totalDue) : body.amountPaid ?? totalDue);
+      const paymentMethod = amountPaid === 0 && body.paymentMethod === 'Not Received' ? 'Not Received' : amountPaid < totalDue ? 'Credit' : body.paymentMethod;
       const sale = { id, invoiceNumber: `INV-${String(id).padStart(8, '0')}`, createdAt: new Date().toISOString(),
         subtotal: total, discountAmount: body.discountAmount ?? 0, total: total - (body.discountAmount ?? 0),
-        paymentMethod: body.paymentMethod ?? 'Cash', returnedTotal: 0, customerId: body.customerId ?? null, paidTotal: 0 };
+        paymentMethod, returnedTotal: 0, customerId: body.customerId ?? null, paidTotal: amountPaid };
       const receiptLines = lines.map((line: { medicine: string; batch: string; quantity: number; unitPrice: number; total: number }, index: number) => ({
         saleLineId: index + 1, ...line, returnedQuantity: 0,
         discountAmount: index === 0 ? body.discountAmount ?? 0 : 0,
         total: line.total - (index === 0 ? body.discountAmount ?? 0 : 0),
       }));
       state.sales.push(sale); state.receipts[id] = { ...sale, customer: state.customers.find(c => c.id === body.customerId)?.name,
-        cashReceived: body.cashReceived, lines: receiptLines };
-      return reply({ ...sale, change: sale.paymentMethod === 'Cash' ? body.cashReceived - sale.total : 0 }, 201);
+        cashReceived: body.cashReceived, paidTotal: amountPaid, lines: receiptLines };
+      return reply({ ...sale, change: body.paymentMethod === 'Cash' ? Math.max(0, body.cashReceived - amountPaid) : 0 }, 201);
     }
     const saleReturn = path.match(/^\/api\/sales\/(\d+)\/returns$/);
     if (saleReturn && method === 'POST') {
@@ -563,6 +566,15 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await page.getByRole('button', { name: 'Record customer return' }).click();
   await expect(page.getByText(/Customer return recorded/)).toBeVisible();
   await expect(page.locator('.customer-ledger')).toContainText('Returned Rs 5.00');
+  await navigate(page, /New sale/);
+  await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
+  await page.getByLabel('Customer search').fill('Ayesha');
+  await page.getByRole('button', { name: 'Ayesha Khan', exact: true }).click();
+  await page.getByLabel('Payment method').selectOption('Card');
+  await page.getByLabel('Amount paid now').fill('2.5');
+  await page.getByRole('button', { name: /Complete sale/ }).click();
+  await expect(page.locator('.receipt')).toContainText('Balance due');
+  await expect(page.locator('.receipt')).toContainText('Rs 2.50');
 });
 
 test('store users can create expense categories, record expenses and filter the ledger by date', async ({ page }) => {

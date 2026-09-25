@@ -16,6 +16,7 @@ export interface Receipt {
   subtotal: number;
   discountAmount: number;
   paymentMethod: string;
+  paidTotal: number;
   customer?: string | null;
   returnedTotal: number;
   lines: { saleLineId: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitPrice: number; discountAmount: number; total: number }[];
@@ -26,6 +27,7 @@ export interface CreateSale {
   discountAmount: number;
   paymentMethod: string;
   customerId?: number | null;
+  amountPaid?: number;
 }
 export interface SaleResult {
   id: number;

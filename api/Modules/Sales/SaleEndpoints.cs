@@ -22,7 +22,7 @@ public static class SaleEndpoints
             var isNotReceived = string.Equals(method, "Not Received", StringComparison.OrdinalIgnoreCase);
             var paymentMethods = new[] { "Cash", "Card", "Bank Transfer", "Mobile Wallet", "Not Received" };
             if (input.Lines is null || input.Lines.Count == 0 || input.Lines.Any(x => x.Quantity <= 0) ||
-                input.CashReceived < 0 || input.DiscountAmount < 0 || method is null ||
+                input.CashReceived < 0 || input.AmountPaid < 0 || input.DiscountAmount < 0 || method is null ||
                 !paymentMethods.Contains(method, StringComparer.OrdinalIgnoreCase))
                 return Results.BadRequest("Select items, enter positive quantities and valid discount, tender and payment method.");
             method = paymentMethods.Single(x => string.Equals(x, method, StringComparison.OrdinalIgnoreCase));
@@ -67,8 +67,19 @@ public static class SaleEndpoints
             sale.DiscountAmount = decimal.Round(input.DiscountAmount, 2);
             if (sale.DiscountAmount > sale.Subtotal) return Results.BadRequest("Discount cannot exceed the sale subtotal.");
             sale.Total = sale.Subtotal - sale.DiscountAmount;
-            if (isCash && input.CashReceived < sale.Total)
-                return Results.BadRequest($"Cash received must be at least {sale.Total:0.00}.");
+            var amountPaid = isNotReceived ? 0m : isCash
+                ? Math.Min(input.CashReceived, sale.Total)
+                : input.AmountPaid ?? sale.Total;
+            if (amountPaid < 0 || amountPaid > sale.Total)
+                return Results.BadRequest($"Amount paid must be between 0 and {sale.Total:0.00}.");
+            if (amountPaid < sale.Total && customer is null)
+                return Results.BadRequest("Choose a customer to keep the unpaid balance on their account.");
+            if (isCash && input.CashReceived < sale.Total && customer is null)
+                return Results.BadRequest($"Cash received must be at least {sale.Total:0.00} unless the customer has an account.");
+            var tenderMethod = method;
+            sale.PaymentMethod = amountPaid == 0 && isNotReceived ? "Not Received"
+                : amountPaid < sale.Total ? "Credit" : method;
+            sale.CashReceived = isCash ? input.CashReceived : 0;
             var distributedDiscount = 0m;
             for (var i = 0; i < sale.Lines.Count; i++)
             {
@@ -82,13 +93,17 @@ public static class SaleEndpoints
             db.Sales.Add(sale);
             await db.SaveChangesAsync();
             sale.InvoiceNumber = $"INV-{sale.Id:D8}";
+            if (amountPaid > 0 && amountPaid < sale.Total && customer is not null)
+                db.CustomerPayments.Add(new CustomerPayment { CustomerId = customer.Id, SaleId = sale.Id,
+                    Amount = amountPaid, Method = tenderMethod });
             foreach (var (batch, taken) in movements)
                 db.StockMovements.Add(new StockMovement { BatchId = batch.Id, Type = "Sale", ReferenceId = sale.Id,
                     QuantityChange = -taken, BalanceAfter = batch.Quantity, Reason = sale.InvoiceNumber, ActorId = sale.CashierId });
             await db.SaveChangesAsync();
             await tx.CommitAsync();
             return Results.Created($"/api/sales/{sale.Id}", new { sale.Id, sale.InvoiceNumber, sale.Subtotal, sale.DiscountAmount,
-                sale.Total, sale.PaymentMethod, sale.CustomerId, change = isCash ? sale.CashReceived - sale.Total : 0 });
+                sale.Total, sale.PaymentMethod, sale.CustomerId, paidNow = amountPaid,
+                balance = sale.Total - amountPaid, change = isCash ? Math.Max(0, sale.CashReceived - amountPaid) : 0 });
         }).RequireAuthorization(StorePermissions.SalesCreate);
 
         api.MapGet("/sales", async (StoreDb db) => Results.Ok(await db.Sales.AsNoTracking().OrderByDescending(x => x.Id)
@@ -101,6 +116,7 @@ public static class SaleEndpoints
             var sale = await db.Sales.Where(x => x.Id == id).Select(x => new
             {
                 x.Id, x.InvoiceNumber, x.CreatedAt, x.Subtotal, x.DiscountAmount, x.Total, x.CashReceived, x.PaymentMethod,
+                paidTotal = db.CustomerPayments.Where(p => p.SaleId == x.Id).Sum(p => (decimal?)p.Amount) ?? 0,
                 customer = x.CustomerId == null ? null : db.Customers.Where(c => c.Id == x.CustomerId).Select(c => c.Name).FirstOrDefault(),
                 returnedTotal = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
                 lines = x.Lines.Select(y => new { saleLineId = y.Id, medicine = y.Batch.Medicine.Name, batch = y.Batch.Number,

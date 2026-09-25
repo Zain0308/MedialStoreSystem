@@ -37,6 +37,7 @@ export class PosPage extends PageFeedback implements OnInit {
   readonly receipt = signal<Receipt | null>(null);
   search = '';
   discountAmount = 0;
+  amountPaid: number | null = null;
   paymentMethod = 'Cash';
   readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet', 'Not Received'];
   ngOnInit(): void {
@@ -91,6 +92,11 @@ export class PosPage extends PageFeedback implements OnInit {
     return this.cart.items().reduce((sum, row) => sum + row.quantity * this.price(row.medicine), 0);
   }
   get due(): number { return Math.max(0, this.estimate - Number(this.discountAmount || 0)); }
+  get paidNow(): number {
+    if (this.paymentMethod === 'Not Received') return 0;
+    if (this.paymentMethod === 'Cash') return Math.min(this.cart.cashReceived(), this.due);
+    return this.amountPaid ?? this.due;
+  }
   get validCart(): boolean {
     return this.cart.items().every((row) => Number.isInteger(row.quantity) && row.quantity > 0);
   }
@@ -105,10 +111,11 @@ export class PosPage extends PageFeedback implements OnInit {
         discountAmount: +this.discountAmount,
         paymentMethod: this.paymentMethod,
         customerId: this.customerId,
+        amountPaid: this.paidNow,
       });
       // A successful POST has already committed the sale. Clear the cart before loading its receipt.
       this.cart.clear();
-      this.discountAmount = 0; this.paymentMethod = 'Cash';
+      this.discountAmount = 0; this.paymentMethod = 'Cash'; this.amountPaid = null;
       this.customerId = null;
       this.customerSearch.set('');
       this.receipt.set(null);

@@ -29,9 +29,12 @@
     <div class="receipt-line">
       <b>TOTAL</b><b>Rs {{ receipt().total | number: '1.2-2' }}</b>
     </div>
-    <div class="receipt-line">
-      <span>Payment · {{ receipt().paymentMethod }}</span><span>Rs {{ receipt().total | number: '1.2-2' }}</span>
-    </div>
+    @if (receipt().paymentMethod === 'Credit' || receipt().paymentMethod === 'Not Received') {
+      <div class="receipt-line"><span>Paid to date</span><span>Rs {{ receipt().paidTotal | number:'1.2-2' }}</span></div>
+      <div class="receipt-line"><b>Balance due</b><b>Rs {{ receipt().total - receipt().returnedTotal - receipt().paidTotal | number:'1.2-2' }}</b></div>
+    } @else {
+      <div class="receipt-line"><span>Payment · {{ receipt().paymentMethod }}</span><span>Rs {{ receipt().total | number: '1.2-2' }}</span></div>
+    }
     @if (receipt().paymentMethod === 'Cash') { <div class="receipt-line"><span>Cash tendered</span><span>Rs {{ receipt().cashReceived | number:'1.2-2' }}</span></div>
       <div class="receipt-line"><span>Change</span><span>Rs {{ receipt().cashReceived - receipt().total | number:'1.2-2' }}</span></div> }
     @if (receipt().returnedTotal > 0) { <div class="receipt-line"><span>Returned</span><span>Rs {{ receipt().returnedTotal | number:'1.2-2' }}</span></div> }

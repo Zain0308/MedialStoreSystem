@@ -78,17 +78,25 @@
         <label>Payment method<select aria-label="Payment method" [(ngModel)]="paymentMethod">
           @for (method of paymentMethods; track method) { <option [value]="method">{{ method }}</option> }
         </select></label>
-        @if (paymentMethod === 'Cash') { <label>Cash received (Rs)
+        @if (paymentMethod === 'Cash') { <label>Cash received now (Rs)
           <input
             type="number"
             min="0"
             step="0.01"
             [ngModel]="cart.cashReceived()"
             (ngModelChange)="cart.cashReceived.set($event)" /></label> }
+        @if (paymentMethod !== 'Cash' && paymentMethod !== 'Not Received') { <label>Amount paid now (Rs)
+          <input aria-label="Amount paid now" type="number" min="0" [max]="due" step="0.01"
+            [ngModel]="amountPaid ?? due" (ngModelChange)="amountPaid = $event" />
+        </label> }
+        @if (customerId && paymentMethod !== 'Not Received' && paidNow < due) {
+          <p class="field-hint">Rs {{ paidNow | number:'1.2-2' }} paid now · Rs {{ due - paidNow | number:'1.2-2' }} will remain due on this customer's account.</p>
+        }
+        @if (paymentMethod === 'Not Received') { <p class="field-hint">The full amount will be added to this customer's due balance.</p> }
         <button
           class="primary full"
           [disabled]="
-            busy() || cart.items().length === 0 || discountAmount < 0 || discountAmount > estimate || (paymentMethod === 'Cash' && cart.cashReceived() < due) || (paymentMethod === 'Not Received' && !customerId) || !validCart
+            busy() || cart.items().length === 0 || discountAmount < 0 || discountAmount > estimate || (paymentMethod === 'Cash' && cart.cashReceived() < due && !customerId) || (paymentMethod === 'Not Received' && !customerId) || (paidNow < due && !customerId) || (paymentMethod !== 'Cash' && paymentMethod !== 'Not Received' && ((amountPaid ?? due) < 0 || (amountPaid ?? due) > due)) || !validCart
           "
           (click)="completeSale()"
         >

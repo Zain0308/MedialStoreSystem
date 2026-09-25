@@ -9,7 +9,7 @@ This is the user-approved architecture for Medical Store. The system has one API
 | Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue metadata, editing and soft deactivation |
 | Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, audited adjustments, damaged stock and movement history |
 | Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receiving, history, supplier returns and invoice payments |
-| Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, discounts, multiple tenders, unpaid sales, receipts, returns and sales history |
+| Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, discounts, multiple tenders, partial and unpaid sales, receipts, returns and sales history |
 | Customers | `api/Modules/Customers` | `web/src/app/features/customers` | Store-scoped records, paid/due totals, unpaid invoice ledger and payment collection |
 | Suppliers | `api/Modules/Suppliers` | `web/src/app/features/suppliers` | Supplier contact details, edit/deactivation, search and purchase ledger |
 | Expenses | `api/Modules/Expenses` | `web/src/app/features/expenses` | Store-scoped categories, expense entry and date/category filters |
