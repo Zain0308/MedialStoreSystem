@@ -509,7 +509,7 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await expect(invoiceDetail).toContainText('Payment');
   await navigate(page, /Inventory/);
   await expect(page.getByRole('row').filter({ hasText: 'VC-02' })).toContainText('9');
-  await page.getByLabel('Batch to adjust').fill('VC-02');
+  await page.getByPlaceholder('Type medicine or batch number').fill('VC-02');
   await page.getByRole('option').filter({ hasText: 'Vitamin C' }).filter({ hasText: 'VC-02' }).click();
   await page.getByLabel('Reason', { exact: true }).fill('Broken units');
   await page.getByRole('button', { name: 'Record movement' }).click();
@@ -549,7 +549,7 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
     page.waitForEvent('download'), page.locator('.customer-ledger').getByRole('button', { name: 'Download full ledger CSV' }).click(),
   ]);
   expect(customerLedgerDownload.suggestedFilename()).toBe('customer-ledger-Ayesha-Khan.csv');
-  await page.locator('.customer-ledger').getByRole('button', { name: 'View / print receipt' }).click();
+  await page.locator('.customer-ledger').getByRole('button', { name: 'View receipt / process return' }).click();
   await expect(page.locator('.receipt')).toContainText('MEDICAL STORE');
   await expect(page.locator('.receipt')).toContainText('INV-00000001');
   await page.locator('.receipt').getByRole('button', { name: 'Close' }).click();
