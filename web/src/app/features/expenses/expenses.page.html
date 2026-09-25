@@ -1,0 +1,28 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content">
+  @if (session.hasPermission('expenses.manage')) {
+    <div class="expense-grid">
+      <section class="panel"><div class="panel-head"><div><h3>Record expense</h3><p>Log store operating costs.</p></div></div>
+        <form class="expense-form" (ngSubmit)="addExpense()">
+          <label>Category<select name="category" [(ngModel)]="form.categoryId" required><option [ngValue]="0">Choose category</option>@for(c of categories();track c.id){@if(c.isActive){<option [ngValue]="c.id">{{c.name}}</option>}}</select></label>
+          <label>Description<input name="description" [(ngModel)]="form.description" required maxlength="240" /></label>
+          <label>Amount (Rs)<input name="amount" type="number" min="0.01" step="0.01" [(ngModel)]="form.amount" required /></label>
+          <label>Date<input name="date" type="date" [(ngModel)]="form.expenseDate" required /></label>
+          <label>Payment method<select name="method" [(ngModel)]="form.paymentMethod">@for(m of methods;track m){<option [value]="m">{{m}}</option>}</select></label>
+          <label>Reference<input name="reference" [(ngModel)]="form.reference" maxlength="100" placeholder="Optional" /></label>
+          <label class="wide">Notes<textarea name="notes" [(ngModel)]="form.notes" maxlength="500" rows="2"></textarea></label>
+          <button class="secondary">Record expense</button>
+        </form>
+      </section>
+      <section class="panel"><div class="panel-head"><div><h3>Expense categories</h3><p>Organize operating expenses.</p></div></div>
+        <form class="category-form" (ngSubmit)="addCategory()"><input aria-label="New category" [ngModel]="categoryName()" (ngModelChange)="categoryName.set($event)" name="category-name" required maxlength="100" placeholder="e.g. Utilities" /><button class="secondary">Add</button></form>
+        @for(c of categories();track c.id){<div class="category-row"><span>{{c.name}} · {{c.isActive?'Active':'Inactive'}}</span><button class="text-button" (click)="toggleCategory(c)">{{c.isActive?'Deactivate':'Activate'}}</button></div>}
+      </section>
+    </div>
+  }
+  <section class="panel"><div class="panel-head"><div><h3>Expense history</h3><p>{{expenses().length}} entries · Total Rs {{total() | number:'1.2-2'}}</p></div></div>
+    <div class="expense-filters"><label>From<input aria-label="Expense from date" type="date" [ngModel]="filterFrom()" (ngModelChange)="filterFrom.set($event)" /></label><label>To<input aria-label="Expense to date" type="date" [ngModel]="filterTo()" (ngModelChange)="filterTo.set($event)" /></label><label>Category<select aria-label="Expense category filter" [ngModel]="filterCategory()" (ngModelChange)="filterCategory.set($event ? +$event : null)"><option [ngValue]="null">All categories</option>@for(c of categories();track c.id){<option [ngValue]="c.id">{{c.name}}</option>}</select></label><button class="secondary" (click)="applyFilter()">Apply filter</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Method</th><th>Reference</th><th>Amount</th></tr></thead><tbody>@for(e of expenses();track e.id){<tr><td>{{e.expenseDate | date:'mediumDate'}}</td><td>{{e.category}}</td><td>{{e.description}}</td><td>{{e.paymentMethod}}</td><td>{{e.reference||'—'}}</td><td>Rs {{e.amount | number:'1.2-2'}}</td></tr>}</tbody></table></div>
+    @if(!expenses().length){<p class="empty">No expenses for this filter.</p>}
+  </section>
+</div>

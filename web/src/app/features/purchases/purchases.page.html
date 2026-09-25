@@ -11,7 +11,9 @@
           <select name="p-supplier" [(ngModel)]="purchase.supplierId" required>
             <option [ngValue]="0" disabled>Select supplier</option>
             @for (s of suppliers(); track s.id) {
+              @if (s.isActive) {
               <option [ngValue]="s.id">{{ s.name }}</option>
+              }
             }
           </select></label
         >

@@ -16,7 +16,7 @@ public static class PurchaseEndpoints
                 input.Lines.Any(x => x.Quantity <= 0 || x.CostPrice < 0 || x.SalePrice < 0 ||
                     x.ExpiryDate < DateOnly.FromDateTime(DateTime.UtcNow) || string.IsNullOrWhiteSpace(x.BatchNumber)))
                 return Results.BadRequest("Invoice, lines, positive quantities, valid prices and future expiry are required.");
-            if (!await db.Suppliers.AnyAsync(x => x.Id == input.SupplierId)) return Results.BadRequest("Supplier not found.");
+            if (!await db.Suppliers.AnyAsync(x => x.Id == input.SupplierId && x.IsActive)) return Results.BadRequest("Supplier not found or inactive.");
             var ids = input.Lines.Select(x => x.MedicineId).Distinct().ToArray();
             if (await db.Medicines.CountAsync(x => ids.Contains(x.Id) && x.IsActive) != ids.Length) return Results.BadRequest("Medicine not found or inactive.");
             var invoice = input.SupplierInvoice.Trim();

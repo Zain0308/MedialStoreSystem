@@ -70,4 +70,16 @@
       }
     </section>
   </div>
+  @if (detail(); as report) {
+    <section class="panel report-detail">
+      <div class="panel-head"><div><h3>Detailed reports</h3><p>Sales, current inventory valuation, operating expenses and estimated profit.</p></div></div>
+      <div class="report-toolbar"><label>From<input aria-label="Report from date" type="date" [(ngModel)]="fromDate" /></label><label>To<input aria-label="Report to date" type="date" [(ngModel)]="toDate" /></label><button class="secondary" (click)="loadDetails()">Apply dates</button></div>
+      <div class="report-export"><button class="text-button" (click)="download('sales')">Export sales CSV</button><button class="text-button" (click)="download('inventory')">Export inventory CSV</button><button class="text-button" (click)="download('expenses')">Export expenses CSV</button><button class="text-button" (click)="download('profit')">Export profit CSV</button></div>
+      <div class="stats report-stats"><div class="stat"><span>NET SALES</span><strong>Rs {{ report.netSales | number:'1.2-2' }}</strong><small>Returns: Rs {{ report.returnedTotal | number:'1.2-2' }}</small></div><div class="stat"><span>COST OF GOODS</span><strong>Rs {{ report.costOfGoods | number:'1.2-2' }}</strong><small>Sold stock cost</small></div><div class="stat"><span>EXPENSES</span><strong>Rs {{ report.expenseTotal | number:'1.2-2' }}</strong><small>Selected period</small></div><div class="stat" [class.warning]="report.netProfit < 0"><span>ESTIMATED NET PROFIT</span><strong>Rs {{ report.netProfit | number:'1.2-2' }}</strong><small>Net sales − cost − expenses</small></div></div>
+      <div class="panel-head report-subhead"><h3>Sales detail</h3><span>{{ report.sales.length }} invoices</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Method</th><th>Discount</th><th>Net sales</th><th>Cost</th><th>Profit</th></tr></thead><tbody>@for(s of report.sales;track s.invoiceNumber){<tr><td>{{s.invoiceNumber}}</td><td>{{s.createdAt | date:'short'}}</td><td>{{s.customer||'Walk-in'}}</td><td>{{s.paymentMethod}}</td><td>Rs {{s.discountAmount | number:'1.2-2'}}</td><td>Rs {{s.netSales | number:'1.2-2'}}</td><td>Rs {{s.cost | number:'1.2-2'}}</td><td>Rs {{s.netSales-s.cost | number:'1.2-2'}}</td></tr>}</tbody></table></div>
+      <div class="panel-head report-subhead"><h3>Current inventory valuation</h3><span>Cost Rs {{ report.inventoryCostValue | number:'1.2-2' }} · Sale value Rs {{ report.inventorySaleValue | number:'1.2-2' }}</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Medicine</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Cost value</th><th>Sale value</th></tr></thead><tbody>@for(i of report.inventory;track i.batch+i.medicine){<tr><td>{{i.medicine}}</td><td>{{i.batch}}</td><td>{{i.expiryDate | date:'mediumDate'}}</td><td>{{i.quantity}}</td><td>Rs {{i.costValue | number:'1.2-2'}}</td><td>Rs {{i.saleValue | number:'1.2-2'}}</td></tr>}</tbody></table></div>
+    </section>
+  }
 </div>

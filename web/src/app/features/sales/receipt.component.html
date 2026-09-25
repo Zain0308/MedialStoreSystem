@@ -10,6 +10,7 @@
     <div class="receipt-logo">✚</div>
     <h3>MEDICAL STORE</h3>
     <p>{{ receipt().invoiceNumber }}<br />{{ receipt().createdAt | date: 'medium' }}</p>
+    @if (receipt().customer) { <p>Customer: {{ receipt().customer }}</p> }
     <div class="receipt-rule"></div>
     @for (line of receipt().lines; track $index) {
       <div class="receipt-line">

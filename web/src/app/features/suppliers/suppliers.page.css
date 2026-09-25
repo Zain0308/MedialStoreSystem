@@ -61,6 +61,22 @@
   margin-top: 16px;
 }
 
+.supplier-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.supplier-filter select {
+  width: 100%;
+  border: 1px solid var(--border, #dfe4ec);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
 .supplier-card {
   display: flex;
   align-items: flex-start;

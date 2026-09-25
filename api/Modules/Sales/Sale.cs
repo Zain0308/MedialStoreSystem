@@ -1,4 +1,5 @@
 using MedicalStore.Api.Infrastructure.Persistence;
+using MedicalStore.Api.Modules.Customers;
 
 namespace MedicalStore.Api.Modules.Sales;
 
@@ -12,6 +13,7 @@ public sealed class Sale : IStoreScoped
     public decimal Subtotal { get; set; }
     public decimal DiscountAmount { get; set; }
     public string PaymentMethod { get; set; } = "Cash";
+    public long? CustomerId { get; set; }
     public decimal CashReceived { get; set; }
     public string CashierId { get; set; } = "";
     public List<SaleLine> Lines { get; set; } = [];

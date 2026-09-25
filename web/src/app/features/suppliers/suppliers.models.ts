@@ -5,6 +5,7 @@ export interface Supplier {
   contactPerson?: string;
   email?: string;
   address?: string;
+  isActive: boolean;
 }
 export interface CreateSupplier {
   name: string;

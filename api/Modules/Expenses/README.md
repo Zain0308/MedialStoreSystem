@@ -1,7 +1,7 @@
 # Expenses
 
-Status: planned, not implemented.
+Status: implemented; registered from `MedicalStoreModules.cs`.
 
 Scope: Expense categories, expense entry and links to financial reports.
 
-Add this module's endpoints, request models, entities and EF configurations here. Register implemented endpoints in `Modules/MedicalStoreModules.cs`; do not register placeholder routes.
+Owns store-scoped expense categories and entries, with date and category filters. Reports includes these entries in its net profit calculation and CSV exports.

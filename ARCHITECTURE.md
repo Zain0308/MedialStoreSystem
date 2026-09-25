@@ -9,11 +9,11 @@ This is the user-approved architecture for Medical Store. The system has one API
 | Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue metadata, editing and soft deactivation |
 | Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, audited adjustments, damaged stock and movement history |
 | Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receiving, history, supplier returns and invoice payments |
-| Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, discounts, multiple tenders, receipts, returns and sales history |
-| Customers | `api/Modules/Customers` | `web/src/app/features/customers` | Planned; functionality pending |
-| Suppliers | `api/Modules/Suppliers` | `web/src/app/features/suppliers` | Supplier list and creation |
-| Expenses | `api/Modules/Expenses` | `web/src/app/features/expenses` | Planned; functionality pending |
-| Reports | `api/Modules/Reports` | `web/src/app/features/reports` | Dashboard; detailed reports pending |
+| Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, discounts, multiple tenders, customer credit, receipts, returns and sales history |
+| Customers | `api/Modules/Customers` | `web/src/app/features/customers` | Store-scoped records, credit limits, invoice ledger and payment collection |
+| Suppliers | `api/Modules/Suppliers` | `web/src/app/features/suppliers` | Supplier contact details, edit/deactivation, search and purchase ledger |
+| Expenses | `api/Modules/Expenses` | `web/src/app/features/expenses` | Store-scoped categories, expense entry and date/category filters |
+| Reports | `api/Modules/Reports` | `web/src/app/features/reports` | Sales, inventory valuation, operating expenses, estimated profit and CSV exports |
 
 ## Backend ownership
 
@@ -33,12 +33,12 @@ The Application Owner is identified by the configured `Bootstrap:Email` account 
 - `shared/ui` contains presentation helpers only; it does not own catalogue, purchase or sales data.
 - Sales owns the cart store and receipt component. The cart survives navigation and clears on logout or successful checkout. A receipt-loading failure after checkout must not leave a completed cart available for accidental resubmission.
 - Feature-specific styles stay with their component. Common controls and print rules stay in `src/styles.css`.
-- Customers and Expenses are documented feature directories without registered routes until implemented.
+- Customers and Expenses have separate lazy routes and store permissions; POS can look up active customers using its sales-create permission.
 
 ## Validation
 
 Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
 
-At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`; v4 adds subscriptions, trial dates and store feature grants; v5 adds optional supplier contact details. Existing business rows are preserved.
+At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`; v4 adds subscriptions, trial dates and store feature grants; v5 adds optional supplier contact details; v6 adds supplier activation, customer credit/receivables and expense tables/permissions. Existing business rows are preserved.
 
 GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.

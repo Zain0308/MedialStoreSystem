@@ -6,6 +6,8 @@ using MedicalStore.Api.Modules.Medicines;
 using MedicalStore.Api.Modules.Purchases;
 using MedicalStore.Api.Modules.Sales;
 using MedicalStore.Api.Modules.Stores;
+using MedicalStore.Api.Modules.Customers;
+using MedicalStore.Api.Modules.Expenses;
 using MedicalStore.Api.Modules.Suppliers;
 using System.Reflection;
 using System.Security;
@@ -32,6 +34,10 @@ public sealed class StoreDb(DbContextOptions<StoreDb> options, CurrentStoreConte
     public DbSet<Store> Stores => Set<Store>();
     public DbSet<StoreMembership> UserStores => Set<StoreMembership>();
     public DbSet<StorePermissionGrant> StorePermissionGrants => Set<StorePermissionGrant>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<CustomerPayment> CustomerPayments => Set<CustomerPayment>();
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
+    public DbSet<Expense> Expenses => Set<Expense>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -85,4 +91,3 @@ public sealed class StoreDb(DbContextOptions<StoreDb> options, CurrentStoreConte
         }
     }
 }
-

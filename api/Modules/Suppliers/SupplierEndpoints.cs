@@ -36,6 +36,15 @@ public static class SupplierEndpoints
             await db.SaveChangesAsync();
             return Results.Ok(supplier);
         }).RequireAuthorization(StorePermissions.SuppliersManage);
+
+        api.MapPut("/suppliers/{id:long}/status", async (long id, SupplierStatusRequest input, StoreDb db) =>
+        {
+            var supplier = await db.Suppliers.SingleOrDefaultAsync(x => x.Id == id);
+            if (supplier is null) return Results.NotFound();
+            supplier.IsActive = input.IsActive;
+            await db.SaveChangesAsync();
+            return Results.Ok(new { supplier.Id, supplier.IsActive });
+        }).RequireAuthorization(StorePermissions.SuppliersManage);
     }
 
     private static bool IsValid(SupplierRequest input) =>
@@ -45,3 +54,5 @@ public static class SupplierEndpoints
 
     private static string? Normalize(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
+
+public sealed record SupplierStatusRequest(bool IsActive);

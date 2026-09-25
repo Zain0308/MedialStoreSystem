@@ -14,4 +14,7 @@ export class SuppliersApi {
   update(id: number, input: CreateSupplier) {
     return this.api.put<Supplier>(`/suppliers/${id}`, input);
   }
+  setActive(id: number, isActive: boolean) {
+    return this.api.put<{ id: number; isActive: boolean }>(`/suppliers/${id}/status`, { isActive });
+  }
 }

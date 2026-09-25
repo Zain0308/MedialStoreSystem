@@ -1,0 +1,5 @@
+.customer-form,.payment-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;margin-bottom:8px}
+.customer-form label,.payment-form label,.filter{display:grid;gap:6px;color:var(--muted,#687386);font-size:13px;font-weight:600}
+.customer-form input,.payment-form input,.payment-form select,.filter input{width:100%;min-width:0;border:1px solid var(--border,#dfe4ec);border-radius:8px;padding:10px 12px;background:var(--surface,#fff);font:inherit}
+.form-actions,.actions{display:flex;align-items:center;gap:8px}.form-actions{grid-column:1/-1}.filter{margin:14px 0}.customer-ledger{margin-top:20px}.invoice-ledger{padding:14px 0;border-top:1px solid var(--border,#e4e8ef)}.invoice-ledger small{display:block;color:var(--muted,#687386);margin-top:4px}.invoice-ledger .panel-head{align-items:center}.payment-row{font-size:13px;color:var(--muted,#687386)}.payment-form{grid-template-columns:repeat(4,minmax(0,1fr));align-items:end}
+@media(max-width:700px){.customer-form,.payment-form{grid-template-columns:1fr}.form-actions{grid-column:auto}.actions{flex-wrap:wrap}.invoice-ledger .panel-head{align-items:flex-start;flex-direction:column}}

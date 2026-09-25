@@ -4,6 +4,7 @@ using MedicalStore.Api.Infrastructure.Persistence;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using MedicalStore.Api.Modules.Customers;
 
 namespace MedicalStore.Api.Modules.Sales;
 
@@ -11,14 +12,20 @@ public static class SaleEndpoints
 {
     public static void MapSaleEndpoints(this RouteGroupBuilder api)
     {
+        api.MapGet("/sales/customers", async (StoreDb db) => Results.Ok(await db.Customers.AsNoTracking()
+            .Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.CreditLimit }).ToListAsync()))
+            .RequireAuthorization(StorePermissions.SalesCreate);
+
         api.MapPost("/sales", async (SaleRequest input, StoreDb db, ClaimsPrincipal principal) =>
         {
             var method = input.PaymentMethod?.Trim();
-            var paymentMethods = new[] { "Cash", "Card", "Bank Transfer", "Mobile Wallet" };
+            var isCredit = string.Equals(method, "Credit", StringComparison.OrdinalIgnoreCase);
+            var paymentMethods = isCredit ? new[] { "Credit" } : new[] { "Cash", "Card", "Bank Transfer", "Mobile Wallet" };
             if (input.Lines is null || input.Lines.Count == 0 || input.Lines.Any(x => x.Quantity <= 0) ||
                 input.CashReceived < 0 || input.DiscountAmount < 0 || method is null ||
                 !paymentMethods.Contains(method, StringComparer.OrdinalIgnoreCase))
                 return Results.BadRequest("Select items, enter positive quantities and valid discount, tender and payment method.");
+            method = paymentMethods.Single(x => string.Equals(x, method, StringComparison.OrdinalIgnoreCase));
             var wanted = input.Lines.GroupBy(x => x.MedicineId).Select(x => new SaleRequestLine(x.Key, x.Sum(y => y.Quantity))).ToArray();
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var ids = wanted.Select(x => x.MedicineId).ToArray();
@@ -29,7 +36,15 @@ public static class SaleEndpoints
             var batches = await db.Batches.Where(x => ids.Contains(x.MedicineId) && x.ExpiryDate >= today && x.Quantity > 0)
                 .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Id).ToListAsync();
             var isCash = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase);
+            Customer? customer = null;
+            if (isCredit && input.CustomerId is null) return Results.BadRequest("Choose a customer for a credit sale.");
+            if (input.CustomerId is not null)
+            {
+                customer = await db.Customers.SingleOrDefaultAsync(x => x.Id == input.CustomerId && x.IsActive);
+                if (customer is null) return Results.BadRequest("Customer is unavailable in this store.");
+            }
             var sale = new Sale { InvoiceNumber = $"TMP-{Guid.NewGuid():N}", CashReceived = isCash ? input.CashReceived : 0, PaymentMethod = method,
+                CustomerId = customer?.Id,
                 CashierId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
                     ?? principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? "" };
             var movements = new List<(Batch batch, int taken)>();
@@ -52,6 +67,19 @@ public static class SaleEndpoints
             sale.DiscountAmount = decimal.Round(input.DiscountAmount, 2);
             if (sale.DiscountAmount > sale.Subtotal) return Results.BadRequest("Discount cannot exceed the sale subtotal.");
             sale.Total = sale.Subtotal - sale.DiscountAmount;
+            if (isCredit)
+            {
+                var creditSales = await db.Sales.Where(x => x.CustomerId == customer!.Id && x.PaymentMethod == "Credit").ToListAsync();
+                var balance = 0m;
+                foreach (var creditSale in creditSales)
+                {
+                    var returned = await db.SaleReturns.Where(x => x.SaleId == creditSale.Id).SumAsync(x => (decimal?)x.TotalRefund) ?? 0;
+                    var paid = await db.CustomerPayments.Where(x => x.SaleId == creditSale.Id).SumAsync(x => (decimal?)x.Amount) ?? 0;
+                    balance += Math.Max(0, creditSale.Total - returned - paid);
+                }
+                if (balance + sale.Total > customer!.CreditLimit)
+                    return Results.Conflict($"Credit limit exceeded. Current balance is {balance:0.00}; limit is {customer.CreditLimit:0.00}.");
+            }
             if (isCash && input.CashReceived < sale.Total)
                 return Results.BadRequest($"Cash received must be at least {sale.Total:0.00}.");
             var distributedDiscount = 0m;
@@ -73,7 +101,7 @@ public static class SaleEndpoints
             await db.SaveChangesAsync();
             await tx.CommitAsync();
             return Results.Created($"/api/sales/{sale.Id}", new { sale.Id, sale.InvoiceNumber, sale.Subtotal, sale.DiscountAmount,
-                sale.Total, sale.PaymentMethod, change = isCash ? sale.CashReceived - sale.Total : 0 });
+                sale.Total, sale.PaymentMethod, sale.CustomerId, change = isCash ? sale.CashReceived - sale.Total : 0 });
         }).RequireAuthorization(StorePermissions.SalesCreate);
 
         api.MapGet("/sales", async (StoreDb db) => Results.Ok(await db.Sales.AsNoTracking().OrderByDescending(x => x.Id)
@@ -86,6 +114,7 @@ public static class SaleEndpoints
             var sale = await db.Sales.Where(x => x.Id == id).Select(x => new
             {
                 x.Id, x.InvoiceNumber, x.CreatedAt, x.Subtotal, x.DiscountAmount, x.Total, x.CashReceived, x.PaymentMethod,
+                customer = x.CustomerId == null ? null : db.Customers.Where(c => c.Id == x.CustomerId).Select(c => c.Name).FirstOrDefault(),
                 returnedTotal = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
                 lines = x.Lines.Select(y => new { saleLineId = y.Id, medicine = y.Batch.Medicine.Name, batch = y.Batch.Number,
                     quantity = y.Quantity, returnedQuantity = y.ReturnedQuantity, y.UnitPrice, y.DiscountAmount,

@@ -1,7 +1,7 @@
 # Customers
 
-Status: planned, not implemented.
+Status: implemented with a lazy route protected by `customers.read`.
 
 Scope: Customer records, POS customer selection, credit limits and receivables.
 
-Place feature pages, models, API service and lazy routes here when implemented. Do not register unfinished routes.
+Owns customer profile management, activation, receivable ledger and payment entry. POS reads active customer choices through the customer module's public API using the sales-create permission.

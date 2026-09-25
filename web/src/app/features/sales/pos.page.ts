@@ -10,6 +10,7 @@ import { SalesApi } from './sales.api';
 import { Receipt } from './sales.models';
 import { PosCartStore } from './pos-cart.store';
 import { ReceiptComponent } from './receipt.component';
+import { CustomersApi } from '../customers/public-api';
 
 @Component({
   selector: 'app-pos-page',
@@ -21,24 +22,29 @@ export class PosPage extends PageFeedback implements OnInit {
   private readonly api = inject(SalesApi);
   private readonly medicinesApi = inject(MedicinesApi);
   private readonly inventoryApi = inject(InventoryApi);
+  private readonly customersApi = inject(CustomersApi);
   readonly cart = inject(PosCartStore);
   readonly medicines = signal<Medicine[]>([]);
   readonly batches = signal<Batch[]>([]);
+  readonly customers = signal<{ id: number; name: string; creditLimit: number }[]>([]);
+  customerId: number | null = null;
   readonly receipt = signal<Receipt | null>(null);
   search = '';
   discountAmount = 0;
   paymentMethod = 'Cash';
-  readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
+  readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet', 'Credit'];
   ngOnInit(): void {
     void this.perform(() => this.refreshInventory());
   }
   private async refreshInventory(): Promise<void> {
-    const [medicines, batches] = await Promise.all([
+    const [medicines, batches, customers] = await Promise.all([
       this.medicinesApi.list(),
       this.inventoryApi.list(),
+      this.customersApi.forPos(),
     ]);
     this.medicines.set(medicines);
     this.batches.set(batches);
+    this.customers.set(customers);
   }
   get filteredMedicines(): Medicine[] {
     const query = this.search.trim().toLowerCase();
@@ -80,10 +86,12 @@ export class PosPage extends PageFeedback implements OnInit {
         cashReceived: +this.cart.cashReceived(),
         discountAmount: +this.discountAmount,
         paymentMethod: this.paymentMethod,
+        customerId: this.customerId,
       });
       // A successful POST has already committed the sale. Clear the cart before loading its receipt.
       this.cart.clear();
       this.discountAmount = 0; this.paymentMethod = 'Cash';
+      this.customerId = null;
       this.receipt.set(null);
       try {
         this.receipt.set(await this.api.receipt(result.id));

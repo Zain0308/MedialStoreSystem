@@ -1,7 +1,7 @@
 # Customers
 
-Status: planned, not implemented.
+Status: implemented; registered from `MedicalStoreModules.cs`.
 
 Scope: Customer records, customer selection at POS, credit limits and receivables.
 
-Add this module's endpoints, request models, entities and EF configurations here. Register implemented endpoints in `Modules/MedicalStoreModules.cs`; do not register placeholder routes.
+Owns store-scoped customer profiles, credit limits, credit invoice statements and payment collection. POS requires a selected active customer for Credit tenders and the API enforces the store credit limit.

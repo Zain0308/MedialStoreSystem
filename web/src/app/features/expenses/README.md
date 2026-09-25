@@ -1,7 +1,7 @@
 # Expenses
 
-Status: planned, not implemented.
+Status: implemented with a lazy route protected by `expenses.read`.
 
 Scope: Expense categories, expense entry and financial report links.
 
-Place feature pages, models, API service and lazy routes here when implemented. Do not register unfinished routes.
+Owns expense categories, expense entry, date/category filters and store-scoped API calls.

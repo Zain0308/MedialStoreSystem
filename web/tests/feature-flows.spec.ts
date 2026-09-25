@@ -4,9 +4,12 @@ import { expect, Page, test } from '@playwright/test';
 async function mockApi(page: Page) {
   const state = {
     medicines: [{ id: 1, name: 'Paracetamol 500mg', genericName: 'Paracetamol', barcode: '12345', stock: 20, minimumStock: 10, requiresPrescription: false, isActive: true }],
-    suppliers: [{ id: 1, name: 'Demo Pharma', phone: '0000000000', contactPerson: '', email: '', address: '' }],
+    suppliers: [{ id: 1, name: 'Demo Pharma', phone: '0000000000', contactPerson: '', email: '', address: '', isActive: true }],
+    customers: [] as { id: number; name: string; phone?: string; email?: string; creditLimit: number; isActive: boolean }[],
+    expenseCategories: [] as { id: number; name: string; isActive: boolean }[],
+    expenses: [] as { id: number; categoryId: number; category: string; description: string; amount: number; expenseDate: string; paymentMethod: string; reference?: string; notes?: string }[],
     batches: [{ id: 1, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-01', expiryDate: '2050-12-31', costPrice: 2, salePrice: 5, quantity: 20 }],
-    sales: [] as { id: number; invoiceNumber: string; createdAt: string; subtotal: number; discountAmount: number; total: number; paymentMethod: string; returnedTotal: number }[],
+    sales: [] as { id: number; invoiceNumber: string; createdAt: string; subtotal: number; discountAmount: number; total: number; paymentMethod: string; returnedTotal: number; customerId?: number | null; paidTotal?: number }[],
     receipts: {} as Record<number, unknown>,
     purchases: [] as { id: number; supplier: string; supplierInvoice: string; createdAt: string; total: number; returnedTotal: number; paidTotal: number; lines: { id: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitCost: number; onHand: number }[]; returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[]; payments: { id: number; amount: number; method: string; reference: string; paidAt: string }[] }[],
     movements: [] as { id: number; batchId: number; medicine: string; batch: string; type: string; quantityChange: number; balanceAfter: number; reason: string; createdAt: string }[],
@@ -24,7 +27,8 @@ async function mockApi(page: Page) {
       ['inventory.manage', 'Adjust inventory'], ['purchases.read', 'View purchases'],
       ['purchases.manage', 'Receive purchases'], ['sales.read', 'View sales and receipts'],
       ['sales.create', 'Create sales at POS'], ['sales.manage', 'Process sales returns and discounts'], ['suppliers.read', 'View suppliers'],
-      ['suppliers.manage', 'Manage suppliers'], ['reports.read', 'View reports and dashboard'],
+      ['suppliers.manage', 'Manage suppliers'], ['customers.read', 'View customers and balances'], ['customers.manage', 'Manage customers and record payments'],
+      ['expenses.read', 'View expenses'], ['expenses.manage', 'Manage expense categories and entries'], ['reports.read', 'View reports and dashboard'],
     ] as [string, string][],
     roles: [] as { id: string; name: string; permissions: string[]; availablePermissions: { key: string; label: string }[]; canAssign: boolean }[],
     failReceipt: false,
@@ -124,6 +128,51 @@ async function mockApi(page: Page) {
       role.permissions = request.postDataJSON().permissions; return reply(role);
     }
     if (path === '/api/medicines' && method === 'GET') return reply(state.medicines);
+    if (path === '/api/customers' && method === 'GET') return reply(state.customers.map(customer => ({ ...customer,
+      receivable: state.sales.filter(sale => sale.paymentMethod === 'Credit' && sale.customerId === customer.id)
+        .reduce((sum, sale) => sum + sale.total - sale.returnedTotal - (sale.paidTotal ?? 0), 0) })));
+    if (path === '/api/customers' && method === 'POST') {
+      const customer = { ...request.postDataJSON(), id: state.customers.length + 1, isActive: true };
+      state.customers.push(customer); return reply({ id: customer.id }, 201);
+    }
+    const customerPath = path.match(/^\/api\/customers\/(\d+)(?:\/(ledger|status|payments))?$/);
+    if (customerPath) {
+      const customer = state.customers.find(x => x.id === Number(customerPath[1]));
+      if (!customer) return reply({}, 404);
+      if (customerPath[2] === 'status' && method === 'PUT') { customer.isActive = request.postDataJSON().isActive; return reply(customer); }
+      if (customerPath[2] === 'ledger' && method === 'GET') {
+        const invoices = state.sales.filter(x => x.customerId === customer.id && x.paymentMethod === 'Credit').map(x => ({ ...x,
+          returned: x.returnedTotal, paid: x.paidTotal ?? 0, payments: [] }));
+        return reply({ customer, invoices, receivable: invoices.reduce((sum, x) => sum + x.total - x.returned - x.paid, 0) });
+      }
+      if (customerPath[2] === 'payments' && method === 'POST') {
+        const body = request.postDataJSON(); const sale = state.sales.find(x => x.id === body.saleId)!;
+        sale.paidTotal = (sale.paidTotal ?? 0) + body.amount; return reply({ id: 1, amount: body.amount }, 201);
+      }
+      if (!customerPath[2] && method === 'PUT') { Object.assign(customer, request.postDataJSON()); return reply(customer); }
+    }
+    if (path === '/api/sales/customers' && method === 'GET') return reply(state.customers.filter(x => x.isActive).map(({ id, name, creditLimit }) => ({ id, name, creditLimit })));
+    if (path === '/api/expenses/categories' && method === 'GET') return reply(state.expenseCategories);
+    if (path === '/api/expenses/categories' && method === 'POST') {
+      const category = { id: state.expenseCategories.length + 1, name: request.postDataJSON().name, isActive: true };
+      state.expenseCategories.push(category); return reply(category, 201);
+    }
+    const expenseCategoryStatus = path.match(/^\/api\/expenses\/categories\/(\d+)\/status$/);
+    if (expenseCategoryStatus && method === 'PUT') {
+      const category = state.expenseCategories.find(x => x.id === Number(expenseCategoryStatus[1]))!;
+      category.isActive = request.postDataJSON().isActive; return reply(category);
+    }
+    if (path === '/api/expenses' && method === 'GET') {
+      const query = new URL(request.url()).searchParams; const from = query.get('from'); const to = query.get('to'); const categoryId = query.get('categoryId');
+      return reply(state.expenses.filter(expense => (!from || expense.expenseDate >= from) && (!to || expense.expenseDate <= to) && (!categoryId || expense.categoryId === Number(categoryId))));
+    }
+    if (path === '/api/expenses' && method === 'POST') {
+      const body = request.postDataJSON(); const category = state.expenseCategories.find(x => x.id === body.categoryId)!;
+      const expense = { ...body, id: state.expenses.length + 1, category: category.name };
+      state.expenses.push(expense); return reply({ id: expense.id }, 201);
+    }
+    if (path === '/api/reports/details' && method === 'GET') return reply({ sales: [], inventory: [], expenses: [], netSales: 0, costOfGoods: 0, expenseTotal: 0,
+      netProfit: 0, returnedTotal: 0, inventoryCostValue: 0, inventorySaleValue: 0 });
     if (path === '/api/medicines' && method === 'POST') {
       const body = request.postDataJSON();
       if (state.medicines.some(m => body.barcode && m.barcode === body.barcode)) return reply('Barcode already exists.', 409);
@@ -139,8 +188,13 @@ async function mockApi(page: Page) {
     }
     if (path === '/api/suppliers' && method === 'GET') return reply(state.suppliers);
     if (path === '/api/suppliers' && method === 'POST') {
-      const supplier = { ...request.postDataJSON(), id: state.suppliers.length + 1 };
+      const supplier = { ...request.postDataJSON(), id: state.suppliers.length + 1, isActive: true };
       state.suppliers.push(supplier); return reply({ id: supplier.id }, 201);
+    }
+    const supplierStatus = path.match(/^\/api\/suppliers\/(\d+)\/status$/);
+    if (supplierStatus && method === 'PUT') {
+      const supplier = state.suppliers.find(x => x.id === Number(supplierStatus[1]))!;
+      supplier.isActive = request.postDataJSON().isActive; return reply(supplier);
     }
     const supplierPath = path.match(/^\/api\/suppliers\/(\d+)$/);
     if (supplierPath && method === 'PUT') {
@@ -221,13 +275,14 @@ async function mockApi(page: Page) {
       const total = lines.reduce((sum: number, line: { total: number }) => sum + line.total, 0);
       const sale = { id, invoiceNumber: `INV-${String(id).padStart(8, '0')}`, createdAt: new Date().toISOString(),
         subtotal: total, discountAmount: body.discountAmount ?? 0, total: total - (body.discountAmount ?? 0),
-        paymentMethod: body.paymentMethod ?? 'Cash', returnedTotal: 0 };
+        paymentMethod: body.paymentMethod ?? 'Cash', returnedTotal: 0, customerId: body.customerId ?? null, paidTotal: 0 };
       const receiptLines = lines.map((line: { medicine: string; batch: string; quantity: number; unitPrice: number; total: number }, index: number) => ({
         saleLineId: index + 1, ...line, returnedQuantity: 0,
         discountAmount: index === 0 ? body.discountAmount ?? 0 : 0,
         total: line.total - (index === 0 ? body.discountAmount ?? 0 : 0),
       }));
-      state.sales.push(sale); state.receipts[id] = { ...sale, cashReceived: body.cashReceived, lines: receiptLines };
+      state.sales.push(sale); state.receipts[id] = { ...sale, customer: state.customers.find(c => c.id === body.customerId)?.name,
+        cashReceived: body.cashReceived, lines: receiptLines };
       return reply({ ...sale, change: sale.paymentMethod === 'Cash' ? body.cashReceived - sale.total : 0 }, 201);
     }
     const saleReturn = path.match(/^\/api\/sales\/(\d+)\/returns$/);
@@ -267,6 +322,8 @@ async function navigate(page: Page, name: RegExp) {
   const href = await link.getAttribute('href');
   const pageTitleByPath: Record<string, string> = {
     '/reports': 'Overview',
+    '/customers': 'Customers',
+    '/expenses': 'Expenses',
     '/sales/pos': 'New sale',
     '/medicines': 'Medicines',
     '/purchases': 'Receive purchase',
@@ -398,6 +455,49 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toBeVisible();
   await page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' }).getByRole('button', { name: 'Deactivate' }).click();
   await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toContainText('Inactive');
+});
+
+test('customers manage credit limits, POS requires a customer for credit, and payments reduce receivables', async ({ page }) => {
+  await mockApi(page); await signIn(page);
+  await navigate(page, /Customers/);
+  await page.getByLabel('Customer name').fill('Ayesha Khan');
+  await page.getByLabel('Credit limit (Rs)').fill('500');
+  await page.getByRole('button', { name: 'Add customer' }).click();
+  await expect(page.getByText('Ayesha Khan', { exact: true })).toBeVisible();
+  await navigate(page, /New sale/);
+  await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
+  await page.getByLabel('Payment method').selectOption('Credit');
+  await expect(page.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
+  await page.getByLabel('Customer', { exact: true }).selectOption('1');
+  await page.getByRole('button', { name: /Complete sale/ }).click();
+  await expect(page.getByText('Sale completed. Invoice is ready to print.')).toBeVisible();
+  await page.getByRole('button', { name: 'Close' }).click();
+  await navigate(page, /Customers/);
+  const customerRow = page.getByRole('row').filter({ hasText: 'Ayesha Khan' });
+  await expect(customerRow).toContainText('Rs 5.00');
+  await customerRow.getByRole('button', { name: 'Ledger' }).click();
+  await expect(page.locator('.customer-ledger')).toContainText('INV-00000001');
+  await page.locator('.customer-ledger').getByLabel('Amount (Rs)').fill('5');
+  await page.locator('.customer-ledger').getByRole('button', { name: 'Record payment' }).click();
+  await expect(page.getByText('Customer payment recorded.')).toBeVisible();
+  await expect(customerRow).toContainText('Rs 0.00');
+});
+
+test('store users can create expense categories, record expenses and filter the ledger by date', async ({ page }) => {
+  await mockApi(page); await signIn(page);
+  await navigate(page, /Expenses/);
+  await page.getByLabel('New category').fill('Utilities');
+  await page.locator('.category-form').getByRole('button', { name: 'Add' }).click();
+  await page.getByLabel('Category', { exact: true }).selectOption('1');
+  await page.getByLabel('Description').fill('Electricity bill');
+  await page.getByLabel('Amount (Rs)').fill('3200');
+  await page.getByLabel('Date', { exact: true }).fill('2026-09-25');
+  await page.getByRole('button', { name: 'Record expense' }).click();
+  await expect(page.getByText('Expense recorded.')).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Electricity bill' })).toContainText('Rs 3,200.00');
+  await page.getByLabel('Expense from date').fill('2026-09-26');
+  await page.getByRole('button', { name: 'Apply filter' }).click();
+  await expect(page.getByText('No expenses for this filter.')).toBeVisible();
 });
 
 test('POS survives navigation, posts once, prints receipt and clears on logout', async ({ page }) => {

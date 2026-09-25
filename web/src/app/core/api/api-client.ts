@@ -8,6 +8,9 @@ export class ApiClient {
   get<T>(path: string): Promise<T> {
     return firstValueFrom(this.http.get<T>(`/api${path}`));
   }
+  getBlob(path: string): Promise<Blob> {
+    return firstValueFrom(this.http.get(`/api${path}`, { responseType: 'blob' }));
+  }
   post<T>(path: string, body: unknown): Promise<T> {
     return firstValueFrom(this.http.post<T>(`/api${path}`, body));
   }

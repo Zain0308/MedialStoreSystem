@@ -21,6 +21,7 @@
     <div class="panel-head"><div><h3>Supplier directory</h3><p>Search supplier names, contact details and addresses.</p></div><span class="count">{{ visibleSuppliers().length }} of {{ suppliers().length }}</span></div>
     <div class="supplier-filter">
       <label>Filter suppliers<input aria-label="Filter suppliers" [ngModel]="searchText()" (ngModelChange)="searchText.set($event)" placeholder="Search name, phone, email, contact or address" /></label>
+      <label>Status<select aria-label="Supplier status" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
       @if (searchText()) { <button type="button" class="text-button" (click)="clearSearch()">Clear filter</button> }
     </div>
     <div class="supplier-list">
@@ -37,11 +38,23 @@
               @if (!s.contactPerson && !s.phone && !s.email && !s.address) { <span>No contact details added</span> }
             </div>
           </div>
-          @if (session.hasPermission('suppliers.manage')) { <button class="text-button" (click)="editSupplier(s)">Edit</button> }
+          <div class="supplier-actions">
+            @if (session.hasPermission('purchases.read')) {<button class="text-button" (click)="openLedger(s)">Ledger</button>}
+            @if (session.hasPermission('suppliers.manage')) {
+              <button class="text-button" (click)="editSupplier(s)">Edit</button>
+              <button class="text-button" (click)="setActive(s)">{{ s.isActive ? 'Deactivate' : 'Activate' }}</button>
+            } @else { <span class="status-label">{{ s.isActive ? 'Active' : 'Inactive' }}</span> }
+          </div>
         </article>
       }
     </div>
     @if (suppliers().length === 0) { <p class="empty">No suppliers added yet.</p> }
     @else if (visibleSuppliers().length === 0) { <p class="empty">No suppliers match this filter.</p> }
   </section>
+  @if (statement(); as account) {<section class="panel supplier-statement">
+    <div class="panel-head"><div><h3>{{ account.supplier }} ledger</h3><p>Purchases, returns, supplier payments and remaining balance.</p></div><button class="text-button" (click)="closeLedger()">Close</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Purchase</th><th>Returned</th><th>Paid</th><th>Balance</th></tr></thead><tbody>
+      @for(invoice of account.invoices;track invoice.id){<tr><td>{{invoice.supplierInvoice}}</td><td>{{invoice.createdAt | date:'mediumDate'}}</td><td>Rs {{invoice.total | number:'1.2-2'}}</td><td>Rs {{invoice.returnedTotal | number:'1.2-2'}}</td><td>Rs {{invoice.paidTotal | number:'1.2-2'}}</td><td><strong>Rs {{balance(invoice) | number:'1.2-2'}}</strong></td></tr>}
+    </tbody></table></div>@if(!account.invoices.length){<p class="empty">No purchase invoices for this supplier.</p>}
+  </section>}
 </div>

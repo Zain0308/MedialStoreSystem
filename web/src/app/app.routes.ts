@@ -49,6 +49,10 @@ export const APP_ROUTES: Routes = [
         path: 'sales',
         loadChildren: () => import('./features/sales/sales.routes').then((m) => m.SALES_ROUTES),
       },
+      { path: 'customers', canActivate: [permissionGuard], data: { permissions: ['customers.read'] },
+        loadChildren: () => import('./features/customers/customers.routes').then(m => m.CUSTOMERS_ROUTES) },
+      { path: 'expenses', canActivate: [permissionGuard], data: { permissions: ['expenses.read'] },
+        loadChildren: () => import('./features/expenses/expenses.routes').then(m => m.EXPENSES_ROUTES) },
       {
         path: 'suppliers',
         loadChildren: () =>
@@ -79,4 +83,3 @@ export const APP_ROUTES: Routes = [
   },
   { path: '**', redirectTo: '' },
 ];
-

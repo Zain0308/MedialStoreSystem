@@ -24,6 +24,10 @@ public static class StorePermissions
     public const string SalesManage = "sales.manage";
     public const string SuppliersRead = "suppliers.read";
     public const string SuppliersManage = "suppliers.manage";
+    public const string CustomersRead = "customers.read";
+    public const string CustomersManage = "customers.manage";
+    public const string ExpensesRead = "expenses.read";
+    public const string ExpensesManage = "expenses.manage";
     public const string ReportsRead = "reports.read";
 
     public static readonly IReadOnlyDictionary<string, string> All = new Dictionary<string, string>
@@ -41,7 +45,11 @@ public static class StorePermissions
         [SalesManage] = "Process sales returns and discounts",
         [SuppliersRead] = "View suppliers",
         [SuppliersManage] = "Manage suppliers",
-        [ReportsRead] = "View reports and dashboard"
+        [ReportsRead] = "View reports and dashboard",
+        [CustomersRead] = "View customers and balances",
+        [CustomersManage] = "Manage customers and record payments",
+        [ExpensesRead] = "View expenses",
+        [ExpensesManage] = "Manage expense categories and entries"
     };
 
     public static readonly IReadOnlyDictionary<string, string[]> DefaultRoles = new Dictionary<string, string[]>
@@ -52,4 +60,3 @@ public static class StorePermissions
         [StoreRoles.InventoryManager] = [MedicinesRead, MedicinesManage, InventoryRead, InventoryManage, PurchasesRead, PurchasesManage, SalesRead, SuppliersRead, ReportsRead]
     };
 }
-

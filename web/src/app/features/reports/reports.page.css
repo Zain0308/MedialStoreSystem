@@ -112,3 +112,4 @@
     font-size: 20px;
   }
 }
+.report-detail{margin-top:22px}.report-toolbar,.report-export{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:12px 0}.report-toolbar label{display:grid;gap:6px;color:var(--muted,#687386);font-size:13px}.report-toolbar input{border:1px solid var(--border,#dfe4ec);border-radius:8px;padding:10px;background:var(--surface,#fff)}.report-stats{margin:18px 0}.report-subhead{margin-top:24px}.report-export{align-items:center}@media(max-width:600px){.report-toolbar,.report-export{align-items:stretch;flex-direction:column}.report-toolbar label,.report-toolbar button{width:100%}}
