@@ -5,19 +5,24 @@ import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
 import { FormsModule } from '@angular/forms';
 import { AuthSession } from '../authentication/public-api';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
+import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/search-picker.component';
 
 import { InventoryApi } from './inventory.api';
 import { Batch, StockMovement } from './inventory.models';
 
 @Component({
   selector: 'app-inventory-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent],
   templateUrl: './inventory.page.html',
   styleUrl: './inventory.page.css',
 })
 export class InventoryPage extends PageFeedback implements OnInit {
   private readonly api = inject(InventoryApi);
   readonly batches = signal<Batch[]>([]);
+  readonly batchOptions = computed<SearchPickerOption[]>(() => this.batches().map(batch => ({
+    value: batch.id, label: batch.medicine,
+    detail: `${batch.number} · ${batch.expiryDate} · ${batch.quantity} units`, searchText: batch.number,
+  })));
   readonly batchSearch = signal('');
   readonly batchStatus = signal('all');
   readonly expiryFrom = signal('');

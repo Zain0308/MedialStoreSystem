@@ -23,15 +23,9 @@
             required
             placeholder="e.g. SUP-0042"
         /></label>
-        <label
-          >Medicine
-          <select name="p-medicine" [(ngModel)]="purchase.medicineId" required>
-            <option [ngValue]="0" disabled>Select medicine</option>
-            @for (m of medicines(); track m.id) {
-              <option [ngValue]="m.id">{{ m.name }}</option>
-            }
-          </select></label
-        >
+        <label>Medicine<app-search-picker ariaLabel="Purchase medicine" placeholder="Type medicine name, generic or barcode"
+          [options]="medicineOptions()" [value]="purchase.medicineId || null"
+          (valueChange)="purchase.medicineId = $event ?? 0" /></label>
         <label
           >Batch number
           <input
@@ -135,9 +129,9 @@
       <div class="panel-head"><div><h3>Invoice {{ selected.supplierInvoice }}</h3><p>{{ selected.supplier }} · Current balance Rs {{ balance(selected) | number:'1.2-2' }}</p></div><button class="text-button" (click)="selectedPurchase.set(null)">Close</button></div>
       @if (session.hasPermission('purchases.manage')) { <div class="list-row"><div><strong>Record supplier return</strong><small>Only unreturned units still on hand can be returned.</small></div></div>
       <form (ngSubmit)="submitReturn()">
-        <div class="form-grid"><label>Purchase line<select name="return-line" [(ngModel)]="returnForm.lineId" required>
-          @for (line of selected.lines; track line.id) { @if (line.quantity > line.returnedQuantity && line.onHand > 0) { <option [ngValue]="line.id">{{ line.medicine }} · {{ line.batch }} ({{ line.onHand }} on hand)</option> } }
-        </select></label>
+        <div class="form-grid"><label>Purchase line<app-search-picker ariaLabel="Purchase return medicine" placeholder="Type medicine or batch"
+          [options]="returnLineOptions()" [value]="returnForm.lineId || null"
+          (valueChange)="returnForm.lineId = $event ?? 0" /></label>
         <label>Units to return<input name="return-qty" type="number" min="1" [(ngModel)]="returnForm.quantity" required /></label>
         <label>Supplier return reference<input name="return-ref" [(ngModel)]="returnForm.supplierReference" required /></label>
         <label>Reason<input name="return-reason" [(ngModel)]="returnForm.reason" maxlength="300" required /></label></div>

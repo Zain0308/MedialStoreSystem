@@ -12,10 +12,11 @@ import { PurchaseHistory, SupplierAccountSummary, SupplierStatement } from './pu
 import { AuthSession } from '../authentication/public-api';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
+import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/search-picker.component';
 
 @Component({
   selector: 'app-purchases-page',
-  imports: [CommonModule, FormsModule, RouterLink, PageNoticeComponent, TablePaginationComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent],
   templateUrl: './purchases.page.html',
 })
 export class PurchasesPage extends PageFeedback implements OnInit {
@@ -24,6 +25,11 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   private readonly medicinesApi = inject(MedicinesApi);
   private readonly suppliersApi = inject(SuppliersApi);
   readonly medicines = signal<Medicine[]>([]);
+  readonly medicineOptions = computed<SearchPickerOption[]>(() => this.medicines().map(medicine => ({
+    value: medicine.id, label: medicine.name,
+    detail: [medicine.genericName, medicine.strength, medicine.dosageForm].filter(Boolean).join(' · '),
+    searchText: medicine.barcode ?? '',
+  })));
   readonly suppliers = signal<Supplier[]>([]);
   readonly supplierPickerSearch = signal('');
   readonly matchingSuppliers = computed(() => {
@@ -39,6 +45,9 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   readonly supplierAccounts = signal<SupplierAccountSummary[]>([]);
   readonly selectedSupplierStatement = signal<SupplierStatement | null>(null);
   readonly selectedPurchase = signal<PurchaseHistory | null>(null);
+  readonly returnLineOptions = computed<SearchPickerOption[]>(() => (this.selectedPurchase()?.lines ?? [])
+    .filter(line => line.quantity > line.returnedQuantity && line.onHand > 0)
+    .map(line => ({ value: line.id, label: line.medicine, detail: `${line.batch} · ${line.onHand} units on hand`, searchText: line.batch })));
   readonly supplierSearch = signal('');
   readonly supplierBalanceFilter = signal('all');
   readonly supplierPage = signal(1);
@@ -115,6 +124,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
     });
   }
   receivePurchase(): Promise<void> {
+    if (!this.purchase.supplierId || !this.purchase.medicineId) return Promise.resolve();
     return this.perform(async () => {
       const p = this.purchase;
       await this.api.receive({

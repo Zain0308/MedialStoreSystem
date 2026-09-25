@@ -476,7 +476,8 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await page.getByLabel('Search supplier').fill('City');
   await page.getByRole('button', { name: /City Pharma/ }).click();
   await page.getByLabel('Supplier invoice').fill('SUP-002');
-  await page.getByRole('combobox', { name: 'Medicine', exact: true }).selectOption({ label: 'Vitamin C' });
+  await page.getByLabel('Purchase medicine').fill('Vitamin C');
+  await page.getByRole('option').filter({ hasText: 'Vitamin C' }).click();
   await page.getByLabel('Batch number').fill('VC-02');
   await page.getByLabel('Expiry date').fill('2050-12-31');
   await page.getByLabel('Quantity (units)').fill('10');
@@ -508,7 +509,8 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await expect(invoiceDetail).toContainText('Payment');
   await navigate(page, /Inventory/);
   await expect(page.getByRole('row').filter({ hasText: 'VC-02' })).toContainText('9');
-  await page.locator('select[name="adj-batch"]').selectOption({ label: 'Vitamin C · VC-02 (9 units)' });
+  await page.getByLabel('Batch to adjust').fill('VC-02');
+  await page.getByRole('option').filter({ hasText: 'Vitamin C' }).filter({ hasText: 'VC-02' }).click();
   await page.getByLabel('Reason', { exact: true }).fill('Broken units');
   await page.getByRole('button', { name: 'Record movement' }).click();
   await expect(page.getByRole('row').filter({ hasText: 'Broken units' })).toContainText('-1');
@@ -556,6 +558,11 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await expect(page.getByText('Customer payment recorded.')).toBeVisible();
   await expect(customerRow).toContainText('Rs 5.00');
   await expect(customerRow).toContainText('Rs 0.00');
+  await page.locator('.customer-ledger').getByRole('button', { name: 'View receipt / process return' }).click();
+  await page.getByLabel('Customer return reason').fill('Customer returned unopened medicine');
+  await page.getByRole('button', { name: 'Record customer return' }).click();
+  await expect(page.getByText(/Customer return recorded/)).toBeVisible();
+  await expect(page.locator('.customer-ledger')).toContainText('Returned Rs 5.00');
 });
 
 test('store users can create expense categories, record expenses and filter the ledger by date', async ({ page }) => {
