@@ -39,12 +39,15 @@ public static class ReportEndpoints
                 {
                     supplierId = x.SupplierId, x.Id, x.SupplierInvoice, x.CreatedAt, x.Total,
                     returned = x.Returns.Sum(r => (decimal?)r.Total) ?? 0,
-                    paid = x.Payments.Sum(p => (decimal?)p.Amount) ?? 0,
-                    returns = x.Returns.OrderByDescending(r => r.CreatedAt)
-                        .Select(r => new { r.CreatedAt, r.SupplierReference, r.Reason, amount = r.Total }),
-                    payments = x.Payments.OrderByDescending(p => p.PaidAt)
-                        .Select(p => new { p.PaidAt, p.Amount, p.Method, p.Reference })
+                    paid = x.Payments.Sum(p => (decimal?)p.Amount) ?? 0
                 }).ToListAsync();
+            var invoiceIds = invoices.Select(x => x.Id).ToArray();
+            var returns = await db.PurchaseReturns.AsNoTracking().Where(x => invoiceIds.Contains(x.PurchaseId))
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => new { x.PurchaseId, x.CreatedAt, x.SupplierReference, x.Reason, amount = x.Total }).ToListAsync();
+            var payments = await db.SupplierPayments.AsNoTracking().Where(x => invoiceIds.Contains(x.PurchaseId))
+                .OrderByDescending(x => x.PaidAt)
+                .Select(x => new { x.PurchaseId, x.PaidAt, x.Amount, x.Method, x.Reference }).ToListAsync();
             var accounts = suppliers.Select(supplier =>
             {
                 var supplierInvoices = invoices.Where(x => x.supplierId == supplier.Id).ToList();
@@ -60,7 +63,11 @@ public static class ReportEndpoints
                     invoices = supplierInvoices.Select(x => new
                     {
                         x.Id, x.SupplierInvoice, x.CreatedAt, x.Total, x.returned, x.paid,
-                        balance = x.Total - x.returned - x.paid, x.returns, x.payments
+                        balance = x.Total - x.returned - x.paid,
+                        returns = returns.Where(r => r.PurchaseId == x.Id)
+                            .Select(r => new { r.CreatedAt, r.SupplierReference, r.Reason, r.amount }).ToList(),
+                        payments = payments.Where(p => p.PurchaseId == x.Id)
+                            .Select(p => new { p.PaidAt, p.Amount, p.Method, p.Reference }).ToList()
                     })
                 };
             }).ToList();
@@ -82,10 +89,12 @@ public static class ReportEndpoints
                 {
                     customerId = x.CustomerId!.Value, x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.PaymentMethod,
                     returned = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
-                    paid = db.CustomerPayments.Where(p => p.SaleId == x.Id).Sum(p => (decimal?)p.Amount) ?? 0,
-                    payments = db.CustomerPayments.Where(p => p.SaleId == x.Id).OrderByDescending(p => p.PaidAt)
-                        .Select(p => new { p.PaidAt, p.Amount, p.Method, p.Reference })
+                    paid = db.CustomerPayments.Where(p => p.SaleId == x.Id).Sum(p => (decimal?)p.Amount) ?? 0
                 }).ToListAsync();
+            var saleIds = sales.Select(x => x.Id).ToArray();
+            var payments = await db.CustomerPayments.AsNoTracking().Where(x => saleIds.Contains(x.SaleId))
+                .OrderByDescending(x => x.PaidAt)
+                .Select(x => new { x.SaleId, x.PaidAt, x.Amount, x.Method, x.Reference }).ToListAsync();
             var unpaidMethods = new[] { "Not Received", "Credit" };
             var accounts = customers.Select(customer =>
             {
@@ -97,7 +106,9 @@ public static class ReportEndpoints
                 var invoices = unpaidSales.Select(x => new
                 {
                     x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.returned, x.paid,
-                    due = Math.Max(0m, x.Total - x.returned - x.paid), x.payments
+                    due = Math.Max(0m, x.Total - x.returned - x.paid),
+                    payments = payments.Where(p => p.SaleId == x.Id)
+                        .Select(p => new { p.PaidAt, p.Amount, p.Method, p.Reference }).ToList()
                 }).ToList();
                 return new
                 {
