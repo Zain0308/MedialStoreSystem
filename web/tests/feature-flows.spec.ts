@@ -405,7 +405,12 @@ test('expired store users can access only the dashboard', async ({ page }) => {
   const state = await mockApi(page);
   state.subscriptionExpired = true;
   state.subscriptionExpiresAt = '2026-09-20T23:59:59Z';
-  await signIn(page, '/reports');
+  await page.goto('/reports');
+  await expect(page).toHaveURL(/\/login/);
+  await page.getByLabel('Email', { exact: true }).fill('storeadmin@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('ExamplePassword123!');
+  await page.getByRole('button', { name: /Sign in/ }).click();
+  await expect(page).toHaveURL(/\/reports$/);
   await expect(page.getByRole('status').filter({ hasText: 'Subscription expired' })).toBeVisible();
   await expect(page.getByRole('navigation').getByRole('link', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByRole('navigation').getByRole('link', { name: 'Medicines' })).toHaveCount(0);
