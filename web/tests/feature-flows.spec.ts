@@ -283,6 +283,31 @@ test('switching stores persists the active store and reloads the workspace', asy
   await expect(page.getByLabel('Active store')).toHaveValue('2');
 });
 
+test('inventory movement report filters dates and purchase or sale sources with 20 rows per page', async ({ page }) => {
+  const state = await mockApi(page);
+  state.movements = Array.from({ length: 25 }, (_, index) => ({
+    id: index + 1, batchId: 1, medicine: 'Paracetamol 500mg', batch: 'LOT-01',
+    type: index % 2 === 0 ? 'Purchase' : 'Sale', quantityChange: index % 2 === 0 ? 10 : -1,
+    balanceAfter: 20, reason: '', createdAt: `2026-09-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
+  }));
+  await signIn(page, '/inventory');
+  const report = page.locator('.movement-report');
+  await expect(report.locator('tbody tr')).toHaveCount(20);
+  await report.getByRole('button', { name: 'Next' }).click();
+  await expect(report.locator('tbody tr')).toHaveCount(5);
+  await expect(report.getByText('Page 2 of 2')).toBeVisible();
+
+  await report.getByLabel('Movement type').selectOption('Purchase');
+  await expect(report.locator('tbody tr')).toHaveCount(13);
+  await expect(report.getByText('Page 1 of 1')).toBeVisible();
+  await report.getByLabel('Movement type').selectOption('Sale');
+  await expect(report.locator('tbody tr')).toHaveCount(12);
+  await report.getByLabel('Movement type').selectOption('Purchase');
+  await report.getByLabel('From date').fill('2026-09-10');
+  await report.getByLabel('To date').fill('2026-09-20');
+  await expect(report.locator('tbody tr')).toHaveCount(5);
+});
+
 test('medicine, supplier and purchase pages keep their own forms and update inventory', async ({ page }) => {
   await mockApi(page); await signIn(page);
   await navigate(page, /Medicines/);

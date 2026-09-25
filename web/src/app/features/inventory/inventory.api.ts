@@ -8,7 +8,7 @@ export class InventoryApi {
   list() {
     return this.api.get<Batch[]>('/inventory');
   }
-  movements() { return this.api.get<StockMovement[]>('/inventory/movements?take=100'); }
+  movements() { return this.api.get<StockMovement[]>('/inventory/movements?take=500'); }
   adjust(input: { batchId: number; quantityChange: number; reason: string; type: 'Adjustment' | 'Damage' }) {
     return this.api.post<{ id: number; quantity: number }>('/inventory/adjustments', input);
   }

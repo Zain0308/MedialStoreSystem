@@ -64,11 +64,29 @@
       </form>
     </section>
   }
-  <section class="panel">
-    <div class="panel-head"><div><h3>Stock movement report</h3><p>Latest 100 receipts, sales, returns, damages and adjustments.</p></div></div>
+  <section class="panel movement-report">
+    <div class="panel-head"><div><h3>Stock movement report</h3><p>Filter by date and movement source. Showing up to the latest 500 movements.</p></div>
+      <span class="count">{{ filteredMovements().length }} records</span>
+    </div>
+    <div class="movement-filters" aria-label="Stock movement filters">
+      <label>From date<input type="date" aria-label="From date" [ngModel]="movementFromDate()" (ngModelChange)="movementFromDate.set($event); resetMovementPage()" /></label>
+      <label>To date<input type="date" aria-label="To date" [ngModel]="movementToDate()" (ngModelChange)="movementToDate.set($event); resetMovementPage()" /></label>
+      <label>Movement type<select aria-label="Movement type" [ngModel]="movementType()" (ngModelChange)="movementType.set($event); resetMovementPage()">
+        <option value="All">All movements</option><option value="Purchase">Purchases</option><option value="Sale">Sales</option><option value="Adjustment">Adjustments / damage</option>
+      </select></label>
+      <button type="button" class="secondary" (click)="clearMovementFilters()">Clear filters</button>
+    </div>
+    <p class="movement-range">Showing {{ movementStart() }}–{{ movementEnd() }} of {{ filteredMovements().length }} matching records</p>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Medicine / batch</th><th>Type</th><th>Change</th><th>Balance</th><th>Reason</th></tr></thead>
-      <tbody>@for (m of movements(); track m.id) { <tr><td>{{ m.createdAt | date:'short' }}</td><td>{{ m.medicine }} · {{ m.batch }}</td><td>{{ m.type }}</td><td>{{ m.quantityChange > 0 ? '+' : '' }}{{ m.quantityChange }}</td><td>{{ m.balanceAfter }}</td><td>{{ m.reason }}</td></tr> }</tbody>
+      <tbody>@for (m of visibleMovements(); track m.id) { <tr><td>{{ m.createdAt | date:'short' }}</td><td>{{ m.medicine }} · {{ m.batch }}</td><td>{{ m.type }}</td><td>{{ m.quantityChange > 0 ? '+' : '' }}{{ m.quantityChange }}</td><td>{{ m.balanceAfter }}</td><td>{{ m.reason }}</td></tr> }</tbody>
     </table></div>
-    @if (movements().length === 0) { <p class="empty">No movements yet.</p> }
+    @if (filteredMovements().length === 0) { <p class="empty">No movements match these filters.</p> }
+    @if (filteredMovements().length > 0) {
+      <nav class="movement-pagination" aria-label="Movement report pages">
+        <button type="button" class="secondary" (click)="previousMovementPage()" [disabled]="movementPage() <= 1">Previous</button>
+        <span>Page {{ movementPage() }} of {{ totalMovementPages() }}</span>
+        <button type="button" class="secondary" (click)="nextMovementPage()" [disabled]="movementPage() >= totalMovementPages()">Next</button>
+      </nav>
+    }
   </section>
 </div>
