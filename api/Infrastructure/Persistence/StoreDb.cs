@@ -85,3 +85,4 @@ public sealed class StoreDb(DbContextOptions<StoreDb> options, CurrentStoreConte
         }
     }
 }
+

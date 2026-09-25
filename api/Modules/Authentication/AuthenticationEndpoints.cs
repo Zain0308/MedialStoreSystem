@@ -376,3 +376,4 @@ public static class AuthenticationEndpoints
     private sealed record RoleSummary(string Id, string Name, string[] Permissions, PermissionSummary[] AvailablePermissions, bool CanAssign);
     private sealed record PermissionSummary(string Key, string Label);
 }
+

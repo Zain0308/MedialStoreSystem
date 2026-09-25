@@ -52,3 +52,4 @@ public static class StorePermissions
         [StoreRoles.InventoryManager] = [MedicinesRead, MedicinesManage, InventoryRead, InventoryManage, PurchasesRead, PurchasesManage, SalesRead, SuppliersRead, ReportsRead]
     };
 }
+

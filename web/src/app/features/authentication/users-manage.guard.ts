@@ -4,3 +4,4 @@ import { AuthSession } from './auth-session';
 
 export const usersManageGuard: CanActivateFn = () =>
   inject(AuthSession).isApplicationOwner() || inject(Router).createUrlTree(['/forbidden']);
+

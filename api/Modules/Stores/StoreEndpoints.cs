@@ -118,3 +118,4 @@ public static class StoreEndpoints
         return Results.Created($"/api/stores/{store.Id}", new StoreSummary(store.Id, store.Name, store.Code, false));
     }
 }
+

@@ -24,3 +24,4 @@ public static class MedicalStoreModules
         api.MapStoreEndpoints();
     }
 }
+

@@ -38,3 +38,4 @@ public sealed class StorePermissionGrantConfiguration : IEntityTypeConfiguration
         builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+

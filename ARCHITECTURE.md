@@ -4,8 +4,8 @@ This is the user-approved architecture for Medical Store. The system has one API
 
 | Business module | Backend | Frontend | Current scope |
 | --- | --- | --- | --- |
-| Stores | `api/Modules/Stores` | Store selector and administration in `authentication` | Multiple stores in one database, user memberships and active-store selection |
-| Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Login, multi-user administration, roles, permissions and route/API authorization |
+| Stores | `api/Modules/Stores` | Store selector and owner panel in `authentication` | Multiple isolated stores in one database, memberships, subscriptions, trials and store feature entitlements |
+| Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Login, owner-only tenant administration, user accounts, password resets, roles and permissions |
 | Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue metadata, editing and soft deactivation |
 | Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, audited adjustments, damaged stock and movement history |
 | Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receiving, history, supplier returns and invoice payments |
@@ -21,11 +21,13 @@ Each module owns its endpoints, request records, entities and EF configurations.
 
 Business entities implement `IStoreScoped`. The active store comes from a signed token claim, is checked against the user's `UserStores` memberships, then enforced by EF Core query filters and `SaveChanges` stamping. Existing records and users are migrated into `Main Store`; new stores use separate `StoreId` partitions in the same SQL Server database.
 
+The Application Owner is identified by the configured `Bootstrap:Email` account and receives a signed `app_owner` claim. Only this identity can use the `/owner` panel and global store/user-management APIs. Store staff cannot grant themselves owner access through roles or permissions. Store subscription status and expiry are checked during login and token validation; store feature entitlements are checked alongside each user's role permissions. Existing stores are grandfathered as active by `upgrade-v4.sql`.
+
 ## Frontend ownership
 
 - `app.ts` renders the router outlet; `app.routes.ts` composes lazy feature routes.
 - `core/layout` provides the authenticated shell. `core/api` provides HTTP transport and error formatting.
-- Authentication owns user and role management. Permission policies are enforced by the API; the frontend also hides unavailable modules and management controls. Administrator access is fixed as a recovery role.
+- Authentication owns the Application Owner panel and session state. The owner manages stores, trials/subscriptions, activation, store features, users, roles, user permissions and password resets. Permission policies are enforced by the API; the frontend also hides unavailable modules and management controls. Store Administrator access is fixed as a recovery role and does not grant Application Owner access.
 - Each feature has its own route file, page components, templates, models and API service. Signals hold asynchronous page data and feedback.
 - Public cross-feature dependencies go through `public-api.ts`, which exports API clients and models rather than pages or internal stores. For example, Purchases uses the public Medicines and Suppliers clients to populate its selectors.
 - `shared/ui` contains presentation helpers only; it does not own catalogue, purchase or sales data.
@@ -37,6 +39,6 @@ Business entities implement `IStoreScoped`. The active store comes from a signed
 
 Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
 
-At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`. Existing business rows are preserved.
+At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`; v4 adds subscriptions, trial dates and store feature grants. Existing business rows are preserved.
 
 GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.

@@ -15,7 +15,7 @@ The project uses **Modular Monolith** architecture: one API host, one SQL Server
 - POS with barcode/name search, FEFO batch allocation, discounts, cash/card/bank/mobile-wallet payments, sales returns and printable 80 mm receipts.
 - Dashboard, batch inventory, expiry indicators, recent invoices.
 - Purchase and sale stock changes run inside SQL transactions; sales use serializable isolation plus batch row versions.
-- Multiple stores share one SQL Server database. Medicines, inventory, purchases, sales, suppliers and reports are partitioned by store; administrators can create stores and assign users to one or more stores.
+- Multiple stores share one SQL Server database. Medicines, inventory, purchases, sales, suppliers and reports are partitioned by store. The Application Owner can manage stores, assign users, control subscriptions/trials, reset passwords and disable accounts; store customers do not have these controls.
 - Users can switch only to assigned stores. Existing rows and users are assigned to `Main Store` by the automatic schema upgrade.
 - Prescription-required medicines are blocked at POS until a proper prescription workflow exists.
 
@@ -84,10 +84,12 @@ Visit `http://localhost:4200` and sign in with the `Bootstrap__Email` and `Boots
 
 The first run creates the SQL schema and owner account. On each API startup, the idempotent `api/Database/upgrade-v2.sql` schema upgrade is also applied automatically, so existing databases receive the missing feature columns/tables without deleting rows. Existing owner passwords are **not** changed by later environment variable changes.
 
+The Application Owner account is the identity whose email matches `Bootstrap__Email`. Sign in with that account and open **Owner panel**. Store Administrator roles do not grant access to this panel or its APIs. Existing stores are grandfathered as active when the v4 schema upgrade runs.
+
 ## Limits before real store rollout
 
 The purchase screen receives one batch line at a time. Customer credit, a consolidated supplier ledger, self-service password reset/invitations, regulatory registers, backups and prescription validation are not implemented. POS's displayed total is an estimate if batches have different sale prices; the API computes the final FEFO amount. Keep the API connection string pointed at the shared `MedicalStoreSystem` database. Use HTTPS and secure secret storage in any deployment.
 
 ## API shape
 
-`POST /api/auth/login`; administrator endpoints: `GET/POST /api/auth/users`, `PUT /api/auth/users/{id}/roles`, `PUT /api/auth/users/{id}/status`, `GET/POST /api/auth/roles`, `PUT /api/auth/roles/{id}/permissions`. Medicine endpoints include `GET/POST /api/medicines`, `PUT /api/medicines/{id}`, and `PUT /api/medicines/{id}/status`. Inventory endpoints include `GET /api/inventory`, `POST /api/inventory/adjustments`, and `GET /api/inventory/movements`. Purchases expose `GET/POST /api/purchases`, `POST /api/purchases/{id}/returns`, and `POST /api/purchases/{id}/payments`. Sales expose `POST/GET /api/sales`, `GET /api/sales/{id}`, and `POST /api/sales/{id}/returns`. Business endpoints are protected by module permission policies.
+`POST /api/auth/login`; Application Owner-only endpoints manage `/api/auth/users`, `/api/auth/roles` and `/api/stores/all`, including account status, password reset, store subscriptions, feature permissions and activation. Medicine endpoints include `GET/POST /api/medicines`, `PUT /api/medicines/{id}`, and `PUT /api/medicines/{id}/status`. Inventory endpoints include `GET /api/inventory`, `POST /api/inventory/adjustments`, and `GET /api/inventory/movements`. Purchases expose `GET/POST /api/purchases`, `POST /api/purchases/{id}/returns`, and `POST /api/purchases/{id}/payments`. Sales expose `POST/GET /api/sales`, `GET /api/sales/{id}`, and `POST /api/sales/{id}/returns`. Business endpoints are protected by module permission policies and store entitlements.

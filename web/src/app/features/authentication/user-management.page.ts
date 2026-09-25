@@ -237,3 +237,4 @@ export class UserManagementPage extends PageFeedback implements OnInit {
     return new Date(`${value}T23:59:59.999`).toISOString();
   }
 }
+

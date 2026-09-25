@@ -36,3 +36,4 @@ public sealed record UpdateStoreStatusRequest(bool IsActive);
 public sealed record UpdateStoreSubscriptionRequest(string? PlanName, string? Status,
     DateTimeOffset? TrialEndsAt, DateTimeOffset? SubscriptionExpiresAt);
 public sealed record UpdateStorePermissionsRequest(string[]? Permissions);
+

@@ -48,7 +48,7 @@ export class AuthenticationApi {
   roles() {
     return this.api.get<StoreRole[]>('/auth/roles');
   }
-  createUser(input: { email: string; password: string; roles: string[] }) {
+  createUser(input: { email: string; password: string; roles: string[]; storeIds: number[] }) {
     return this.api.post<StoreUser>('/auth/users', input);
   }
   updateUserRoles(id: string, roles: string[]) {

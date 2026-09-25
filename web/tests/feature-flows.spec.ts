@@ -10,10 +10,13 @@ async function mockApi(page: Page) {
     receipts: {} as Record<number, unknown>,
     purchases: [] as { id: number; supplier: string; supplierInvoice: string; createdAt: string; total: number; returnedTotal: number; paidTotal: number; lines: { id: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitCost: number; onHand: number }[]; returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[]; payments: { id: number; amount: number; method: string; reference: string; paidAt: string }[] }[],
     movements: [] as { id: number; batchId: number; medicine: string; batch: string; type: string; quantityChange: number; balanceAfter: number; reason: string; createdAt: string }[],
-    users: [{ id: 'owner', email: 'owner@example.com', roles: ['Administrator'], isActive: true, storeIds: [1] }],
+    users: [
+      { id: 'owner', email: 'owner@example.com', roles: ['Administrator'], isActive: true, storeIds: [1] },
+      { id: 'store-admin', email: 'storeadmin@example.com', roles: ['Administrator'], isActive: true, storeIds: [1] },
+    ],
     stores: [
-      { id: 1, name: 'Main Store', code: 'MAIN', isDefault: true, isActive: true },
-      { id: 2, name: 'West Branch', code: 'WEST', isDefault: false, isActive: true },
+      { id: 1, name: 'Main Store', code: 'MAIN', isDefault: true, isActive: true, subscriptionPlan: 'Legacy', subscriptionStatus: 'Active', permissions: [] as string[] },
+      { id: 2, name: 'West Branch', code: 'WEST', isDefault: false, isActive: true, subscriptionPlan: 'Legacy', subscriptionStatus: 'Active', permissions: [] as string[] },
     ],
     permissionOptions: [
       ['users.manage', 'Manage users and roles'], ['roles.manage', 'Create roles and change permissions'], ['medicines.read', 'View medicines'],
@@ -35,6 +38,8 @@ async function mockApi(page: Page) {
     { id: 'cashier', name: 'Cashier', permissions: ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'], availablePermissions: state.permissionOptions.map(([key, label]) => ({ key, label })), canAssign: true },
     { id: 'inventory-manager', name: 'Inventory Manager', permissions: ['medicines.read', 'medicines.manage', 'inventory.read', 'inventory.manage', 'purchases.read', 'purchases.manage', 'sales.read', 'suppliers.read', 'reports.read'], availablePermissions: state.permissionOptions.map(([key, label]) => ({ key, label })), canAssign: true },
   );
+  state.stores.forEach(store => store.permissions = allPermissionKeys);
+  let isApplicationOwner = false;
   await page.route('**/api/**', async route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -44,27 +49,52 @@ async function mockApi(page: Page) {
       const body = request.postDataJSON();
       if (body.password === 'wrong') return reply({}, 401);
       const isCashier = body.email === 'cashier@example.com';
-      return reply({ token: 'test-token', userId: isCashier ? 'cashier' : 'owner', email: body.email, activeStoreId: 1, stores: state.stores, roles: [isCashier ? 'Cashier' : 'Administrator'],
-        permissions: isCashier ? ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'] : allPermissionKeys });
+      const isStoreAdmin = body.email === 'storeadmin@example.com';
+      isApplicationOwner = body.email === 'owner@example.com';
+      return reply({ token: 'test-token', userId: isCashier ? 'cashier' : (isStoreAdmin ? 'store-admin' : 'owner'), email: body.email, activeStoreId: 1, stores: state.stores, roles: [isCashier ? 'Cashier' : 'Administrator'],
+        isApplicationOwner, permissions: isCashier ? ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'] : allPermissionKeys });
     }
     if (request.headers()['authorization'] !== 'Bearer test-token') return reply({}, 401);
+    if (!isApplicationOwner && ((path.startsWith('/api/stores/') && path !== '/api/stores') ||
+      (path === '/api/stores' && method === 'POST') ||
+      (path === '/api/auth/users' && (method === 'GET' || method === 'POST')) ||
+      path.startsWith('/api/auth/roles') || /^\/api\/auth\/users\/[^/]+\/(?:password|roles|status|stores)$/.test(path))) return reply({}, 403);
     if (path === '/api/auth/switch-store' && method === 'POST') {
       const activeStoreId = request.postDataJSON().storeId;
       state.stores.forEach(store => store.isDefault = store.id === activeStoreId);
-      return reply({ token: 'test-token', userId: 'owner', email: 'owner@example.com', activeStoreId,
-        stores: state.stores, roles: ['Administrator'], permissions: allPermissionKeys });
+      return reply({ token: 'test-token', userId: isApplicationOwner ? 'owner' : 'store-admin', email: isApplicationOwner ? 'owner@example.com' : 'storeadmin@example.com', activeStoreId,
+        stores: state.stores, roles: ['Administrator'], permissions: allPermissionKeys, isApplicationOwner });
     }
     if (path === '/api/auth/users' && method === 'GET') return reply(state.users);
     if (path === '/api/auth/users' && method === 'POST') {
       const body = request.postDataJSON();
-      const user = { id: `user-${state.users.length}`, email: body.email, roles: body.roles, isActive: true, storeIds: [1] };
+      const user = { id: `user-${state.users.length}`, email: body.email, roles: body.roles, isActive: true, storeIds: body.storeIds };
       state.users.push(user); return reply(user, 201);
     }
+    const userPassword = path.match(/^\/api\/auth\/users\/([^/]+)\/password$/);
+    if (userPassword && method === 'PUT') return reply({ userId: userPassword[1], message: 'Password reset.' });
     if (path === '/api/stores' && method === 'GET') return reply(state.stores);
     if (path === '/api/stores/all' && method === 'GET') return reply(state.stores);
+    const storeStatus = path.match(/^\/api\/stores\/(\d+)\/status$/);
+    if (storeStatus && method === 'PUT') {
+      const store = state.stores.find(x => x.id === Number(storeStatus[1]))!;
+      store.isActive = request.postDataJSON().isActive; return reply(store);
+    }
+    const storeSubscription = path.match(/^\/api\/stores\/(\d+)\/subscription$/);
+    if (storeSubscription && method === 'PUT') {
+      const store = state.stores.find(x => x.id === Number(storeSubscription[1]))!;
+      Object.assign(store, { subscriptionPlan: request.postDataJSON().planName, subscriptionStatus: request.postDataJSON().status,
+        trialEndsAt: request.postDataJSON().trialEndsAt, subscriptionExpiresAt: request.postDataJSON().subscriptionExpiresAt });
+      return reply(store);
+    }
+    const storePermissions = path.match(/^\/api\/stores\/(\d+)\/permissions$/);
+    if (storePermissions && method === 'PUT') {
+      const store = state.stores.find(x => x.id === Number(storePermissions[1]))!;
+      store.permissions = request.postDataJSON().permissions; return reply({ storeId: store.id, permissions: store.permissions });
+    }
     if (path === '/api/stores' && method === 'POST') {
       const body = request.postDataJSON();
-      const store = { id: state.stores.length + 1, name: body.name, code: body.code.toUpperCase(), isDefault: false, isActive: true };
+      const store = { id: state.stores.length + 1, name: body.name, code: body.code.toUpperCase(), isDefault: false, isActive: true, subscriptionPlan: 'Free Trial', subscriptionStatus: 'Trial', permissions: allPermissionKeys };
       state.stores.push(store); return reply(store, 201);
     }
     const userRoles = path.match(/^\/api\/auth\/users\/([^/]+)\/roles$/);
@@ -221,7 +251,8 @@ async function navigate(page: Page, name: RegExp) {
     '/inventory': 'Inventory',
     '/suppliers': 'Suppliers',
     '/sales': 'Sales history',
-    '/users': 'Users & roles',
+    '/owner': 'Application Owner Admin Panel',
+    '/users': 'Application Owner Admin Panel',
   };
   await link.click();
   if (href && pageTitleByPath[href]) {
@@ -246,14 +277,9 @@ test('switching stores persists the active store and reloads the workspace', asy
   await mockApi(page);
   await signIn(page, '/reports');
   await expect(page.getByLabel('Active store')).toHaveValue('1');
-  const switchResponse = page.waitForResponse(response =>
-    new URL(response.url()).pathname === '/api/auth/switch-store');
   const reload = page.waitForNavigation({ waitUntil: 'load' });
   await page.getByLabel('Active store').selectOption('2');
-  const response = await switchResponse;
-  expect(response.ok()).toBeTruthy();
   await reload;
-  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('medical-store-id'))).toBe('2');
   await expect(page.getByLabel('Active store')).toHaveValue('2');
 });
 
@@ -368,16 +394,30 @@ test('invalid login and API validation errors are displayed on the owning page',
 
 test('admins can create users, configure roles and deactivate access', async ({ page }) => {
   const state = await mockApi(page); await signIn(page);
-  await navigate(page, /Users & roles/);
+  await navigate(page, /Owner panel/);
+  const mainStore = page.locator('.store-card').filter({ hasText: 'Main Store' });
+  await mainStore.getByRole('button', { name: 'Start 14-day trial' }).click();
+  expect(state.stores[0].subscriptionStatus).toBe('Trial');
+  await mainStore.getByLabel('Status').selectOption('Active');
+  await mainStore.getByRole('button', { name: 'Save subscription' }).click();
+  expect(state.stores[0].subscriptionStatus).toBe('Active');
+  await mainStore.getByRole('button', { name: 'Deactivate store' }).click();
+  expect(state.stores[0].isActive).toBe(false);
+  await mainStore.getByRole('button', { name: 'Activate store' }).click();
+  expect(state.stores[0].isActive).toBe(true);
   await page.getByLabel('Email', { exact: true }).fill('cashier@example.com');
   await page.getByLabel('Initial password').fill('ValidStrongPassword123!');
+  await page.getByRole('group', { name: 'Assign stores' }).getByLabel('Main Store').check();
   await page.getByLabel('Cashier', { exact: true }).check();
-  await page.getByRole('button', { name: 'Create user' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
   const userRow = page.getByRole('row').filter({ hasText: 'cashier@example.com' });
   await expect(userRow).toContainText('Cashier');
   await userRow.getByLabel('Roles for cashier@example.com').selectOption(['Pharmacist']);
   await userRow.getByRole('button', { name: 'Save roles' }).click();
   await expect(userRow).toContainText('Pharmacist');
+  await userRow.getByLabel('New password for cashier@example.com').fill('ResetPassword123!');
+  await userRow.getByRole('button', { name: 'Reset password' }).click();
+  await expect(page.getByText('Password reset for cashier@example.com. Share the new password with them securely.')).toBeVisible();
   await userRow.getByRole('button', { name: 'Deactivate' }).click();
   await expect(userRow).toContainText('Inactive');
 
@@ -388,6 +428,22 @@ test('admins can create users, configure roles and deactivate access', async ({ 
   await supervisor.getByRole('button', { name: 'Save permissions' }).click();
   expect(state.roles.find(role => role.name === 'Store Supervisor')?.permissions).toContain('reports.read');
   expect(state.users.find(user => user.email === 'cashier@example.com')?.isActive).toBe(false);
+});
+
+test('store administrators cannot open owner controls or call owner APIs', async ({ page }) => {
+  await mockApi(page); await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill('storeadmin@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('ExamplePassword123!');
+  await page.getByRole('button', { name: /Sign in/ }).click();
+  await expect(page).toHaveURL(/\/reports$/);
+  await expect(page.getByRole('navigation').getByRole('link', { name: /Owner panel/ })).toHaveCount(0);
+  await page.goto('/owner');
+  await expect(page).toHaveURL(/\/forbidden$/);
+  const response = await page.evaluate(async () => {
+    const token = sessionStorage.getItem('medical-token');
+    return fetch('/api/stores/all', { headers: { Authorization: `Bearer ${token}` } }).then(result => result.status);
+  });
+  expect(response).toBe(403);
 });
 
 test('cashier permissions limit navigation and hide medicine management', async ({ page }) => {

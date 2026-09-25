@@ -41,3 +41,4 @@ export interface StoreRole {
   availablePermissions: { key: string; label: string }[];
   canAssign: boolean;
 }
+

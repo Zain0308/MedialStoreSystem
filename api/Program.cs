@@ -33,3 +33,4 @@ app.MapMedicalStoreModules(jwtKey, ownerEmail);
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.Run();
+

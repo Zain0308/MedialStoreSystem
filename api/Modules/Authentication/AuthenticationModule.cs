@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
+using MedicalStore.Api.Modules.Stores;
 
 namespace MedicalStore.Api.Modules.Authentication;
 
@@ -55,12 +56,14 @@ public static class AuthenticationModule
 
                     var users = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
                     var user = await users.FindByIdAsync(userId);
-                    if (user is null || await users.IsLockedOutAsync(user) || user.SecurityStamp != stamp)
+                    var isApplicationOwner = context.Principal?.HasClaim("app_owner", "true") == true;
+                    if (isApplicationOwner && !string.Equals(user?.Email, ownerEmail, StringComparison.OrdinalIgnoreCase))
+                        context.Fail("The Application Owner account has changed. Sign in again.");
+                    else if (user is null || await users.IsLockedOutAsync(user) || user.SecurityStamp != stamp)
                         context.Fail("The account is inactive or its access has changed. Sign in again.");
                     else
                     {
                         var db = context.HttpContext.RequestServices.GetRequiredService<StoreDb>();
-                        var isApplicationOwner = context.Principal?.HasClaim("app_owner", "true") == true;
                         var membershipExists = await db.UserStores.AnyAsync(x =>
                             x.UserId == userId && x.StoreId == storeId && (isApplicationOwner || x.Store.IsActive));
                         if (!membershipExists) context.Fail("The selected store is no longer assigned to this account.");
