@@ -254,7 +254,7 @@ test('admins can create users, configure roles and deactivate access', async ({ 
   await page.getByRole('button', { name: 'Create user' }).click();
   const userRow = page.getByRole('row').filter({ hasText: 'cashier@example.com' });
   await expect(userRow).toContainText('Cashier');
-  await userRow.getByRole('combobox', { name: 'Roles for cashier@example.com' }).selectOption(['Pharmacist']);
+  await userRow.getByLabel('Roles for cashier@example.com').selectOption(['Pharmacist']);
   await userRow.getByRole('button', { name: 'Save roles' }).click();
   await expect(userRow).toContainText('Pharmacist');
   await userRow.getByRole('button', { name: 'Deactivate' }).click();
