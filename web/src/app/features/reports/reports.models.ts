@@ -4,6 +4,8 @@ export interface Dashboard {
   medicineCount: number;
   expiringBatches: number;
   expiredBatches: number;
+  subscriptionExpiresAt?: string | null;
+  subscriptionDaysRemaining?: number | null;
 }
 export interface DetailedReport {
   from: string | null; to: string | null; netSales: number; costOfGoods: number; expenseTotal: number; netProfit: number;

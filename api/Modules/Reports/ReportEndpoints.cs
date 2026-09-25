@@ -1,5 +1,6 @@
 using MedicalStore.Api.Infrastructure.Persistence;
 using MedicalStore.Api.Modules.Authentication;
+using MedicalStore.Api.Modules.Stores;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
 
@@ -9,17 +10,28 @@ public static class ReportEndpoints
 {
     public static void MapReportEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/dashboard", async (StoreDb db) =>
+        api.MapGet("/dashboard", async (StoreDb db, CurrentStoreContext currentStore) =>
         {
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var start = new DateTimeOffset(DateTime.UtcNow.Date, TimeSpan.Zero);
+            var now = DateTimeOffset.UtcNow;
+            var expiry = currentStore.StoreId is long storeId
+                ? await db.Stores.Where(x => x.Id == storeId)
+                    .Select(x => x.SubscriptionStatus == "Active" ? x.SubscriptionExpiresAt : x.TrialEndsAt)
+                    .SingleOrDefaultAsync()
+                : null;
+            var subscriptionDaysRemaining = expiry is { } end && end > now && end <= now.AddDays(5)
+                ? (int?)Math.Ceiling((end - now).TotalDays)
+                : null;
             return Results.Ok(new
             {
                 todaySales = await db.Sales.Where(x => x.CreatedAt >= start).SumAsync(x => (decimal?)x.Total) ?? 0,
                 todayInvoices = await db.Sales.CountAsync(x => x.CreatedAt >= start),
                 medicineCount = await db.Medicines.CountAsync(),
                 expiringBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate >= today && x.ExpiryDate <= today.AddDays(60)),
-                expiredBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate < today)
+                expiredBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate < today),
+                subscriptionExpiresAt = expiry,
+                subscriptionDaysRemaining
             });
         }).RequireAuthorization(StorePermissions.ReportsRead);
 

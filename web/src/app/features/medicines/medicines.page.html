@@ -57,10 +57,10 @@
       <form (ngSubmit)="saveMedicine()">
         <label>Medicine name<input name="m-name" [(ngModel)]="medicineForm.name" required placeholder="e.g. Paracetamol" /></label>
         <label>Generic name<input name="m-generic" [(ngModel)]="medicineForm.genericName" placeholder="Optional" /></label>
-        <label>Strength<input name="m-strength" [(ngModel)]="medicineForm.strength" maxlength="80" placeholder="e.g. 500 mg" /></label>
+        <label>Strength (optional)<input name="m-strength" [(ngModel)]="medicineForm.strength" maxlength="80" placeholder="e.g. 500 mg" /></label>
         <label>Dosage form<input name="m-form" [(ngModel)]="medicineForm.dosageForm" maxlength="80" placeholder="Tablet, syrup, capsule" /></label>
         <label>Manufacturer<input name="m-maker" [(ngModel)]="medicineForm.manufacturer" maxlength="160" placeholder="Optional" /></label>
-        <label>Barcode<input name="m-barcode" [(ngModel)]="medicineForm.barcode" placeholder="Scan or enter" /></label>
+        <label>Barcode (optional)<input name="m-barcode" [(ngModel)]="medicineForm.barcode" maxlength="100" placeholder="Scan or enter" /></label>
         <label>Description<input name="m-description" [(ngModel)]="medicineForm.description" maxlength="1000" placeholder="Optional notes" /></label>
         <label
           >Minimum stock (units)

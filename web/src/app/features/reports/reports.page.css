@@ -46,6 +46,7 @@
 .hero-button span {
   margin-left: 20px;
 }
+.subscription-warning{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;margin-top:16px;padding:15px 18px;border:1px solid #efd18d;border-radius:12px;background:#fff8e7;color:#795412;font-size:13px}.subscription-warning strong{font-size:14px}.subscription-warning span{color:#856b39}
 .stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

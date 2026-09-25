@@ -25,7 +25,7 @@ public static class MedicineEndpoints
             var barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode.Trim();
             if (barcode is not null && await db.Medicines.AnyAsync(x => x.Barcode == barcode)) return Results.Conflict("Barcode already exists.");
             var medicine = new Medicine { Name = input.Name.Trim(), GenericName = input.GenericName?.Trim(), Barcode = barcode,
-                Strength = input.Strength?.Trim(), DosageForm = input.DosageForm?.Trim(), Manufacturer = input.Manufacturer?.Trim(),
+                Strength = Clean(input.Strength), DosageForm = Clean(input.DosageForm), Manufacturer = Clean(input.Manufacturer),
                 Description = input.Description?.Trim(), MinimumStock = input.MinimumStock, RequiresPrescription = input.RequiresPrescription };
             db.Medicines.Add(medicine);
             await db.SaveChangesAsync();
@@ -42,8 +42,8 @@ public static class MedicineEndpoints
             if (barcode is not null && await db.Medicines.AnyAsync(x => x.Id != id && x.Barcode == barcode))
                 return Results.Conflict("Barcode already exists.");
             medicine.Name = input.Name.Trim(); medicine.GenericName = input.GenericName?.Trim(); medicine.Barcode = barcode;
-            medicine.Strength = input.Strength?.Trim(); medicine.DosageForm = input.DosageForm?.Trim();
-            medicine.Manufacturer = input.Manufacturer?.Trim(); medicine.Description = input.Description?.Trim();
+            medicine.Strength = Clean(input.Strength); medicine.DosageForm = Clean(input.DosageForm);
+            medicine.Manufacturer = Clean(input.Manufacturer); medicine.Description = Clean(input.Description);
             medicine.MinimumStock = input.MinimumStock; medicine.RequiresPrescription = input.RequiresPrescription;
             await db.SaveChangesAsync();
             return Results.Ok(new { medicine.Id });
@@ -64,4 +64,6 @@ public static class MedicineEndpoints
         (input.GenericName?.Length ?? 0) <= 200 && (input.Barcode?.Length ?? 0) <= 100 &&
         (input.Strength?.Length ?? 0) <= 80 && (input.DosageForm?.Length ?? 0) <= 80 &&
         (input.Manufacturer?.Length ?? 0) <= 160 && (input.Description?.Length ?? 0) <= 1000;
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

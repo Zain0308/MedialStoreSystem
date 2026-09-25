@@ -33,6 +33,8 @@ async function mockApi(page: Page) {
     roles: [] as { id: string; name: string; permissions: string[]; availablePermissions: { key: string; label: string }[]; canAssign: boolean }[],
     failReceipt: false,
     unauthorizedInventory: false,
+    subscriptionDaysRemaining: null as number | null,
+    subscriptionExpiresAt: null as string | null,
     salePosts: 0,
     reportQueries: [] as { from: string | null; to: string | null }[],
   };
@@ -289,7 +291,7 @@ async function mockApi(page: Page) {
         returns: [], payments: [] };
       state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total }, 201);
     }
-    if (path === '/api/dashboard') return reply({ todaySales: state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.sales.length, medicineCount: state.medicines.length, expiringBatches: 0, expiredBatches: 0 });
+    if (path === '/api/dashboard') return reply({ todaySales: state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.sales.length, medicineCount: state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionDaysRemaining, subscriptionExpiresAt: state.subscriptionExpiresAt });
     if (path === '/api/sales' && method === 'GET') return reply(state.sales);
     if (path === '/api/sales' && method === 'POST') {
       state.salePosts++;
@@ -385,6 +387,16 @@ test('protected deep links, session restore and 401 redirect', async ({ page }) 
   expect(await page.evaluate(() => sessionStorage.getItem('medical-token'))).toBeNull();
 });
 
+test('dashboard shows the subscription countdown when five days remain', async ({ page }) => {
+  const state = await mockApi(page);
+  await signIn(page, '/reports');
+  await expect(page.getByRole('status').filter({ hasText: 'Subscription expires' })).toHaveCount(0);
+  state.subscriptionDaysRemaining = 5;
+  state.subscriptionExpiresAt = '2026-10-01T00:00:00Z';
+  await page.reload();
+  await expect(page.getByRole('status').filter({ hasText: 'Subscription expires in 5 days' })).toBeVisible();
+});
+
 test('switching stores persists the active store and reloads the workspace', async ({ page }) => {
   await mockApi(page);
   await signIn(page, '/reports');
@@ -454,7 +466,6 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await mockApi(page); await signIn(page);
   await navigate(page, /Medicines/);
   await page.getByLabel('Medicine name').fill('Vitamin C');
-  await page.getByLabel('Barcode', { exact: true }).fill('67890');
   await page.getByRole('button', { name: 'Add medicine', exact: true }).click();
   await expect(page.getByRole('row').filter({ hasText: 'Vitamin C' })).toBeVisible();
   await navigate(page, /Suppliers/);
@@ -650,7 +661,7 @@ test('invalid login and API validation errors are displayed on the owning page',
   await submitLogin(page); await expect(page).toHaveURL(/\/reports$/);
   await navigate(page, /Medicines/);
   await page.getByLabel('Medicine name').fill('Duplicate medicine');
-  await page.getByLabel('Barcode', { exact: true }).fill('12345');
+  await page.getByLabel('Barcode (optional)', { exact: true }).fill('12345');
   await page.getByRole('button', { name: 'Add medicine', exact: true }).click();
   await expect(page.getByText('Barcode already exists.')).toBeVisible();
   await expect(page.getByLabel('Medicine name')).toHaveValue('Duplicate medicine');

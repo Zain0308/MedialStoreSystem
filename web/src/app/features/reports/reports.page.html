@@ -9,6 +9,12 @@
     </div>
     <div class="hero-symbol">✚</div>
   </div>
+  @if (dashboard()?.subscriptionDaysRemaining != null) {
+    <section class="subscription-warning" role="status">
+      <strong>Subscription expires in {{ dashboard()?.subscriptionDaysRemaining }} {{ dashboard()?.subscriptionDaysRemaining === 1 ? 'day' : 'days' }}</strong>
+      <span>Expiry date: {{ dashboard()?.subscriptionExpiresAt | date:'mediumDate' }}. Contact the application owner to renew access.</span>
+    </section>
+  }
   <div class="stats">
     <div class="stat">
       <span>SALES TODAY</span
