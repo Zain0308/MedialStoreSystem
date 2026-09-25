@@ -9,4 +9,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.9" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Database/upgrade-v2.sql" />
+  </ItemGroup>
 </Project>

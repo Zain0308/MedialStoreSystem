@@ -34,6 +34,6 @@ Each module owns its endpoints, request records, entities and EF configurations.
 
 Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
 
-Existing SQL Server databases need the idempotent `api/Database/upgrade-v2.sql` script. `EnsureCreated` will not add new columns or tables to a database that already has a schema.
+At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then the idempotent `api/Database/upgrade-v2.sql` upgrade is executed automatically. It adds missing columns/tables to existing databases and preserves existing rows.
 
 GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.

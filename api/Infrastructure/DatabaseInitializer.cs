@@ -13,6 +13,7 @@ public static class DatabaseInitializer
         using var scope = services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<StoreDb>();
         await db.Database.EnsureCreatedAsync();
+        await ApplySchemaUpgradesAsync(db);
         var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         await SeedRolesAsync(roles);
@@ -33,6 +34,21 @@ public static class DatabaseInitializer
             var result = await users.AddToRoleAsync(owner, StoreRoles.Administrator);
             if (!result.Succeeded) throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
+    }
+
+    private static async Task ApplySchemaUpgradesAsync(StoreDb db)
+    {
+        var assembly = typeof(DatabaseInitializer).Assembly;
+        const string resourceSuffix = "Database.upgrade-v2.sql";
+        var resourceName = assembly.GetManifestResourceNames()
+            .SingleOrDefault(name => name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException($"Embedded database upgrade script '{resourceSuffix}' was not found.");
+
+        await using var stream = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"Could not open embedded database upgrade script '{resourceName}'.");
+        using var reader = new StreamReader(stream);
+        var sql = await reader.ReadToEndAsync();
+        await db.Database.ExecuteSqlRawAsync(sql);
     }
 
     private static async Task SeedRolesAsync(RoleManager<IdentityRole> roles)

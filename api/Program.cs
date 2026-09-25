@@ -22,7 +22,7 @@ app.UseCors("LocalWeb");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// First version uses EnsureCreated for a fresh local database. Move to EF migrations before schema changes.
+// Create a fresh database when needed, then apply the idempotent schema upgrade for existing databases.
 await DatabaseInitializer.InitializeAsync(app.Services, app.Configuration);
 
 app.MapMedicalStoreModules(jwtKey);

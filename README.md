@@ -37,7 +37,7 @@ dotnet restore
 dotnet run --urls http://localhost:5080
 ```
 
-The Windows account running the API must be allowed to access and create tables in the application database. For the first run, use an empty database: `EnsureCreated` creates the schema only when the database has no tables. It does not update an existing schema. Keep the connection string, JWT key and owner password private.
+The Windows account running the API must be allowed to access and create tables in the application database. For a fresh database, `EnsureCreated` creates the schema. At every API startup, the idempotent `api/Database/upgrade-v2.sql` schema upgrade is applied automatically, adding missing columns/tables to an existing database while preserving rows. Keep the connection string, JWT key and owner password private.
 
 In a second PowerShell terminal:
 
@@ -84,7 +84,7 @@ The first run creates the SQL schema and owner account. Existing owner passwords
 
 ## Limits before real store rollout
 
-The current app supports one store; the purchase screen receives one batch line at a time. Customer credit, a consolidated supplier ledger, self-service password reset/invitations, regulatory registers, backups and prescription validation are not implemented. POS's displayed total is an estimate if batches have different sale prices; the API computes the final FEFO amount. `EnsureCreated` only creates a fresh database and does not evolve an existing one. For an existing database, back it up and run [`api/Database/upgrade-v2.sql`](api/Database/upgrade-v2.sql) against `MedicalStoreSystem` before starting the updated API. Use HTTPS and secure secret storage in any deployment.
+The current app supports one store; the purchase screen receives one batch line at a time. Customer credit, a consolidated supplier ledger, self-service password reset/invitations, regulatory registers, backups and prescription validation are not implemented. POS's displayed total is an estimate if batches have different sale prices; the API computes the final FEFO amount. Keep the API connection string pointed at `MedicalStoreSystem`; `EnsureCreated` creates a fresh database, and the startup schema upgrade adds missing columns/tables to an existing database. Use HTTPS and secure secret storage in any deployment.
 
 ## API shape
 

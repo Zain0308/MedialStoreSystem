@@ -1,7 +1,7 @@
 /*
    MedicalStoreSystem schema upgrade v2.
-   Run against the existing MedicalStoreSystem database before starting the updated API.
-   Safe to run more than once. Back up the database first.
+   Applied automatically by DatabaseInitializer at API startup after EnsureCreatedAsync.
+   Safe to run more than once. Existing tables and rows are preserved.
 */
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
