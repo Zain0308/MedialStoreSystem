@@ -11,6 +11,7 @@ import { PurchasesApi } from './purchases.api';
 import { PurchaseHistory, SupplierAccountSummary, SupplierStatement } from './purchases.models';
 import { AuthSession } from '../authentication/public-api';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
+import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
 
 @Component({
   selector: 'app-purchases-page',
@@ -150,6 +151,23 @@ export class PurchasesPage extends PageFeedback implements OnInit {
     return this.perform(async () => this.selectedSupplierStatement.set(await this.api.supplierStatement(account.supplierId)));
   }
   closeSupplierStatement(): void { this.selectedSupplierStatement.set(null); }
+  downloadSupplierLedger(): void {
+    const account = this.selectedSupplierStatement(); if (!account) return;
+    const rows: (string | number | null | undefined)[][] = [];
+    for (const invoice of account.invoices) {
+      rows.push(['Invoice', invoice.supplierInvoice, invoice.createdAt, invoice.total, invoice.returnedTotal,
+        invoice.paidTotal, this.balance(invoice), '', '', '', '']);
+      for (const line of invoice.lines) rows.push(['Purchase line', invoice.supplierInvoice, invoice.createdAt,
+        line.quantity * line.unitCost, '', '', '', line.medicine, line.batch, line.quantity, line.unitCost]);
+      for (const item of invoice.returns) rows.push(['Return', invoice.supplierInvoice, item.createdAt,
+        '', item.total, '', '', item.supplierReference, item.reason, '', '']);
+      for (const payment of invoice.payments) rows.push(['Payment', invoice.supplierInvoice, payment.paidAt,
+        '', '', payment.amount, '', payment.method, payment.reference, '', '']);
+    }
+    downloadCsv(`supplier-ledger-${safeFilename(account.supplier)}.csv`,
+      ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance',
+        'Item / method / reference', 'Batch / reason', 'Quantity', 'Unit cost'], rows);
+  }
   openStatementInvoice(purchase: PurchaseHistory): void {
     this.selectedPurchase.set(purchase);
     this.transactionSearch.set(''); this.transactionType.set('all'); this.transactionPage.set(1);
