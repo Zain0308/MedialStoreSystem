@@ -8,9 +8,11 @@ The project uses **Modular Monolith** architecture: one API host, one SQL Server
 
 - Owner login with ASP.NET Identity password hashing and short-lived JWT; API routes require login.
 - Multiple user accounts, Administrator/Pharmacist/Cashier/Inventory Manager roles, custom roles, configurable permission claims, user activation and module-level API authorization.
-- Medicine and supplier creation, duplicate barcode check.
-- Receive one batch line per purchase invoice; record stock movements.
-- POS with barcode/name search, FEFO batch allocation, stock and expiry checks, cash sale, printable 80 mm receipt.
+- Medicine catalogue with generic name, strength, dosage form, manufacturer, description, edit and deactivate/reactivate (history is retained).
+- Supplier creation and duplicate medicine-barcode check.
+- Purchase history with supplier returns, outstanding invoice balances and cash/card/bank/mobile-wallet payments.
+- Batch inventory with audited stock corrections, damaged-stock write-offs and movement history.
+- POS with barcode/name search, FEFO batch allocation, discounts, cash/card/bank/mobile-wallet payments, sales returns and printable 80 mm receipts.
 - Dashboard, batch inventory, expiry indicators, recent invoices.
 - Purchase and sale stock changes run inside SQL transactions; sales use serializable isolation plus batch row versions.
 - Prescription-required medicines are blocked at POS until a proper prescription workflow exists.
@@ -82,8 +84,8 @@ The first run creates the SQL schema and owner account. Existing owner passwords
 
 ## Limits before real store rollout
 
-The current app supports one store, one batch line per purchase invoice, and cash payments only. It does not yet support discounts, returns, customer credit, purchase payments, supplier ledger, self-service password reset/invitations, regulatory registers, backups or prescription validation. Money and quantity use per-unit amounts. POS's displayed total is an estimate if batches have different sale prices; the API computes the final FEFO amount. This version creates a fresh schema with `EnsureCreated`; before changing schema, add EF Core migrations and plan a database migration. Use HTTPS and secure secret storage in any deployment.
+The current app supports one store; the purchase screen receives one batch line at a time. Customer credit, a consolidated supplier ledger, self-service password reset/invitations, regulatory registers, backups and prescription validation are not implemented. POS's displayed total is an estimate if batches have different sale prices; the API computes the final FEFO amount. `EnsureCreated` only creates a fresh database and does not evolve an existing one. For an existing database, back it up and run [`api/Database/upgrade-v2.sql`](api/Database/upgrade-v2.sql) against `MedicalStoreSystem` before starting the updated API. Use HTTPS and secure secret storage in any deployment.
 
 ## API shape
 
-`POST /api/auth/login`; administrator endpoints: `GET/POST /api/auth/users`, `PUT /api/auth/users/{id}/roles`, `PUT /api/auth/users/{id}/status`, `GET/POST /api/auth/roles`, `PUT /api/auth/roles/{id}/permissions`. Business endpoints are protected by module permission policies: `GET/POST /api/medicines`, `GET/POST /api/suppliers`, `GET /api/inventory`, `POST /api/purchases`, `POST /api/sales`, `GET /api/sales`, `GET /api/sales/{id}`, `GET /api/dashboard`.
+`POST /api/auth/login`; administrator endpoints: `GET/POST /api/auth/users`, `PUT /api/auth/users/{id}/roles`, `PUT /api/auth/users/{id}/status`, `GET/POST /api/auth/roles`, `PUT /api/auth/roles/{id}/permissions`. Medicine endpoints include `GET/POST /api/medicines`, `PUT /api/medicines/{id}`, and `PUT /api/medicines/{id}/status`. Inventory endpoints include `GET /api/inventory`, `POST /api/inventory/adjustments`, and `GET /api/inventory/movements`. Purchases expose `GET/POST /api/purchases`, `POST /api/purchases/{id}/returns`, and `POST /api/purchases/{id}/payments`. Sales expose `POST/GET /api/sales`, `GET /api/sales/{id}`, and `POST /api/sales/{id}/returns`. Business endpoints are protected by module permission policies.

@@ -8,3 +8,7 @@ export interface Batch {
   salePrice: number;
   quantity: number;
 }
+export interface StockMovement {
+  id: number; batchId: number; medicine: string; batch: string; type: string;
+  quantityChange: number; balanceAfter: number; reason: string; createdAt: string;
+}

@@ -11,6 +11,9 @@
           <tr>
             <th>Invoice</th>
             <th>Date</th>
+            <th>Payment</th>
+            <th>Discount</th>
+            <th>Returned</th>
             <th>Total</th>
             <th></th>
           </tr>
@@ -22,6 +25,9 @@
                 <strong>{{ s.invoiceNumber }}</strong>
               </td>
               <td>{{ s.createdAt | date: 'medium' }}</td>
+              <td>{{ s.paymentMethod }}</td>
+              <td>Rs {{ s.discountAmount | number:'1.2-2' }}</td>
+              <td>Rs {{ s.returnedTotal | number:'1.2-2' }}</td>
               <td>Rs {{ s.total | number: '1.2-2' }}</td>
               <td>
                 <button class="text-button" (click)="viewReceipt(s.id)">View receipt →</button>
@@ -38,4 +44,24 @@
 </div>
 @if (receipt(); as savedReceipt) {
   <app-receipt [receipt]="savedReceipt" (closed)="receipt.set(null)" />
+  @if (session.hasPermission('sales.manage')) {
+    <section class="panel form-panel">
+      <h3>Return items from {{ savedReceipt.invoiceNumber }}</h3>
+      <p>Previously returned quantities are excluded. Restock only items that are safe to sell.</p>
+      <form (ngSubmit)="submitReturn()">
+        <div class="form-grid">
+          <label>Item<select name="sale-return-line" [(ngModel)]="returnForm.saleLineId" required>
+            @for (line of savedReceipt.lines; track line.saleLineId) { @if (line.quantity > line.returnedQuantity) {
+              <option [ngValue]="line.saleLineId">{{ line.medicine }} · {{ line.quantity - line.returnedQuantity }} remaining</option>
+            } }
+          </select></label>
+          <label>Quantity<input name="sale-return-qty" type="number" min="1" [(ngModel)]="returnForm.quantity" required /></label>
+          <label>Refund method<select name="refund-method" [(ngModel)]="returnForm.refundMethod">@for (method of paymentMethods; track method) { <option [value]="method">{{ method }}</option> }</select></label>
+          <label>Reason<input aria-label="Sale return reason" name="sale-return-reason" [(ngModel)]="returnForm.reason" maxlength="300" required /></label>
+        </div>
+        <label class="check"><input name="return-restock" type="checkbox" [(ngModel)]="returnForm.restock" />Safe and unexpired; put units back in saleable stock</label>
+        <button class="primary" [disabled]="busy() || !returnForm.saleLineId">Record return</button>
+      </form>
+    </section>
+  }
 }

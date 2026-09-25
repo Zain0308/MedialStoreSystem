@@ -16,7 +16,7 @@
             <th>Expiry</th>
             <th>Cost</th>
             <th>Sale price</th>
-            <th>Units</th>
+            <th>Saleable units</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -47,5 +47,28 @@
     @if (batches().length === 0) {
       <p class="empty">No batches received yet. Receive a purchase to create stock.</p>
     }
+  </section>
+  @if (session.hasPermission('inventory.manage')) {
+    <section class="panel form-panel">
+      <div class="panel-head"><div><h3>Adjust stock</h3><p>Damage/write-off reduces saleable stock and creates an audit movement.</p></div></div>
+      <form (ngSubmit)="submitAdjustment()">
+        <div class="form-grid">
+          <label>Batch<select name="adj-batch" [(ngModel)]="adjustment.batchId" required>
+            @for (b of batches(); track b.id) { <option [ngValue]="b.id">{{ b.medicine }} · {{ b.number }} ({{ b.quantity }} units)</option> }
+          </select></label>
+          <label>Movement type<select name="adj-type" [(ngModel)]="adjustment.type"><option value="Damage">Damaged / write-off</option><option value="Adjustment">Stock correction (signed)</option></select></label>
+          <label>Units {{ adjustment.type === 'Damage' ? 'to write off' : 'change (+ or -)' }}<input name="adj-qty" type="number" [min]="adjustment.type === 'Damage' ? 1 : -1000000" [max]="adjustment.type === 'Damage' ? 1000000 : 1000000" [(ngModel)]="adjustment.quantity" required /></label>
+          <label>Reason<input name="adj-reason" [(ngModel)]="adjustment.reason" required maxlength="300" placeholder="Expired, broken pack, count correction" /></label>
+        </div>
+        <button class="primary" [disabled]="busy() || !adjustment.batchId">Record movement</button>
+      </form>
+    </section>
+  }
+  <section class="panel">
+    <div class="panel-head"><div><h3>Stock movement report</h3><p>Latest 100 receipts, sales, returns, damages and adjustments.</p></div></div>
+    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Medicine / batch</th><th>Type</th><th>Change</th><th>Balance</th><th>Reason</th></tr></thead>
+      <tbody>@for (m of movements(); track m.id) { <tr><td>{{ m.createdAt | date:'short' }}</td><td>{{ m.medicine }} · {{ m.batch }}</td><td>{{ m.type }}</td><td>{{ m.quantityChange > 0 ? '+' : '' }}{{ m.quantityChange }}</td><td>{{ m.balanceAfter }}</td><td>{{ m.reason }}</td></tr> }</tbody>
+    </table></div>
+    @if (movements().length === 0) { <p class="empty">No movements yet.</p> }
   </section>
 </div>

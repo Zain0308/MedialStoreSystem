@@ -5,10 +5,10 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 | Module folder | Current implementation | Pending scope |
 | --- | --- | --- |
 | Authentication | Owner login, user management, predefined/custom roles, permission claims and API authorization | Password reset/invitation flow and audit history |
-| Medicines | Medicine catalogue, creation and barcode checks | Edit/deactivate flows and additional medicine metadata |
-| Inventory | Batch stock, expiry data and stock movement entities | Adjustments, damaged stock handling and movement reports |
-| Purchases | Receive purchases and record stock increases | Purchase history, returns and supplier payments |
-| Sales | POS checkout, FEFO allocation, sales history and receipts | Returns, discounts and additional payment methods |
+| Medicines | Catalogue metadata, edit and soft deactivate/reactivate | Batch pricing is maintained through purchase lots |
+| Inventory | Batch stock/expiry, audited adjustment and damage write-off, movement report | Multi-location stock |
+| Purchases | Receive batches, history, supplier returns and invoice payments | Supplier-wide ledger and reconciliation |
+| Sales | POS checkout, FEFO, discounts, cash/card/bank/mobile-wallet tender, returns and receipts | Customer credit and prescription workflow |
 | Customers | Folder and implementation scope | Customer records, credit limits and receivables |
 | Suppliers | Supplier records and creation | Edit/deactivate flows and supplier ledger |
 | Expenses | Folder and implementation scope | Expense categories and expense entry |

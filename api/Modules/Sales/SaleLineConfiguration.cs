@@ -9,5 +9,6 @@ public sealed class SaleLineConfiguration : IEntityTypeConfiguration<SaleLine>
     {
         builder.Property(x => x.UnitPrice).HasPrecision(18, 4);
         builder.Property(x => x.UnitCost).HasPrecision(18, 4);
+        builder.Property(x => x.DiscountAmount).HasPrecision(18, 2);
     }
 }

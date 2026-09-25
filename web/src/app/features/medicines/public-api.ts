@@ -1,2 +1,2 @@
 export { MedicinesApi } from './medicines.api';
-export type { Medicine, CreateMedicine } from './medicines.models';
+export type { Medicine, SaveMedicine } from './medicines.models';

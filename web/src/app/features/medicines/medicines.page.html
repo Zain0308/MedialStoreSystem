@@ -14,14 +14,17 @@
               <th>Barcode</th>
               <th>Saleable stock</th>
               <th>Prescription</th>
+              <th>Status</th>
+              @if (session.hasPermission('medicines.manage')) { <th>Actions</th> }
             </tr>
           </thead>
           <tbody>
             @for (m of medicines(); track m.id) {
               <tr>
                 <td>
-                  <strong>{{ m.name }}</strong
-                  ><small>{{ m.genericName || '—' }}</small>
+                  <strong>{{ m.name }}</strong>
+                  <small>{{ m.strength || '—' }} · {{ m.dosageForm || '—' }} · {{ m.genericName || '—' }}</small>
+                  @if (m.manufacturer || m.description) { <small>{{ m.manufacturer || '' }} {{ m.description || '' }}</small> }
                 </td>
                 <td>{{ m.barcode || '—' }}</td>
                 <td>
@@ -30,6 +33,11 @@
                   >
                 </td>
                 <td>{{ m.requiresPrescription ? 'Required' : 'No' }}</td>
+                <td><span class="badge" [class.bad]="!m.isActive">{{ m.isActive ? 'Active' : 'Inactive' }}</span></td>
+                @if (session.hasPermission('medicines.manage')) {
+                  <td><button class="text-button" (click)="edit(m)">Edit</button>
+                    <button class="text-button" (click)="setActive(m)">{{ m.isActive ? 'Deactivate' : 'Activate' }}</button></td>
+                }
               </tr>
             }
           </tbody>
@@ -41,25 +49,16 @@
     </section>
   @if (session.hasPermission('medicines.manage')) {
   <section class="panel form-panel">
-      <h3>Add medicine</h3>
+      <h3>{{ editingId === null ? 'Add medicine' : 'Edit medicine' }}</h3>
       <p>Stock will be added when you receive a purchase.</p>
-      <form (ngSubmit)="addMedicine()">
-        <label
-          >Medicine name
-          <input
-            name="m-name"
-            [(ngModel)]="medicineForm.name"
-            required
-            placeholder="e.g. Paracetamol 500mg"
-        /></label>
-        <label
-          >Generic name
-          <input name="m-generic" [(ngModel)]="medicineForm.genericName" placeholder="Optional"
-        /></label>
-        <label
-          >Barcode
-          <input name="m-barcode" [(ngModel)]="medicineForm.barcode" placeholder="Scan or enter"
-        /></label>
+      <form (ngSubmit)="saveMedicine()">
+        <label>Medicine name<input name="m-name" [(ngModel)]="medicineForm.name" required placeholder="e.g. Paracetamol" /></label>
+        <label>Generic name<input name="m-generic" [(ngModel)]="medicineForm.genericName" placeholder="Optional" /></label>
+        <label>Strength<input name="m-strength" [(ngModel)]="medicineForm.strength" maxlength="80" placeholder="e.g. 500 mg" /></label>
+        <label>Dosage form<input name="m-form" [(ngModel)]="medicineForm.dosageForm" maxlength="80" placeholder="Tablet, syrup, capsule" /></label>
+        <label>Manufacturer<input name="m-maker" [(ngModel)]="medicineForm.manufacturer" maxlength="160" placeholder="Optional" /></label>
+        <label>Barcode<input name="m-barcode" [(ngModel)]="medicineForm.barcode" placeholder="Scan or enter" /></label>
+        <label>Description<input name="m-description" [(ngModel)]="medicineForm.description" maxlength="1000" placeholder="Optional notes" /></label>
         <label
           >Minimum stock (units)
           <input
@@ -73,7 +72,8 @@
           ><input name="m-rx" type="checkbox" [(ngModel)]="medicineForm.requiresPrescription" />
           Prescription required</label
         >
-        <button class="primary full" [disabled]="busy()">Add medicine</button>
+        <div class="actions"><button class="primary" [disabled]="busy()">{{ editingId === null ? 'Add medicine' : 'Save changes' }}</button>
+          @if (editingId !== null) { <button type="button" class="secondary" (click)="cancelEdit()">Cancel</button> }</div>
       </form>
   </section>
   }

@@ -10,4 +10,5 @@ public sealed class PurchaseLine
     public Batch Batch { get; set; } = null!;
     public int Quantity { get; set; }
     public decimal UnitCost { get; set; }
+    public int ReturnedQuantity { get; set; }
 }

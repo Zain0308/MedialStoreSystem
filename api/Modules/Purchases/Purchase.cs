@@ -11,4 +11,6 @@ public sealed class Purchase
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public decimal Total { get; set; }
     public List<PurchaseLine> Lines { get; set; } = [];
+    public List<PurchaseReturn> Returns { get; set; } = [];
+    public List<SupplierPayment> Payments { get; set; } = [];
 }

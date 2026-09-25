@@ -16,8 +16,13 @@ public sealed class StoreDb(DbContextOptions<StoreDb> options) : IdentityDbConte
     public DbSet<Batch> Batches => Set<Batch>();
     public DbSet<Purchase> Purchases => Set<Purchase>();
     public DbSet<PurchaseLine> PurchaseLines => Set<PurchaseLine>();
+    public DbSet<PurchaseReturn> PurchaseReturns => Set<PurchaseReturn>();
+    public DbSet<PurchaseReturnLine> PurchaseReturnLines => Set<PurchaseReturnLine>();
+    public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleLine> SaleLines => Set<SaleLine>();
+    public DbSet<SaleReturn> SaleReturns => Set<SaleReturn>();
+    public DbSet<SaleReturnLine> SaleReturnLines => Set<SaleReturnLine>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
 
     protected override void OnModelCreating(ModelBuilder builder)

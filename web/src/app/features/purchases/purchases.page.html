@@ -1,6 +1,6 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 <div class="page-content">
-  <section class="panel form-panel">
+  @if (session.hasPermission('purchases.manage')) { <section class="panel form-panel">
     <h3>Receive stock</h3>
     <p><a routerLink="/suppliers">Manage suppliers →</a></p>
     <p>Each received line creates a traceable batch. Quantities are individual sale units.</p>
@@ -82,5 +82,41 @@
         Receive batch →
       </button>
     </form>
+  </section> }
+  <section class="panel">
+    <div class="panel-head"><div><h3>Purchase history</h3><p>Received invoices, supplier returns and payments.</p></div><span class="count">Latest 100</span></div>
+    <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Supplier</th><th>Date</th><th>Net total</th><th>Paid</th><th>Balance</th>@if (session.hasPermission('purchases.manage')) { <th>Actions</th> }</tr></thead>
+      <tbody>@for (p of purchases(); track p.id) { <tr><td>{{ p.supplierInvoice }}</td><td>{{ p.supplier }}</td><td>{{ p.createdAt | date:'mediumDate' }}</td>
+        <td>Rs {{ p.total - p.returnedTotal | number:'1.2-2' }}</td><td>Rs {{ p.paidTotal | number:'1.2-2' }}</td><td>Rs {{ balance(p) | number:'1.2-2' }}</td>
+        @if (session.hasPermission('purchases.manage')) { <td><button class="text-button" (click)="openReturn(p)">Return stock</button><button class="text-button" [disabled]="balance(p) <= 0" (click)="openPayment(p)">Record payment</button></td> }</tr> }</tbody>
+    </table></div>
+    @if (purchases().length === 0) { <p class="empty">No received purchases yet.</p> }
   </section>
+  @if (selectedPurchase(); as selected) {
+    <section class="panel form-panel">
+      <div class="panel-head"><div><h3>Invoice {{ selected.supplierInvoice }}</h3><p>{{ selected.supplier }} · Current balance Rs {{ balance(selected) | number:'1.2-2' }}</p></div><button class="text-button" (click)="selectedPurchase.set(null)">Close</button></div>
+      @if (session.hasPermission('purchases.manage')) { <div class="list-row"><div><strong>Record supplier return</strong><small>Only unreturned units still on hand can be returned.</small></div></div>
+      <form (ngSubmit)="submitReturn()">
+        <div class="form-grid"><label>Purchase line<select name="return-line" [(ngModel)]="returnForm.lineId" required>
+          @for (line of selected.lines; track line.id) { @if (line.quantity > line.returnedQuantity && line.onHand > 0) { <option [ngValue]="line.id">{{ line.medicine }} · {{ line.batch }} ({{ line.onHand }} on hand)</option> } }
+        </select></label>
+        <label>Units to return<input name="return-qty" type="number" min="1" [(ngModel)]="returnForm.quantity" required /></label>
+        <label>Supplier return reference<input name="return-ref" [(ngModel)]="returnForm.supplierReference" required /></label>
+        <label>Reason<input name="return-reason" [(ngModel)]="returnForm.reason" maxlength="300" required /></label></div>
+        <button class="secondary" [disabled]="busy() || !returnForm.lineId">Save return</button>
+      </form> }
+      @if (session.hasPermission('purchases.manage')) {
+      <div class="list-row"><div><strong>Record supplier payment</strong><small>Payment cannot exceed invoice balance after returns.</small></div></div>
+      <form (ngSubmit)="submitPayment()">
+        <div class="form-grid"><label>Amount (Rs)<input name="payment-amount" type="number" min="0.01" step="0.01" [max]="balance(selected)" [(ngModel)]="paymentForm.amount" required /></label>
+        <label>Method<select name="payment-method" [(ngModel)]="paymentForm.method">@for (method of paymentMethods; track method) { <option [value]="method">{{ method }}</option> }</select></label>
+        <label>Reference<input name="payment-ref" [(ngModel)]="paymentForm.reference" placeholder="Optional transaction reference" /></label></div>
+        <button class="primary" [disabled]="busy() || balance(selected) <= 0">Save payment</button>
+      </form> }
+      <div class="table-wrap"><table><thead><tr><th>Kind</th><th>Reference</th><th>Amount / reason</th><th>Date</th></tr></thead><tbody>
+        @for (r of selected.returns; track r.id) { <tr><td>Return</td><td>{{ r.supplierReference }}</td><td>Rs {{ r.total | number:'1.2-2' }} · {{ r.reason }}</td><td>{{ r.createdAt | date:'short' }}</td></tr> }
+        @for (payment of selected.payments; track payment.id) { <tr><td>Payment · {{ payment.method }}</td><td>{{ payment.reference || '—' }}</td><td>Rs {{ payment.amount | number:'1.2-2' }}</td><td>{{ payment.paidAt | date:'short' }}</td></tr> }
+      </tbody></table></div>
+    </section>
+  }
 </div>

@@ -5,10 +5,10 @@ This is the user-approved architecture for Medical Store. The system has one API
 | Business module | Backend | Frontend | Current scope |
 | --- | --- | --- | --- |
 | Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Login, multi-user administration, roles, permissions and route/API authorization |
-| Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue and medicine creation |
-| Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities and expiry display |
-| Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receive a stock batch |
-| Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, checkout, receipts and sales history |
+| Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue metadata, editing and soft deactivation |
+| Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, audited adjustments, damaged stock and movement history |
+| Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receiving, history, supplier returns and invoice payments |
+| Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, discounts, multiple tenders, receipts, returns and sales history |
 | Customers | `api/Modules/Customers` | `web/src/app/features/customers` | Planned; functionality pending |
 | Suppliers | `api/Modules/Suppliers` | `web/src/app/features/suppliers` | Supplier list and creation |
 | Expenses | `api/Modules/Expenses` | `web/src/app/features/expenses` | Planned; functionality pending |
@@ -33,5 +33,7 @@ Each module owns its endpoints, request records, entities and EF configurations.
 ## Validation
 
 Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
+
+Existing SQL Server databases need the idempotent `api/Database/upgrade-v2.sql` script. `EnsureCreated` will not add new columns or tables to a database that already has a schema.
 
 GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.

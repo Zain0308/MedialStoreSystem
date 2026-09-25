@@ -41,7 +41,7 @@ export const APP_ROUTES: Routes = [
       {
         path: 'purchases',
         canActivate: [permissionGuard],
-        data: { permissions: ['purchases.manage', 'medicines.read', 'suppliers.read'] },
+        data: { permissions: ['purchases.read', 'medicines.read', 'suppliers.read'] },
         loadChildren: () =>
           import('./features/purchases/purchases.routes').then((m) => m.PURCHASES_ROUTES),
       },

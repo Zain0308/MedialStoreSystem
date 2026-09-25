@@ -8,6 +8,10 @@ public sealed class Medicine
     public required string Name { get; set; }
     public string? GenericName { get; set; }
     public string? Barcode { get; set; }
+    public string? Strength { get; set; }
+    public string? DosageForm { get; set; }
+    public string? Manufacturer { get; set; }
+    public string? Description { get; set; }
     public bool RequiresPrescription { get; set; }
     public int MinimumStock { get; set; }
     public bool IsActive { get; set; } = true;

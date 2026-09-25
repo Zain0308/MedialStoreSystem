@@ -13,8 +13,12 @@ public static class SaleEndpoints
     {
         api.MapPost("/sales", async (SaleRequest input, StoreDb db, ClaimsPrincipal principal) =>
         {
-            if (input.Lines is null || input.Lines.Count == 0 || input.Lines.Any(x => x.Quantity <= 0) || input.CashReceived < 0)
-                return Results.BadRequest("Select items, enter positive quantities and valid cash received.");
+            var method = input.PaymentMethod?.Trim();
+            var paymentMethods = new[] { "Cash", "Card", "Bank Transfer", "Mobile Wallet" };
+            if (input.Lines is null || input.Lines.Count == 0 || input.Lines.Any(x => x.Quantity <= 0) ||
+                input.CashReceived < 0 || input.DiscountAmount < 0 || method is null ||
+                !paymentMethods.Contains(method, StringComparer.OrdinalIgnoreCase))
+                return Results.BadRequest("Select items, enter positive quantities and valid discount, tender and payment method.");
             var wanted = input.Lines.GroupBy(x => x.MedicineId).Select(x => new SaleRequestLine(x.Key, x.Sum(y => y.Quantity))).ToArray();
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var ids = wanted.Select(x => x.MedicineId).ToArray();
@@ -24,7 +28,8 @@ public static class SaleEndpoints
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var batches = await db.Batches.Where(x => ids.Contains(x.MedicineId) && x.ExpiryDate >= today && x.Quantity > 0)
                 .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Id).ToListAsync();
-            var sale = new Sale { InvoiceNumber = $"TMP-{Guid.NewGuid():N}", CashReceived = input.CashReceived,
+            var isCash = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase);
+            var sale = new Sale { InvoiceNumber = $"TMP-{Guid.NewGuid():N}", CashReceived = isCash ? input.CashReceived : 0, PaymentMethod = method,
                 CashierId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
                     ?? principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? "" };
             var movements = new List<(Batch batch, int taken)>();
@@ -43,32 +48,102 @@ public static class SaleEndpoints
                 }
                 if (remaining > 0) return Results.Conflict($"Insufficient available stock for medicine {item.MedicineId}.");
             }
-            sale.Total = decimal.Round(sale.Lines.Sum(x => x.UnitPrice * x.Quantity), 2);
-            if (input.CashReceived < sale.Total) return Results.BadRequest($"Cash received must be at least {sale.Total:0.00}.");
+            sale.Subtotal = decimal.Round(sale.Lines.Sum(x => x.UnitPrice * x.Quantity), 2);
+            sale.DiscountAmount = decimal.Round(input.DiscountAmount, 2);
+            if (sale.DiscountAmount > sale.Subtotal) return Results.BadRequest("Discount cannot exceed the sale subtotal.");
+            sale.Total = sale.Subtotal - sale.DiscountAmount;
+            if (isCash && input.CashReceived < sale.Total)
+                return Results.BadRequest($"Cash received must be at least {sale.Total:0.00}.");
+            var distributedDiscount = 0m;
+            for (var i = 0; i < sale.Lines.Count; i++)
+            {
+                var line = sale.Lines[i];
+                var lineGross = line.UnitPrice * line.Quantity;
+                line.DiscountAmount = i == sale.Lines.Count - 1
+                    ? sale.DiscountAmount - distributedDiscount
+                    : sale.Subtotal == 0 ? 0 : decimal.Round(sale.DiscountAmount * lineGross / sale.Subtotal, 2);
+                distributedDiscount += line.DiscountAmount;
+            }
             db.Sales.Add(sale);
             await db.SaveChangesAsync();
             sale.InvoiceNumber = $"INV-{sale.Id:D8}";
             foreach (var (batch, taken) in movements)
                 db.StockMovements.Add(new StockMovement { BatchId = batch.Id, Type = "Sale", ReferenceId = sale.Id,
-                    QuantityChange = -taken, BalanceAfter = batch.Quantity });
+                    QuantityChange = -taken, BalanceAfter = batch.Quantity, Reason = sale.InvoiceNumber, ActorId = sale.CashierId });
             await db.SaveChangesAsync();
             await tx.CommitAsync();
-            return Results.Created($"/api/sales/{sale.Id}", new { sale.Id, sale.InvoiceNumber, sale.Total, change = sale.CashReceived - sale.Total });
+            return Results.Created($"/api/sales/{sale.Id}", new { sale.Id, sale.InvoiceNumber, sale.Subtotal, sale.DiscountAmount,
+                sale.Total, sale.PaymentMethod, change = isCash ? sale.CashReceived - sale.Total : 0 });
         }).RequireAuthorization(StorePermissions.SalesCreate);
 
-        api.MapGet("/sales", async (StoreDb db) => Results.Ok(await db.Sales.OrderByDescending(x => x.Id)
-            .Take(50).Select(x => new { x.Id, x.InvoiceNumber, x.CreatedAt, x.Total }).ToListAsync()))
+        api.MapGet("/sales", async (StoreDb db) => Results.Ok(await db.Sales.AsNoTracking().OrderByDescending(x => x.Id)
+            .Take(100).Select(x => new { x.Id, x.InvoiceNumber, x.CreatedAt, x.Subtotal, x.DiscountAmount, x.Total,
+                x.PaymentMethod, returnedTotal = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0 }).ToListAsync()))
             .RequireAuthorization(StorePermissions.SalesRead);
 
         api.MapGet("/sales/{id:long}", async (long id, StoreDb db) =>
         {
             var sale = await db.Sales.Where(x => x.Id == id).Select(x => new
             {
-                x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.CashReceived,
-                lines = x.Lines.Select(y => new { medicine = y.Batch.Medicine.Name, batch = y.Batch.Number,
-                    y.Quantity, y.UnitPrice, total = y.Quantity * y.UnitPrice })
+                x.Id, x.InvoiceNumber, x.CreatedAt, x.Subtotal, x.DiscountAmount, x.Total, x.CashReceived, x.PaymentMethod,
+                returnedTotal = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
+                lines = x.Lines.Select(y => new { saleLineId = y.Id, medicine = y.Batch.Medicine.Name, batch = y.Batch.Number,
+                    quantity = y.Quantity, returnedQuantity = y.ReturnedQuantity, y.UnitPrice, y.DiscountAmount,
+                    total = y.UnitPrice * y.Quantity - y.DiscountAmount })
             }).SingleOrDefaultAsync();
             return sale is null ? Results.NotFound() : Results.Ok(sale);
         }).RequireAuthorization(StorePermissions.SalesRead);
+
+        api.MapPost("/sales/{id:long}/returns", async (long id, SaleReturnRequest input, StoreDb db, ClaimsPrincipal principal) =>
+        {
+            var refundMethod = input.RefundMethod?.Trim();
+            var paymentMethods = new[] { "Cash", "Card", "Bank Transfer", "Mobile Wallet" };
+            if (string.IsNullOrWhiteSpace(input.Reason) || input.Lines is null || input.Lines.Count == 0 ||
+                input.Lines.Any(x => x.Quantity <= 0) || refundMethod is null ||
+                !paymentMethods.Contains(refundMethod, StringComparer.OrdinalIgnoreCase))
+                return Results.BadRequest("Return reason, positive quantities and a supported refund method are required.");
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var sale = await db.Sales.Include(x => x.Lines).ThenInclude(x => x.Batch)
+                .SingleOrDefaultAsync(x => x.Id == id);
+            if (sale is null) return Results.NotFound();
+            var requested = input.Lines.GroupBy(x => new { x.SaleLineId, x.Restock })
+                .Select(g => new { g.Key.SaleLineId, g.Key.Restock, Quantity = g.Sum(x => x.Quantity) }).ToArray();
+            var byId = sale.Lines.ToDictionary(x => x.Id);
+            foreach (var request in requested)
+            {
+                if (!byId.TryGetValue(request.SaleLineId, out var line)) return Results.BadRequest("Sale line does not belong to this invoice.");
+                if (request.Quantity > line.Quantity - line.ReturnedQuantity)
+                    return Results.Conflict("Return quantity exceeds the unreturned quantity sold.");
+                if (request.Restock && line.Batch.ExpiryDate < DateOnly.FromDateTime(DateTime.UtcNow))
+                    return Results.Conflict("Expired stock cannot be returned to saleable inventory.");
+            }
+            var saleReturn = new SaleReturn { SaleId = id, Reason = input.Reason.Trim(), RefundMethod = refundMethod };
+            foreach (var request in requested)
+            {
+                var line = byId[request.SaleLineId];
+                line.ReturnedQuantity += request.Quantity;
+                var unitRefund = Math.Max(0m, line.UnitPrice - line.DiscountAmount / line.Quantity);
+                saleReturn.Lines.Add(new SaleReturnLine { SaleLineId = line.Id, BatchId = line.BatchId,
+                    Quantity = request.Quantity, Restocked = request.Restock, UnitRefund = unitRefund });
+                if (request.Restock)
+                {
+                    line.Batch.Quantity += request.Quantity;
+                    db.StockMovements.Add(new StockMovement { BatchId = line.BatchId, Type = "SaleReturn", ReferenceId = id,
+                        QuantityChange = request.Quantity, BalanceAfter = line.Batch.Quantity, Reason = input.Reason.Trim(),
+                        ActorId = principal.FindFirstValue(ClaimTypes.NameIdentifier) });
+                }
+                else
+                {
+                    db.StockMovements.Add(new StockMovement { BatchId = line.BatchId, Type = "DamagedReturn", ReferenceId = id,
+                        QuantityChange = 0, BalanceAfter = line.Batch.Quantity, Reason = input.Reason.Trim(),
+                        ActorId = principal.FindFirstValue(ClaimTypes.NameIdentifier) });
+                }
+            }
+            saleReturn.TotalRefund = decimal.Round(saleReturn.Lines.Sum(x => x.Quantity * x.UnitRefund), 2);
+            db.SaleReturns.Add(saleReturn);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return Results.Created($"/api/sales/{id}/returns/{saleReturn.Id}", new { saleReturn.Id, saleReturn.TotalRefund, saleReturn.RefundMethod });
+        }).RequireAuthorization(StorePermissions.SalesManage);
     }
 }

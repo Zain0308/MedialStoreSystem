@@ -20,6 +20,7 @@ public static class StorePermissions
     public const string PurchasesManage = "purchases.manage";
     public const string SalesRead = "sales.read";
     public const string SalesCreate = "sales.create";
+    public const string SalesManage = "sales.manage";
     public const string SuppliersRead = "suppliers.read";
     public const string SuppliersManage = "suppliers.manage";
     public const string ReportsRead = "reports.read";
@@ -36,6 +37,7 @@ public static class StorePermissions
         [PurchasesManage] = "Receive purchases",
         [SalesRead] = "View sales and receipts",
         [SalesCreate] = "Create sales at POS",
+        [SalesManage] = "Process sales returns and discounts",
         [SuppliersRead] = "View suppliers",
         [SuppliersManage] = "Manage suppliers",
         [ReportsRead] = "View reports and dashboard"
@@ -44,7 +46,7 @@ public static class StorePermissions
     public static readonly IReadOnlyDictionary<string, string[]> DefaultRoles = new Dictionary<string, string[]>
     {
         [StoreRoles.Administrator] = All.Keys.ToArray(),
-        [StoreRoles.Pharmacist] = [MedicinesRead, InventoryRead, PurchasesRead, SalesRead, SalesCreate, SuppliersRead, ReportsRead],
+        [StoreRoles.Pharmacist] = [MedicinesRead, InventoryRead, PurchasesRead, SalesRead, SalesCreate, SalesManage, SuppliersRead, ReportsRead],
         [StoreRoles.Cashier] = [MedicinesRead, InventoryRead, SalesRead, SalesCreate],
         [StoreRoles.InventoryManager] = [MedicinesRead, MedicinesManage, InventoryRead, InventoryManage, PurchasesRead, PurchasesManage, SalesRead, SuppliersRead, ReportsRead]
     };

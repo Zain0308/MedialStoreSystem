@@ -11,4 +11,6 @@ public sealed class SaleLine
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal UnitCost { get; set; }
+    public decimal DiscountAmount { get; set; }
+    public int ReturnedQuantity { get; set; }
 }

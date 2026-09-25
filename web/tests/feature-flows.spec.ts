@@ -6,15 +6,17 @@ async function mockApi(page: Page) {
     medicines: [{ id: 1, name: 'Paracetamol 500mg', genericName: 'Paracetamol', barcode: '12345', stock: 20, minimumStock: 10, requiresPrescription: false, isActive: true }],
     suppliers: [{ id: 1, name: 'Demo Pharma', phone: '0000000000' }],
     batches: [{ id: 1, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-01', expiryDate: '2050-12-31', costPrice: 2, salePrice: 5, quantity: 20 }],
-    sales: [] as { id: number; invoiceNumber: string; createdAt: string; total: number }[],
+    sales: [] as { id: number; invoiceNumber: string; createdAt: string; subtotal: number; discountAmount: number; total: number; paymentMethod: string; returnedTotal: number }[],
     receipts: {} as Record<number, unknown>,
+    purchases: [] as { id: number; supplier: string; supplierInvoice: string; createdAt: string; total: number; returnedTotal: number; paidTotal: number; lines: { id: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitCost: number; onHand: number }[]; returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[]; payments: { id: number; amount: number; method: string; reference: string; paidAt: string }[] }[],
+    movements: [] as { id: number; batchId: number; medicine: string; batch: string; type: string; quantityChange: number; balanceAfter: number; reason: string; createdAt: string }[],
     users: [{ id: 'owner', email: 'owner@example.com', roles: ['Administrator'], isActive: true }],
     permissionOptions: [
       ['users.manage', 'Manage users and roles'], ['roles.manage', 'Create roles and change permissions'], ['medicines.read', 'View medicines'],
       ['medicines.manage', 'Create medicines'], ['inventory.read', 'View inventory'],
       ['inventory.manage', 'Adjust inventory'], ['purchases.read', 'View purchases'],
       ['purchases.manage', 'Receive purchases'], ['sales.read', 'View sales and receipts'],
-      ['sales.create', 'Create sales at POS'], ['suppliers.read', 'View suppliers'],
+      ['sales.create', 'Create sales at POS'], ['sales.manage', 'Process sales returns and discounts'], ['suppliers.read', 'View suppliers'],
       ['suppliers.manage', 'Manage suppliers'], ['reports.read', 'View reports and dashboard'],
     ] as [string, string][],
     roles: [] as { id: string; name: string; permissions: string[]; availablePermissions: { key: string; label: string }[]; canAssign: boolean }[],
@@ -76,12 +78,43 @@ async function mockApi(page: Page) {
       const medicine = { ...body, id: state.medicines.length + 1, stock: 0, isActive: true };
       state.medicines.push(medicine); return reply({ id: medicine.id }, 201);
     }
+    const medicinePath = path.match(/^\/api\/medicines\/(\d+)(?:\/status)?$/);
+    if (medicinePath && method === 'PUT') {
+      const medicine = state.medicines.find(x => x.id === Number(medicinePath[1]))!;
+      if (path.endsWith('/status')) medicine.isActive = request.postDataJSON().isActive;
+      else Object.assign(medicine, request.postDataJSON());
+      return reply(medicine);
+    }
     if (path === '/api/suppliers' && method === 'GET') return reply(state.suppliers);
     if (path === '/api/suppliers' && method === 'POST') {
       const supplier = { ...request.postDataJSON(), id: state.suppliers.length + 1 };
       state.suppliers.push(supplier); return reply({ id: supplier.id }, 201);
     }
+    if (path === '/api/inventory/movements') return reply(state.movements);
+    if (path === '/api/inventory/adjustments' && method === 'POST') {
+      const body = request.postDataJSON(); const batch = state.batches.find(x => x.id === body.batchId)!;
+      batch.quantity += body.quantityChange;
+      state.movements.push({ id: state.movements.length + 1, batchId: batch.id, medicine: batch.medicine, batch: batch.number, type: body.type, quantityChange: body.quantityChange, balanceAfter: batch.quantity, reason: body.reason, createdAt: new Date().toISOString() });
+      return reply({ id: batch.id, quantity: batch.quantity });
+    }
     if (path === '/api/inventory') return reply(state.unauthorizedInventory ? {} : state.batches, state.unauthorizedInventory ? 401 : 200);
+    if (path === '/api/purchases' && method === 'GET') return reply(state.purchases);
+    const purchaseReturn = path.match(/^\/api\/purchases\/(\d+)\/returns$/);
+    if (purchaseReturn && method === 'POST') {
+      const purchase = state.purchases.find(x => x.id === Number(purchaseReturn[1]))!;
+      const body = request.postDataJSON(); const line = purchase.lines.find(x => x.id === body.lines[0].purchaseLineId)!;
+      line.returnedQuantity += body.lines[0].quantity; line.onHand -= body.lines[0].quantity;
+      const batch = state.batches.find(x => x.number === line.batch); if (batch) batch.quantity -= body.lines[0].quantity;
+      const total = body.lines[0].quantity * line.unitCost; purchase.returnedTotal += total;
+      purchase.returns.push({ id: purchase.returns.length + 1, supplierReference: body.supplierReference, reason: body.reason, createdAt: new Date().toISOString(), total });
+      return reply({ id: purchase.returns.length, total }, 201);
+    }
+    const purchasePayment = path.match(/^\/api\/purchases\/(\d+)\/payments$/);
+    if (purchasePayment && method === 'POST') {
+      const purchase = state.purchases.find(x => x.id === Number(purchasePayment[1]))!; const body = request.postDataJSON();
+      purchase.paidTotal += body.amount; purchase.payments.push({ id: purchase.payments.length + 1, ...body, paidAt: new Date().toISOString() });
+      return reply({ id: purchase.payments.length, amount: body.amount, method: body.method }, 201);
+    }
     if (path === '/api/purchases' && method === 'POST') {
       const body = request.postDataJSON();
       expect(body.supplierInvoice).toBeTruthy(); expect(body.supplierId).toBe(2);
@@ -91,7 +124,13 @@ async function mockApi(page: Page) {
         state.batches.push({ id: state.batches.length + 1, medicineId: medicine.id, medicine: medicine.name, number: line.batchNumber,
           expiryDate: line.expiryDate, costPrice: line.costPrice, salePrice: line.salePrice, quantity: line.quantity });
       }
-      return reply({ id: 1, total: 30 }, 201);
+      const purchase = { id: state.purchases.length + 1, supplier: state.suppliers.find(x => x.id === body.supplierId)!.name,
+        supplierInvoice: body.supplierInvoice, createdAt: new Date().toISOString(),
+        total: body.lines.reduce((sum: number, x: { quantity: number; costPrice: number }) => sum + x.quantity * x.costPrice, 0),
+        returnedTotal: 0, paidTotal: 0,
+        lines: body.lines.map((line: { medicineId: number; batchNumber: string; quantity: number; costPrice: number }) => ({ id: state.purchases.length + 1, medicine: state.medicines.find(x => x.id === line.medicineId)!.name, batch: line.batchNumber, quantity: line.quantity, returnedQuantity: 0, unitCost: line.costPrice, onHand: line.quantity })),
+        returns: [], payments: [] };
+      state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total }, 201);
     }
     if (path === '/api/dashboard') return reply({ todaySales: state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.sales.length, medicineCount: state.medicines.length, expiringBatches: 0, expiredBatches: 0 });
     if (path === '/api/sales' && method === 'GET') return reply(state.sales);
@@ -106,9 +145,28 @@ async function mockApi(page: Page) {
         return { medicine: medicine.name, batch: 'LOT-01', quantity: line.quantity, unitPrice: 5, total: line.quantity * 5 };
       });
       const total = lines.reduce((sum: number, line: { total: number }) => sum + line.total, 0);
-      const sale = { id, invoiceNumber: `INV-${String(id).padStart(8, '0')}`, createdAt: new Date().toISOString(), total };
-      state.sales.push(sale); state.receipts[id] = { ...sale, cashReceived: body.cashReceived, lines };
-      return reply({ ...sale, change: body.cashReceived - total }, 201);
+      const sale = { id, invoiceNumber: `INV-${String(id).padStart(8, '0')}`, createdAt: new Date().toISOString(),
+        subtotal: total, discountAmount: body.discountAmount ?? 0, total: total - (body.discountAmount ?? 0),
+        paymentMethod: body.paymentMethod ?? 'Cash', returnedTotal: 0 };
+      const receiptLines = lines.map((line: { medicine: string; batch: string; quantity: number; unitPrice: number; total: number }, index: number) => ({
+        saleLineId: index + 1, ...line, returnedQuantity: 0,
+        discountAmount: index === 0 ? body.discountAmount ?? 0 : 0,
+        total: line.total - (index === 0 ? body.discountAmount ?? 0 : 0),
+      }));
+      state.sales.push(sale); state.receipts[id] = { ...sale, cashReceived: body.cashReceived, lines: receiptLines };
+      return reply({ ...sale, change: sale.paymentMethod === 'Cash' ? body.cashReceived - sale.total : 0 }, 201);
+    }
+    const saleReturn = path.match(/^\/api\/sales\/(\d+)\/returns$/);
+    if (saleReturn && method === 'POST') {
+      const id = Number(saleReturn[1]);
+      const receipt = state.receipts[id] as { returnedTotal: number; lines: { saleLineId: number; quantity: number; returnedQuantity: number; unitPrice: number; discountAmount: number }[] };
+      const body = request.postDataJSON(); const requestLine = body.lines[0];
+      const line = receipt.lines.find(x => x.saleLineId === requestLine.saleLineId)!;
+      line.returnedQuantity += requestLine.quantity;
+      const refund = requestLine.quantity * (line.unitPrice - line.discountAmount / line.quantity);
+      receipt.returnedTotal += refund; state.sales.find(x => x.id === id)!.returnedTotal = receipt.returnedTotal;
+      if (requestLine.restock) state.batches[0].quantity += requestLine.quantity;
+      return reply({ id: 1, totalRefund: refund, refundMethod: body.refundMethod }, 201);
     }
     if (/^\/api\/sales\/\d+$/.test(path)) {
       if (state.failReceipt) return reply('Receipt unavailable', 500);
@@ -184,8 +242,29 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await page.getByLabel('Sale price (Rs)').fill('5');
   await page.getByRole('button', { name: /Receive batch/ }).click();
   await expect(page.getByText('Purchase received; batch stock updated.')).toBeVisible();
+  await page.getByRole('button', { name: 'Return stock' }).click();
+  await page.getByLabel('Supplier return reference').fill('RET-002');
+  await page.getByLabel('Reason', { exact: true }).fill('Damaged packaging');
+  await page.getByRole('button', { name: 'Save return' }).click();
+  await expect(page.getByText('Supplier return recorded and stock reduced.')).toBeVisible();
+  await page.getByRole('button', { name: 'Record payment' }).click();
+  await expect(page.getByLabel('Amount (Rs)')).toHaveValue('27');
+  await page.getByRole('button', { name: 'Save payment' }).click();
+  await expect(page.getByText('Supplier payment recorded.')).toBeVisible();
   await navigate(page, /Inventory/);
-  await expect(page.getByRole('row').filter({ hasText: 'VC-02' })).toContainText('10');
+  await expect(page.getByRole('row').filter({ hasText: 'VC-02' })).toContainText('9');
+  await page.getByLabel('Batch', { exact: true }).selectOption({ label: 'Vitamin C · VC-02 (9 units)' });
+  await page.getByLabel('Reason', { exact: true }).fill('Broken units');
+  await page.getByRole('button', { name: 'Record movement' }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Broken units' })).toContainText('-1');
+  await navigate(page, /Medicines/);
+  const medicineRow = page.getByRole('row').filter({ hasText: 'Vitamin C' });
+  await medicineRow.getByRole('button', { name: 'Edit' }).click();
+  await page.getByLabel('Medicine name').fill('Vitamin C 500mg');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toBeVisible();
+  await page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' }).getByRole('button', { name: 'Deactivate' }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toContainText('Inactive');
 });
 
 test('POS survives navigation, posts once, prints receipt and clears on logout', async ({ page }) => {
@@ -193,9 +272,11 @@ test('POS survives navigation, posts once, prints receipt and clears on logout',
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
   await navigate(page, /Suppliers/); await navigate(page, /New sale/);
   await expect(page.locator('.cart-row')).toHaveCount(1);
-  await page.getByLabel('Cash received (Rs)').fill('20');
+  await page.getByLabel('Discount').fill('1');
+  await page.getByLabel('Payment method').selectOption('Card');
   await page.getByRole('button', { name: /Complete sale/ }).click();
   await expect(page.locator('.receipt-paper')).toContainText('INV-00000001');
+  await expect(page.locator('.receipt-paper')).toContainText('Card');
   await expect(page.getByText('Your cart is empty')).toBeVisible();
   expect(state.salePosts).toBe(1);
   await page.emulateMedia({ media: 'print' });
@@ -206,6 +287,9 @@ test('POS survives navigation, posts once, prints receipt and clears on logout',
   await navigate(page, /Sales history/);
   await page.getByRole('button', { name: /View receipt/ }).click();
   await expect(page.locator('.receipt-paper')).toContainText('INV-00000001');
+  await page.getByLabel('Sale return reason').fill('Customer changed mind');
+  await page.getByRole('button', { name: 'Record return' }).click();
+  await expect(page.getByText(/Return recorded/)).toBeVisible();
   await navigate(page, /New sale/);
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
   await page.getByTitle('Sign out').click();

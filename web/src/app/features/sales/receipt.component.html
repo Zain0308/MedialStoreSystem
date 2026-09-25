@@ -23,16 +23,17 @@
       </div>
     }
     <div class="receipt-rule"></div>
+    <div class="receipt-line"><span>Subtotal</span><span>Rs {{ receipt().subtotal | number:'1.2-2' }}</span></div>
+    <div class="receipt-line"><span>Discount</span><span>Rs {{ receipt().discountAmount | number:'1.2-2' }}</span></div>
     <div class="receipt-line">
       <b>TOTAL</b><b>Rs {{ receipt().total | number: '1.2-2' }}</b>
     </div>
     <div class="receipt-line">
-      <span>Cash</span><span>Rs {{ receipt().cashReceived | number: '1.2-2' }}</span>
+      <span>Payment · {{ receipt().paymentMethod }}</span><span>Rs {{ receipt().total | number: '1.2-2' }}</span>
     </div>
-    <div class="receipt-line">
-      <span>Change</span
-      ><span>Rs {{ receipt().cashReceived - receipt().total | number: '1.2-2' }}</span>
-    </div>
+    @if (receipt().paymentMethod === 'Cash') { <div class="receipt-line"><span>Cash tendered</span><span>Rs {{ receipt().cashReceived | number:'1.2-2' }}</span></div>
+      <div class="receipt-line"><span>Change</span><span>Rs {{ receipt().cashReceived - receipt().total | number:'1.2-2' }}</span></div> }
+    @if (receipt().returnedTotal > 0) { <div class="receipt-line"><span>Returned</span><span>Rs {{ receipt().returnedTotal | number:'1.2-2' }}</span></div> }
     <p class="receipt-thanks">Thank you for shopping with us.</p>
   </div>
 </section>

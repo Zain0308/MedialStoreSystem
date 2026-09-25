@@ -14,4 +14,7 @@ export class SalesApi {
   checkout(input: CreateSale) {
     return this.api.post<SaleResult>('/sales', input);
   }
+  returnSale(id: number, input: { reason: string; refundMethod: string; lines: { saleLineId: number; quantity: number; restock: boolean }[] }) {
+    return this.api.post<{ id: number; totalRefund: number; refundMethod: string }>(`/sales/${id}/returns`, input);
+  }
 }

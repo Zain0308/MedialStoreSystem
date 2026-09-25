@@ -16,7 +16,7 @@
         <a routerLink="/sales/pos" routerLinkActive="active"><span>▣</span> New sale <em>POS</em></a>
       }
       @if (session.hasPermission('medicines.read')) { <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a> }
-      @if (session.hasPermission('purchases.manage') && session.hasPermission('medicines.read') && session.hasPermission('suppliers.read')) {
+      @if (session.hasPermission('purchases.read') && session.hasPermission('medicines.read') && session.hasPermission('suppliers.read')) {
         <a routerLink="/purchases" routerLinkActive="active"><span>↘</span> Purchases</a>
       }
       @if (session.hasPermission('inventory.read')) { <a routerLink="/inventory" routerLinkActive="active"><span>▦</span> Inventory</a> }

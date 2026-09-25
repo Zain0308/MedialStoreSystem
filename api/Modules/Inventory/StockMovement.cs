@@ -9,5 +9,7 @@ public sealed class StockMovement
     public long ReferenceId { get; set; }
     public int QuantityChange { get; set; }
     public int BalanceAfter { get; set; }
+    public string Reason { get; set; } = "";
+    public string? ActorId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
