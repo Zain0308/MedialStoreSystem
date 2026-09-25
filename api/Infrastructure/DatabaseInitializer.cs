@@ -39,7 +39,7 @@ public static class DatabaseInitializer
         var defaultStore = await db.Stores.SingleAsync(x => x.Code == "MAIN");
         if (!await db.UserStores.AnyAsync(x => x.UserId == owner.Id))
         {
-            db.UserStores.Add(new MedicalStore.Api.Modules.Stores.UserStore
+            db.UserStores.Add(new MedicalStore.Api.Modules.Stores.StoreMembership
             {
                 UserId = owner.Id, StoreId = defaultStore.Id, IsDefault = true
             });

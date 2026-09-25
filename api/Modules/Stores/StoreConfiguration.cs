@@ -14,9 +14,9 @@ public sealed class StoreConfiguration : IEntityTypeConfiguration<Store>
     }
 }
 
-public sealed class UserStoreConfiguration : IEntityTypeConfiguration<UserStore>
+public sealed class StoreMembershipConfiguration : IEntityTypeConfiguration<StoreMembership>
 {
-    public void Configure(EntityTypeBuilder<UserStore> builder)
+    public void Configure(EntityTypeBuilder<StoreMembership> builder)
     {
         builder.HasKey(x => new { x.UserId, x.StoreId });
         builder.Property(x => x.UserId).HasMaxLength(450);

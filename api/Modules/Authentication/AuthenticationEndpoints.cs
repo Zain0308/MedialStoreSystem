@@ -105,7 +105,7 @@ public static class AuthenticationEndpoints
                 await users.DeleteAsync(user);
                 return Results.BadRequest(string.Join("; ", IdentityErrors(assigned)));
             }
-            db.UserStores.Add(new UserStore { UserId = user.Id, StoreId = storeId, IsDefault = true });
+            db.UserStores.Add(new StoreMembership { UserId = user.Id, StoreId = storeId, IsDefault = true });
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
             return Results.Created($"/api/auth/users/{user.Id}", new UserSummary(user.Id, email, roleNames, true, [storeId]));
@@ -199,7 +199,7 @@ public static class AuthenticationEndpoints
             foreach (var storeId in storeIds)
             {
                 if (existing.TryGetValue(storeId, out var membership)) membership.IsDefault = storeId == defaultStoreId;
-                else db.UserStores.Add(new UserStore { UserId = id, StoreId = storeId, IsDefault = storeId == defaultStoreId });
+                else db.UserStores.Add(new StoreMembership { UserId = id, StoreId = storeId, IsDefault = storeId == defaultStoreId });
             }
             await db.SaveChangesAsync();
             await users.UpdateSecurityStampAsync(user);
@@ -295,7 +295,7 @@ public static class AuthenticationEndpoints
 
     private sealed record UserSummary(string Id, string Email, IList<string> Roles, bool IsActive, long[] StoreIds);
 
-    private static async Task<IResult> CreateSessionAsync(AppUser user, long storeId, IReadOnlyCollection<UserStore> memberships,
+    private static async Task<IResult> CreateSessionAsync(AppUser user, long storeId, IReadOnlyCollection<StoreMembership> memberships,
         UserManager<AppUser> users, RoleManager<IdentityRole> roles, string jwtKey)
     {
         var userRoles = await users.GetRolesAsync(user);

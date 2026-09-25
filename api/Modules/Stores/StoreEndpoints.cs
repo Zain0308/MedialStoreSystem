@@ -47,7 +47,7 @@ public static class StoreEndpoints
         var store = new Store { Name = name, Code = code };
         db.Stores.Add(store);
         await db.SaveChangesAsync();
-        db.UserStores.Add(new UserStore { UserId = userId, StoreId = store.Id, IsDefault = false });
+        db.UserStores.Add(new StoreMembership { UserId = userId, StoreId = store.Id, IsDefault = false });
         await db.SaveChangesAsync();
         return Results.Created($"/api/stores/{store.Id}", new StoreSummary(store.Id, store.Name, store.Code, false));
     }

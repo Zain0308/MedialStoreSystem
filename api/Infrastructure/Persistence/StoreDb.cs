@@ -30,7 +30,7 @@ public sealed class StoreDb(DbContextOptions<StoreDb> options, CurrentStoreConte
     public DbSet<SaleReturnLine> SaleReturnLines => Set<SaleReturnLine>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<Store> Stores => Set<Store>();
-    public DbSet<UserStore> UserStores => Set<UserStore>();
+    public DbSet<StoreMembership> UserStores => Set<StoreMembership>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

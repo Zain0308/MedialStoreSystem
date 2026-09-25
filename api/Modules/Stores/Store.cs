@@ -9,7 +9,7 @@ public sealed class Store
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public sealed class UserStore
+public sealed class StoreMembership
 {
     public required string UserId { get; set; }
     public long StoreId { get; set; }
