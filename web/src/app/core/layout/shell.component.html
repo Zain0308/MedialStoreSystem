@@ -43,7 +43,7 @@
         @if (session.stores().length > 1) {
           <label class="store-picker">Active store
             <select aria-label="Active store" [value]="session.activeStoreId()" [disabled]="switchingStore()" (change)="switchStore($any($event.target).value)">
-              @for (store of session.stores(); track store.id) { <option [value]="store.id">{{ store.name }}</option> }
+              @for (store of session.stores(); track store.id) { <option [value]="store.id" [selected]="store.id === session.activeStoreId()">{{ store.name }}</option> }
             </select>
           </label>
         } @else if (session.activeStoreName()) {
