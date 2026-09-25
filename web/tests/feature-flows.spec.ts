@@ -576,6 +576,7 @@ test('admins can create users, configure roles and deactivate access', async ({ 
   await navigate(page, /Owner panel/);
   const mainStore = page.locator('.store-card').filter({ hasText: 'Main Store' });
   await mainStore.getByRole('button', { name: 'Start 14-day trial' }).click();
+  await expect(page.getByText('A 14-day free trial started for Main Store.')).toBeVisible();
   expect(state.stores[0].subscriptionStatus).toBe('Trial');
   await mainStore.getByLabel('Status').selectOption('Active');
   await mainStore.getByRole('button', { name: 'Save subscription' }).click();
