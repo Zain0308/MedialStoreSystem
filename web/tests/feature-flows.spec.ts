@@ -650,7 +650,7 @@ test('admins can create users, configure roles and deactivate access', async ({ 
   await page.getByRole('button', { name: 'Add role' }).click();
   const supervisor = page.locator('.role-card').filter({ has: page.getByRole('heading', { name: 'Store Supervisor' }) });
   await supervisor.getByLabel('View reports and dashboard').check();
-  await supervisor.getByRole('button', { name: 'Save permissions' }).click();
+  await supervisor.getByRole('button', { name: 'Save user permissions' }).click();
   expect(state.roles.find(role => role.name === 'Store Supervisor')?.permissions).toContain('reports.read');
   expect(state.users.find(user => user.email === 'cashier@example.com')?.isActive).toBe(false);
 });
