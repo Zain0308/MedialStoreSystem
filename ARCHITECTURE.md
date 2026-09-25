@@ -39,6 +39,6 @@ The Application Owner is identified by the configured `Bootstrap:Email` account 
 
 Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
 
-At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`; v4 adds subscriptions, trial dates and store feature grants. Existing business rows are preserved.
+At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`; v4 adds subscriptions, trial dates and store feature grants; v5 adds optional supplier contact details. Existing business rows are preserved.
 
 GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.

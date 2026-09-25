@@ -11,4 +11,7 @@ export class SuppliersApi {
   create(input: CreateSupplier) {
     return this.api.post<{ id: number }>('/suppliers', input);
   }
+  update(id: number, input: CreateSupplier) {
+    return this.api.put<Supplier>(`/suppliers/${id}`, input);
+  }
 }

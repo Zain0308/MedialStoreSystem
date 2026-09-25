@@ -4,7 +4,7 @@ import { expect, Page, test } from '@playwright/test';
 async function mockApi(page: Page) {
   const state = {
     medicines: [{ id: 1, name: 'Paracetamol 500mg', genericName: 'Paracetamol', barcode: '12345', stock: 20, minimumStock: 10, requiresPrescription: false, isActive: true }],
-    suppliers: [{ id: 1, name: 'Demo Pharma', phone: '0000000000' }],
+    suppliers: [{ id: 1, name: 'Demo Pharma', phone: '0000000000', contactPerson: '', email: '', address: '' }],
     batches: [{ id: 1, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-01', expiryDate: '2050-12-31', costPrice: 2, salePrice: 5, quantity: 20 }],
     sales: [] as { id: number; invoiceNumber: string; createdAt: string; subtotal: number; discountAmount: number; total: number; paymentMethod: string; returnedTotal: number }[],
     receipts: {} as Record<number, unknown>,
@@ -141,6 +141,11 @@ async function mockApi(page: Page) {
     if (path === '/api/suppliers' && method === 'POST') {
       const supplier = { ...request.postDataJSON(), id: state.suppliers.length + 1 };
       state.suppliers.push(supplier); return reply({ id: supplier.id }, 201);
+    }
+    const supplierPath = path.match(/^\/api\/suppliers\/(\d+)$/);
+    if (supplierPath && method === 'PUT') {
+      const supplier = state.suppliers.find(x => x.id === Number(supplierPath[1]))!;
+      Object.assign(supplier, request.postDataJSON()); return reply(supplier);
     }
     if (path === '/api/inventory/movements') return reply(state.movements);
     if (path === '/api/inventory/adjustments' && method === 'POST') {
@@ -336,6 +341,20 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await page.getByLabel('Supplier name').fill('City Pharma');
   await page.getByRole('button', { name: 'Add supplier', exact: true }).click();
   await expect(page.getByText('City Pharma', { exact: true })).toBeVisible();
+  const supplierCard = page.locator('.supplier-card').filter({ hasText: 'City Pharma' });
+  await supplierCard.getByRole('button', { name: 'Edit' }).click();
+  await page.getByLabel('Contact person').fill('Ali Khan');
+  await page.getByLabel('Phone').fill('03001234567');
+  await page.getByLabel('Email').fill('ali@citypharma.example');
+  await page.getByLabel('Address').fill('Main Market');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByText('Supplier details updated.')).toBeVisible();
+  await expect(page.locator('.supplier-card').filter({ hasText: 'City Pharma' })).toContainText('Ali Khan');
+  await page.getByLabel('Filter suppliers').fill('Main Market');
+  await expect(page.locator('.supplier-card')).toHaveCount(1);
+  await page.getByLabel('Filter suppliers').fill('no matching supplier');
+  await expect(page.getByText('No suppliers match this filter.')).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filter' }).click();
   await navigate(page, /Purchases/);
   await page.getByRole('combobox', { name: 'Supplier', exact: true }).selectOption({ label: 'City Pharma' });
   await page.getByLabel('Supplier invoice').fill('SUP-002');

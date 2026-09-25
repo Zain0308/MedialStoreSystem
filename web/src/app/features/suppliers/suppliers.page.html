@@ -1,33 +1,47 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 <div class="page-content">
   @if (session.hasPermission('suppliers.manage')) {
-  <section class="panel form-panel">
-    <h3>Suppliers</h3>
-    <p>Add a supplier before receiving stock.</p>
-    <form (ngSubmit)="addSupplier()">
-      <label
-        >Supplier name
-        <input
-          name="s-name"
-          [(ngModel)]="supplierForm.name"
-          required
-          placeholder="e.g. ABC Pharma" /></label
-      ><label
-        >Phone
-        <input name="s-phone" [(ngModel)]="supplierForm.phone" placeholder="Optional" /></label
-      ><button class="secondary" [disabled]="busy()">Add supplier</button>
-    </form>
-    <div class="supplier-list">
-      @for (s of suppliers(); track s.id) {
-        <div class="list-row">
-          <div class="pill-icon">↘</div>
-          <div>
-            <strong>{{ s.name }}</strong
-            ><small>{{ s.phone || 'Supplier' }}</small>
-          </div>
+    <section class="panel form-panel">
+      <div class="panel-head"><div><h3>{{ editingId() === null ? 'Add supplier' : 'Edit supplier' }}</h3>
+        <p>Save contact details so your store can find the supplier quickly.</p></div></div>
+      <form class="supplier-form" (ngSubmit)="saveSupplier()">
+        <label>Supplier name<input name="s-name" [(ngModel)]="supplierForm.name" required maxlength="200" placeholder="e.g. ABC Pharma" /></label>
+        <label>Contact person<input name="s-contact" [(ngModel)]="supplierForm.contactPerson" maxlength="120" placeholder="Optional" /></label>
+        <label>Phone<input name="s-phone" [(ngModel)]="supplierForm.phone" maxlength="40" placeholder="Optional" /></label>
+        <label>Email<input name="s-email" type="email" [(ngModel)]="supplierForm.email" maxlength="254" placeholder="Optional" /></label>
+        <label class="address-field">Address<textarea name="s-address" [(ngModel)]="supplierForm.address" maxlength="300" rows="2" placeholder="Optional supplier address"></textarea></label>
+        <div class="supplier-form-actions">
+          <button class="secondary" [disabled]="busy()">{{ editingId() === null ? 'Add supplier' : 'Save changes' }}</button>
+          @if (editingId() !== null) { <button type="button" class="text-button" [disabled]="busy()" (click)="cancelEdit()">Cancel</button> }
         </div>
+      </form>
+    </section>
+  }
+  <section class="panel supplier-directory">
+    <div class="panel-head"><div><h3>Supplier directory</h3><p>Search supplier names, contact details and addresses.</p></div><span class="count">{{ visibleSuppliers().length }} of {{ suppliers().length }}</span></div>
+    <div class="supplier-filter">
+      <label>Filter suppliers<input aria-label="Filter suppliers" [ngModel]="searchText()" (ngModelChange)="searchText.set($event)" placeholder="Search name, phone, email, contact or address" /></label>
+      @if (searchText()) { <button type="button" class="text-button" (click)="clearSearch()">Clear filter</button> }
+    </div>
+    <div class="supplier-list">
+      @for (s of visibleSuppliers(); track s.id) {
+        <article class="supplier-card">
+          <div class="pill-icon">↘</div>
+          <div class="supplier-details">
+            <strong>{{ s.name }}</strong>
+            <div class="supplier-meta">
+              @if (s.contactPerson) { <span>Contact: {{ s.contactPerson }}</span> }
+              @if (s.phone) { <span>Phone: {{ s.phone }}</span> }
+              @if (s.email) { <span>Email: {{ s.email }}</span> }
+              @if (s.address) { <span>Address: {{ s.address }}</span> }
+              @if (!s.contactPerson && !s.phone && !s.email && !s.address) { <span>No contact details added</span> }
+            </div>
+          </div>
+          @if (session.hasPermission('suppliers.manage')) { <button class="text-button" (click)="editSupplier(s)">Edit</button> }
+        </article>
       }
     </div>
+    @if (suppliers().length === 0) { <p class="empty">No suppliers added yet.</p> }
+    @else if (visibleSuppliers().length === 0) { <p class="empty">No suppliers match this filter.</p> }
   </section>
-  }
 </div>

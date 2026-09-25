@@ -8,4 +8,7 @@ public sealed class Supplier : IStoreScoped
     public long Id { get; set; }
     public required string Name { get; set; }
     public string? Phone { get; set; }
+    public string? ContactPerson { get; set; }
+    public string? Email { get; set; }
+    public string? Address { get; set; }
 }
