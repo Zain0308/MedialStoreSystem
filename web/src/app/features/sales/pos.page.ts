@@ -26,13 +26,13 @@ export class PosPage extends PageFeedback implements OnInit {
   readonly cart = inject(PosCartStore);
   readonly medicines = signal<Medicine[]>([]);
   readonly batches = signal<Batch[]>([]);
-  readonly customers = signal<{ id: number; name: string; creditLimit: number }[]>([]);
+  readonly customers = signal<{ id: number; name: string }[]>([]);
   customerId: number | null = null;
   readonly receipt = signal<Receipt | null>(null);
   search = '';
   discountAmount = 0;
   paymentMethod = 'Cash';
-  readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet', 'Credit'];
+  readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet', 'Not Received'];
   ngOnInit(): void {
     void this.perform(() => this.refreshInventory());
   }

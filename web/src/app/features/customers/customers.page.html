@@ -2,23 +2,22 @@
 <div class="page-content">
   @if (session.hasPermission('customers.manage')) {
     <section class="panel">
-      <div class="panel-head"><div><h3>{{ editingId() === null ? 'Add customer' : 'Edit customer' }}</h3><p>Set a credit limit to enable credit sales at POS.</p></div></div>
+      <div class="panel-head"><div><h3>{{ editingId() === null ? 'Add customer' : 'Edit customer' }}</h3><p>Manage customer contact details and account balance.</p></div></div>
       <form class="customer-form" (ngSubmit)="save()">
         <label>Customer name<input name="customer-name" [(ngModel)]="form.name" required maxlength="200" /></label>
         <label>Phone<input name="customer-phone" [(ngModel)]="form.phone" maxlength="40" /></label>
         <label>Email<input name="customer-email" type="email" [(ngModel)]="form.email" maxlength="254" /></label>
-        <label>Credit limit (Rs)<input name="credit-limit" type="number" min="0" step="0.01" [(ngModel)]="form.creditLimit" required /></label>
         <div class="form-actions"><button class="secondary">{{ editingId() === null ? 'Add customer' : 'Save changes' }}</button>@if (editingId() !== null) {<button type="button" class="text-button" (click)="cancelEdit()">Cancel</button>}</div>
       </form>
     </section>
   }
   <section class="panel">
-    <div class="panel-head"><div><h3>Customer accounts</h3><p>Balances include credit invoices, returns and recorded payments.</p></div><strong>{{ visibleCustomers().length }} customers</strong></div>
+    <div class="panel-head"><div><h3>Customer accounts</h3><p>Paid totals include completed sales and payments recorded against unpaid invoices.</p></div><strong>{{ visibleCustomers().length }} customers</strong></div>
     <label class="filter">Filter customers<input aria-label="Filter customers" [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Name, phone or email" /></label>
-    <div class="table-wrap"><table><thead><tr><th>Customer</th><th>Contact</th><th>Credit limit</th><th>Amount due</th><th>Status</th><th>Actions</th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>Customer</th><th>Contact</th><th>Total paid</th><th>Amount due</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>@for (customer of visibleCustomers(); track customer.id) {<tr>
         <td><strong>{{ customer.name }}</strong></td><td>{{ customer.phone || customer.email || '—' }}</td>
-        <td>Rs {{ customer.creditLimit | number:'1.2-2' }}</td><td><strong>Rs {{ customer.receivable | number:'1.2-2' }}</strong></td>
+        <td>Rs {{ customer.paidTotal | number:'1.2-2' }}</td><td><strong>Rs {{ customer.receivable | number:'1.2-2' }}</strong></td>
         <td>{{ customer.isActive ? 'Active' : 'Inactive' }}</td><td class="actions"><button class="text-button" (click)="openLedger(customer)">Ledger</button>
           @if (session.hasPermission('customers.manage')) {<button class="text-button" (click)="edit(customer)">Edit</button><button class="text-button" (click)="setActive(customer)">{{ customer.isActive ? 'Deactivate' : 'Activate' }}</button>}</td>
       </tr>}</tbody></table></div>
@@ -26,7 +25,7 @@
     @else if (!visibleCustomers().length) {<p class="empty">No customers match this filter.</p>}
   </section>
   @if (ledger(); as account) {<section class="panel customer-ledger">
-    <div class="panel-head"><div><h3>{{ account.customer.name }} ledger</h3><p>Receivable: <strong>Rs {{ account.receivable | number:'1.2-2' }}</strong> · Credit limit: Rs {{ account.customer.creditLimit | number:'1.2-2' }}</p></div><button class="text-button" (click)="closeLedger()">Close</button></div>
+    <div class="panel-head"><div><h3>{{ account.customer.name }} ledger</h3><p>Total paid: <strong>Rs {{ account.paidTotal | number:'1.2-2' }}</strong> · Amount due: <strong>Rs {{ account.receivable | number:'1.2-2' }}</strong></p></div><button class="text-button" (click)="closeLedger()">Close</button></div>
     @for (invoice of account.invoices; track invoice.id) {<article class="invoice-ledger">
       <div class="panel-head"><div><strong>{{ invoice.invoiceNumber }}</strong><small>{{ invoice.createdAt | date:'medium' }}</small></div><span>Sale Rs {{ invoice.total | number:'1.2-2' }} · Returned Rs {{ invoice.returned | number:'1.2-2' }} · Paid Rs {{ invoice.paid | number:'1.2-2' }} · Due <strong>Rs {{ due(invoice) | number:'1.2-2' }}</strong></span></div>
       @for (p of invoice.payments; track p.id) {<p class="payment-row">Payment: Rs {{ p.amount | number:'1.2-2' }} · {{ p.method }} · {{ p.paidAt | date:'medium' }} {{ p.reference }}</p>}
@@ -38,6 +37,6 @@
         </div>
       }
     </article>}
-    @if (!account.invoices.length) {<p class="empty">This customer has no credit invoices.</p>}
+    @if (!account.invoices.length) {<p class="empty">This customer has no unpaid invoices.</p>}
   </section>}
 </div>

@@ -13,14 +13,14 @@ public static class SaleEndpoints
     public static void MapSaleEndpoints(this RouteGroupBuilder api)
     {
         api.MapGet("/sales/customers", async (StoreDb db) => Results.Ok(await db.Customers.AsNoTracking()
-            .Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name, x.CreditLimit }).ToListAsync()))
+            .Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => new { x.Id, x.Name }).ToListAsync()))
             .RequireAuthorization(StorePermissions.SalesCreate);
 
         api.MapPost("/sales", async (SaleRequest input, StoreDb db, ClaimsPrincipal principal) =>
         {
             var method = input.PaymentMethod?.Trim();
-            var isCredit = string.Equals(method, "Credit", StringComparison.OrdinalIgnoreCase);
-            var paymentMethods = isCredit ? new[] { "Credit" } : new[] { "Cash", "Card", "Bank Transfer", "Mobile Wallet" };
+            var isNotReceived = string.Equals(method, "Not Received", StringComparison.OrdinalIgnoreCase);
+            var paymentMethods = new[] { "Cash", "Card", "Bank Transfer", "Mobile Wallet", "Not Received" };
             if (input.Lines is null || input.Lines.Count == 0 || input.Lines.Any(x => x.Quantity <= 0) ||
                 input.CashReceived < 0 || input.DiscountAmount < 0 || method is null ||
                 !paymentMethods.Contains(method, StringComparer.OrdinalIgnoreCase))
@@ -37,7 +37,7 @@ public static class SaleEndpoints
                 .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Id).ToListAsync();
             var isCash = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase);
             Customer? customer = null;
-            if (isCredit && input.CustomerId is null) return Results.BadRequest("Choose a customer for a credit sale.");
+            if (isNotReceived && input.CustomerId is null) return Results.BadRequest("Choose a customer when payment has not been received.");
             if (input.CustomerId is not null)
             {
                 customer = await db.Customers.SingleOrDefaultAsync(x => x.Id == input.CustomerId && x.IsActive);
@@ -67,19 +67,6 @@ public static class SaleEndpoints
             sale.DiscountAmount = decimal.Round(input.DiscountAmount, 2);
             if (sale.DiscountAmount > sale.Subtotal) return Results.BadRequest("Discount cannot exceed the sale subtotal.");
             sale.Total = sale.Subtotal - sale.DiscountAmount;
-            if (isCredit)
-            {
-                var creditSales = await db.Sales.Where(x => x.CustomerId == customer!.Id && x.PaymentMethod == "Credit").ToListAsync();
-                var balance = 0m;
-                foreach (var creditSale in creditSales)
-                {
-                    var returned = await db.SaleReturns.Where(x => x.SaleId == creditSale.Id).SumAsync(x => (decimal?)x.TotalRefund) ?? 0;
-                    var paid = await db.CustomerPayments.Where(x => x.SaleId == creditSale.Id).SumAsync(x => (decimal?)x.Amount) ?? 0;
-                    balance += Math.Max(0, creditSale.Total - returned - paid);
-                }
-                if (balance + sale.Total > customer!.CreditLimit)
-                    return Results.Conflict($"Credit limit exceeded. Current balance is {balance:0.00}; limit is {customer.CreditLimit:0.00}.");
-            }
             if (isCash && input.CashReceived < sale.Total)
                 return Results.BadRequest($"Cash received must be at least {sale.Total:0.00}.");
             var distributedDiscount = 0m;

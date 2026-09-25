@@ -34,7 +34,7 @@ export class CustomersPage extends PageFeedback implements OnInit {
   }
   edit(customer: Customer): void {
     this.editingId.set(customer.id);
-    this.form = { name: customer.name, phone: customer.phone ?? '', email: customer.email ?? '', creditLimit: customer.creditLimit };
+    this.form = { name: customer.name, phone: customer.phone ?? '', email: customer.email ?? '' };
   }
   cancelEdit(): void { this.editingId.set(null); this.form = this.emptyForm(); }
   setActive(customer: Customer): Promise<void> {
@@ -55,5 +55,5 @@ export class CustomersPage extends PageFeedback implements OnInit {
   }
   due(invoice: { total: number; returned: number; paid: number }): number { return Math.max(0, invoice.total - invoice.returned - invoice.paid); }
   private async refresh(): Promise<void> { this.customers.set(await this.api.list()); }
-  private emptyForm(): SaveCustomer { return { name: '', phone: '', email: '', creditLimit: 0 }; }
+  private emptyForm(): SaveCustomer { return { name: '', phone: '', email: '' }; }
 }

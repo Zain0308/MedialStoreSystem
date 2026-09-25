@@ -13,5 +13,5 @@ export class CustomersApi {
   payment(id: number, input: { saleId: number; amount: number; method: string; reference: string }) {
     return this.api.post<{ id: number; amount: number; due: number }>(`/customers/${id}/payments`, input);
   }
-  forPos() { return this.api.get<{ id: number; name: string; creditLimit: number }[]>('/sales/customers'); }
+  forPos() { return this.api.get<{ id: number; name: string }[]>('/sales/customers'); }
 }

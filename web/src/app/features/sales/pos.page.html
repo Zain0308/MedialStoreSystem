@@ -32,9 +32,9 @@
     </section>
     <section class="panel cart">
       <h3>Current sale</h3>
-      <label>Customer <select aria-label="Customer" [(ngModel)]="customerId" [required]="paymentMethod === 'Credit'">
+      <label>Customer <select aria-label="Customer" [(ngModel)]="customerId" [required]="paymentMethod === 'Not Received'">
         <option [ngValue]="null">Walk-in customer</option>
-        @for (customer of customers(); track customer.id) { <option [ngValue]="customer.id">{{ customer.name }} · limit Rs {{ customer.creditLimit | number:'1.0-0' }}</option> }
+        @for (customer of customers(); track customer.id) { <option [ngValue]="customer.id">{{ customer.name }}</option> }
       </select></label>
       @for (row of cart.items(); track row.medicine.id) {
         <div class="cart-row">
@@ -77,7 +77,7 @@
         <button
           class="primary full"
           [disabled]="
-            busy() || cart.items().length === 0 || discountAmount < 0 || discountAmount > estimate || (paymentMethod === 'Cash' && cart.cashReceived() < due) || (paymentMethod === 'Credit' && !customerId) || !validCart
+            busy() || cart.items().length === 0 || discountAmount < 0 || discountAmount > estimate || (paymentMethod === 'Cash' && cart.cashReceived() < due) || (paymentMethod === 'Not Received' && !customerId) || !validCart
           "
           (click)="completeSale()"
         >

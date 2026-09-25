@@ -5,7 +5,7 @@ async function mockApi(page: Page) {
   const state = {
     medicines: [{ id: 1, name: 'Paracetamol 500mg', genericName: 'Paracetamol', barcode: '12345', stock: 20, minimumStock: 10, requiresPrescription: false, isActive: true }],
     suppliers: [{ id: 1, name: 'Demo Pharma', phone: '0000000000', contactPerson: '', email: '', address: '', isActive: true }],
-    customers: [] as { id: number; name: string; phone?: string; email?: string; creditLimit: number; isActive: boolean }[],
+    customers: [] as { id: number; name: string; phone?: string; email?: string; isActive: boolean }[],
     expenseCategories: [] as { id: number; name: string; isActive: boolean }[],
     expenses: [] as { id: number; categoryId: number; category: string; description: string; amount: number; expenseDate: string; paymentMethod: string; reference?: string; notes?: string }[],
     batches: [{ id: 1, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-01', expiryDate: '2050-12-31', costPrice: 2, salePrice: 5, quantity: 20 }],
@@ -128,9 +128,14 @@ async function mockApi(page: Page) {
       role.permissions = request.postDataJSON().permissions; return reply(role);
     }
     if (path === '/api/medicines' && method === 'GET') return reply(state.medicines);
-    if (path === '/api/customers' && method === 'GET') return reply(state.customers.map(customer => ({ ...customer,
-      receivable: state.sales.filter(sale => sale.paymentMethod === 'Credit' && sale.customerId === customer.id)
-        .reduce((sum, sale) => sum + sale.total - sale.returnedTotal - (sale.paidTotal ?? 0), 0) })));
+    if (path === '/api/customers' && method === 'GET') return reply(state.customers.map(customer => {
+      const sales = state.sales.filter(sale => sale.customerId === customer.id);
+      return { ...customer,
+        paidTotal: sales.reduce((sum, sale) => sum + (['Not Received', 'Credit'].includes(sale.paymentMethod)
+          ? Math.min(sale.paidTotal ?? 0, Math.max(0, sale.total - sale.returnedTotal)) : Math.max(0, sale.total - sale.returnedTotal)), 0),
+        receivable: sales.filter(sale => ['Not Received', 'Credit'].includes(sale.paymentMethod))
+          .reduce((sum, sale) => sum + Math.max(0, sale.total - sale.returnedTotal - (sale.paidTotal ?? 0)), 0) };
+    }));
     if (path === '/api/customers' && method === 'POST') {
       const customer = { ...request.postDataJSON(), id: state.customers.length + 1, isActive: true };
       state.customers.push(customer); return reply({ id: customer.id }, 201);
@@ -141,9 +146,12 @@ async function mockApi(page: Page) {
       if (!customer) return reply({}, 404);
       if (customerPath[2] === 'status' && method === 'PUT') { customer.isActive = request.postDataJSON().isActive; return reply(customer); }
       if (customerPath[2] === 'ledger' && method === 'GET') {
-        const invoices = state.sales.filter(x => x.customerId === customer.id && x.paymentMethod === 'Credit').map(x => ({ ...x,
+        const customerSales = state.sales.filter(x => x.customerId === customer.id);
+        const invoices = customerSales.filter(x => ['Not Received', 'Credit'].includes(x.paymentMethod)).map(x => ({ ...x,
           returned: x.returnedTotal, paid: x.paidTotal ?? 0, payments: [] }));
-        return reply({ customer, invoices, receivable: invoices.reduce((sum, x) => sum + x.total - x.returned - x.paid, 0) });
+        const paidTotal = customerSales.reduce((sum, x) => sum + (['Not Received', 'Credit'].includes(x.paymentMethod)
+          ? Math.min(x.paidTotal ?? 0, Math.max(0, x.total - x.returnedTotal)) : Math.max(0, x.total - x.returnedTotal)), 0);
+        return reply({ customer, invoices, paidTotal, receivable: invoices.reduce((sum, x) => sum + Math.max(0, x.total - x.returned - x.paid), 0) });
       }
       if (customerPath[2] === 'payments' && method === 'POST') {
         const body = request.postDataJSON(); const sale = state.sales.find(x => x.id === body.saleId)!;
@@ -151,7 +159,7 @@ async function mockApi(page: Page) {
       }
       if (!customerPath[2] && method === 'PUT') { Object.assign(customer, request.postDataJSON()); return reply(customer); }
     }
-    if (path === '/api/sales/customers' && method === 'GET') return reply(state.customers.filter(x => x.isActive).map(({ id, name, creditLimit }) => ({ id, name, creditLimit })));
+    if (path === '/api/sales/customers' && method === 'GET') return reply(state.customers.filter(x => x.isActive).map(({ id, name }) => ({ id, name })));
     if (path === '/api/expenses/categories' && method === 'GET') return reply(state.expenseCategories);
     if (path === '/api/expenses/categories' && method === 'POST') {
       const category = { id: state.expenseCategories.length + 1, name: request.postDataJSON().name, isActive: true };
@@ -457,16 +465,15 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toContainText('Inactive');
 });
 
-test('customers manage credit limits, POS requires a customer for credit, and payments reduce receivables', async ({ page }) => {
+test('customers track paid and due amounts, and POS can record an unpaid sale', async ({ page }) => {
   await mockApi(page); await signIn(page);
   await navigate(page, /Customers/);
   await page.getByLabel('Customer name').fill('Ayesha Khan');
-  await page.getByLabel('Credit limit (Rs)').fill('500');
   await page.getByRole('button', { name: 'Add customer' }).click();
   await expect(page.getByText('Ayesha Khan', { exact: true })).toBeVisible();
   await navigate(page, /New sale/);
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
-  await page.getByLabel('Payment method').selectOption('Credit');
+  await page.getByLabel('Payment method').selectOption('Not Received');
   await expect(page.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
   await page.getByLabel('Customer', { exact: true }).selectOption('1');
   await page.getByRole('button', { name: /Complete sale/ }).click();
@@ -475,11 +482,13 @@ test('customers manage credit limits, POS requires a customer for credit, and pa
   await navigate(page, /Customers/);
   const customerRow = page.getByRole('row').filter({ hasText: 'Ayesha Khan' });
   await expect(customerRow).toContainText('Rs 5.00');
+  await expect(customerRow).toContainText('Rs 0.00');
   await customerRow.getByRole('button', { name: 'Ledger' }).click();
   await expect(page.locator('.customer-ledger')).toContainText('INV-00000001');
   await page.locator('.customer-ledger').getByLabel('Amount (Rs)').fill('5');
   await page.locator('.customer-ledger').getByRole('button', { name: 'Record payment' }).click();
   await expect(page.getByText('Customer payment recorded.')).toBeVisible();
+  await expect(customerRow).toContainText('Rs 5.00');
   await expect(customerRow).toContainText('Rs 0.00');
 });
 

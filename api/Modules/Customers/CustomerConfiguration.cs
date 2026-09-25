@@ -10,7 +10,6 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(x => x.Name).HasMaxLength(200);
         builder.Property(x => x.Phone).HasMaxLength(40);
         builder.Property(x => x.Email).HasMaxLength(254);
-        builder.Property(x => x.CreditLimit).HasPrecision(18, 2);
         builder.HasIndex(x => new { x.StoreId, x.Name });
     }
 }

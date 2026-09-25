@@ -9,8 +9,8 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 | Medicines | Catalogue metadata, edit and soft deactivate/reactivate | Batch pricing is maintained through purchase lots |
 | Inventory | Batch stock/expiry, audited adjustment and damage write-off, movement report | Multi-location stock |
 | Purchases | Receive batches, history, supplier returns, invoice payments and supplier-wide statements | Reconciliation |
-| Sales | POS checkout, FEFO, discounts, cash/card/bank/mobile-wallet/credit tender, returns and receipts | Prescription workflow |
-| Customers | Store-scoped records, credit limits, receivable ledger, payment collection and account status | Customer-specific pricing |
+| Sales | POS checkout, FEFO, discounts, cash/card/bank/mobile-wallet/Not Received tender, returns and receipts | Prescription workflow |
+| Customers | Store-scoped records, paid and receivable totals, unpaid invoice ledger, payment collection and account status | Customer-specific pricing |
 | Suppliers | Supplier records/contact details, edit/deactivate, search and purchase ledger | Reconciliation |
 | Expenses | Store-scoped categories, expense entries and date/category filters | Recurring expenses |
 | Reports | Dashboard, sales detail, inventory valuation, expenses, estimated profit and CSV exports | PDF/Excel exports |
@@ -23,4 +23,4 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 - `Infrastructure/DatabaseInitializer.cs` owns initial schema and owner-account setup.
 - `Program.cs` owns host setup, dependency registration and middleware.
 
-The endpoint style is Minimal API. The current Angular client consumes the same API routes. Every customer, payment, category and expense record is store-scoped. Credit checkout requires a selected active customer and enforces that customer's outstanding balance plus the new invoice against the credit limit.
+The endpoint style is Minimal API. The current Angular client consumes the same API routes. Every customer, payment, category and expense record is store-scoped. A Not Received checkout requires a selected active customer and adds the unpaid invoice balance to that customer's receivables.

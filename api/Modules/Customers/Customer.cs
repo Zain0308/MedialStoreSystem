@@ -9,6 +9,5 @@ public sealed class Customer : IStoreScoped
     public required string Name { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }
-    public decimal CreditLimit { get; set; }
     public bool IsActive { get; set; } = true;
 }

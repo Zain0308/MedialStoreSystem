@@ -1,4 +1,4 @@
-/* Store-scoped customer credit, supplier activation, expenses and reporting data. */
+/* Store-scoped customer receivables, supplier activation, expenses and reporting data. */
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
 
@@ -13,7 +13,6 @@ BEGIN
         Name nvarchar(200) NOT NULL,
         Phone nvarchar(40) NULL,
         Email nvarchar(254) NULL,
-        CreditLimit decimal(18,2) NOT NULL CONSTRAINT DF_Customers_CreditLimit DEFAULT (0),
         IsActive bit NOT NULL CONSTRAINT DF_Customers_IsActive DEFAULT (1),
         CONSTRAINT FK_Customers_Stores_StoreId FOREIGN KEY (StoreId) REFERENCES dbo.Stores(Id)
     );
