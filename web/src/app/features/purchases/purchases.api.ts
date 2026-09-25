@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiClient } from '../../core/api/api-client';
-import { CreatePurchase, PurchaseHistory, PurchaseResult } from './purchases.models';
+import { CreatePurchase, PurchaseHistory, PurchaseResult, SupplierAccountSummary, SupplierStatement } from './purchases.models';
 
 @Injectable({ providedIn: 'root' })
 export class PurchasesApi {
@@ -9,6 +9,10 @@ export class PurchasesApi {
     return this.api.post<PurchaseResult>('/purchases', input);
   }
   list() { return this.api.get<PurchaseHistory[]>('/purchases'); }
+  supplierAccounts() { return this.api.get<SupplierAccountSummary[]>('/purchases/supplier-accounts'); }
+  supplierStatement(supplierId: number) {
+    return this.api.get<SupplierStatement>(`/purchases/suppliers/${supplierId}/statement`);
+  }
   returnStock(id: number, input: { supplierReference: string; reason: string; lines: { purchaseLineId: number; quantity: number }[] }) {
     return this.api.post<{ id: number; total: number }>(`/purchases/${id}/returns`, input);
   }

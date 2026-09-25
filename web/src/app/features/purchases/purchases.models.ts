@@ -22,3 +22,17 @@ export interface PurchaseHistory {
   returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[];
   payments: { id: number; amount: number; method: string; reference?: string; paidAt: string }[];
 }
+export interface SupplierAccountSummary {
+  supplierId: number;
+  supplier: string;
+  invoiceCount: number;
+  purchaseTotal: number;
+  returnedTotal: number;
+  paidTotal: number;
+  balance: number;
+}
+export interface SupplierStatement {
+  supplierId: number;
+  supplier: string;
+  invoices: PurchaseHistory[];
+}

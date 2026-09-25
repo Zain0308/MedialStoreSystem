@@ -83,6 +83,38 @@
       </button>
     </form>
   </section> }
+  <section class="panel supplier-account-panel">
+    <div class="panel-head"><div><h3>Supplier accounts</h3><p>All invoices for each supplier, with returns and payments deducted from the amount due.</p></div>
+      <span class="count">{{ supplierAccounts().length }} suppliers</span>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoices</th><th>Purchased</th><th>Returned</th><th>Paid</th><th>Amount due</th><th></th></tr></thead>
+      <tbody>@for (account of supplierAccounts(); track account.supplierId) {
+        <tr><td><strong>{{ account.supplier }}</strong></td><td>{{ account.invoiceCount }}</td>
+          <td>Rs {{ account.purchaseTotal | number:'1.2-2' }}</td><td>Rs {{ account.returnedTotal | number:'1.2-2' }}</td>
+          <td>Rs {{ account.paidTotal | number:'1.2-2' }}</td><td><strong>Rs {{ account.balance | number:'1.2-2' }}</strong></td>
+          <td><button class="text-button" (click)="openSupplierStatement(account)">View statement</button></td>
+        </tr>
+      }</tbody>
+    </table></div>
+    @if (supplierAccounts().length === 0) { <p class="empty">Add a supplier to start tracking its account.</p> }
+  </section>
+  @if (selectedSupplierStatement(); as statement) {
+    <section class="panel supplier-statement">
+      <div class="panel-head"><div><h3>{{ statement.supplier }} account statement</h3><p>Invoice totals include the recorded returns and supplier payments shown below each invoice.</p></div>
+        <button class="text-button" (click)="closeSupplierStatement()">Close statement</button>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Purchase</th><th>Returned</th><th>Paid</th><th>Remaining</th><th></th></tr></thead>
+        <tbody>@for (invoice of statement.invoices; track invoice.id) {
+          <tr><td>{{ invoice.supplierInvoice }}</td><td>{{ invoice.createdAt | date:'mediumDate' }}</td>
+            <td>Rs {{ invoice.total | number:'1.2-2' }}</td><td>Rs {{ invoice.returnedTotal | number:'1.2-2' }}</td>
+            <td>Rs {{ invoice.paidTotal | number:'1.2-2' }}</td><td><strong>Rs {{ balance(invoice) | number:'1.2-2' }}</strong></td>
+            <td><button class="text-button" (click)="openStatementInvoice(invoice)">Invoice details</button></td>
+          </tr>
+        }</tbody>
+      </table></div>
+      @if (statement.invoices.length === 0) { <p class="empty">No purchase invoices for this supplier.</p> }
+    </section>
+  }
   <section class="panel">
     <div class="panel-head"><div><h3>Purchase history</h3><p>Received invoices, supplier returns and payments.</p></div><span class="count">Latest 100</span></div>
     <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Supplier</th><th>Date</th><th>Net total</th><th>Paid</th><th>Balance</th>@if (session.hasPermission('purchases.manage')) { <th>Actions</th> }</tr></thead>

@@ -151,6 +151,23 @@ async function mockApi(page: Page) {
     }
     if (path === '/api/inventory') return reply(state.unauthorizedInventory ? {} : state.batches, state.unauthorizedInventory ? 401 : 200);
     if (path === '/api/purchases' && method === 'GET') return reply(state.purchases);
+    if (path === '/api/purchases/supplier-accounts' && method === 'GET') {
+      return reply(state.suppliers.map(supplier => {
+        const invoices = state.purchases.filter(purchase => purchase.supplier === supplier.name);
+        const purchaseTotal = invoices.reduce((sum, purchase) => sum + purchase.total, 0);
+        const returnedTotal = invoices.reduce((sum, purchase) => sum + purchase.returnedTotal, 0);
+        const paidTotal = invoices.reduce((sum, purchase) => sum + purchase.paidTotal, 0);
+        return { supplierId: supplier.id, supplier: supplier.name, invoiceCount: invoices.length,
+          purchaseTotal, returnedTotal, paidTotal, balance: Math.max(0, purchaseTotal - returnedTotal - paidTotal) };
+      }));
+    }
+    const supplierStatement = path.match(/^\/api\/purchases\/suppliers\/(\d+)\/statement$/);
+    if (supplierStatement && method === 'GET') {
+      const supplier = state.suppliers.find(item => item.id === Number(supplierStatement[1]));
+      if (!supplier) return reply({}, 404);
+      return reply({ supplierId: supplier.id, supplier: supplier.name,
+        invoices: state.purchases.filter(purchase => purchase.supplier === supplier.name) });
+    }
     const purchaseReturn = path.match(/^\/api\/purchases\/(\d+)\/returns$/);
     if (purchaseReturn && method === 'POST') {
       const purchase = state.purchases.find(x => x.id === Number(purchaseReturn[1]))!;
@@ -339,6 +356,15 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await expect(page.getByLabel('Amount (Rs)')).toHaveValue('27');
   await page.getByRole('button', { name: 'Save payment' }).click();
   await expect(page.getByText('Supplier payment recorded.')).toBeVisible();
+  const accountRow = page.locator('.supplier-account-panel tbody tr').filter({ hasText: 'City Pharma' });
+  await expect(accountRow).toContainText('Rs 0.00');
+  await accountRow.getByRole('button', { name: 'View statement' }).click();
+  const statement = page.locator('.supplier-statement');
+  await expect(statement).toContainText('SUP-002');
+  await statement.getByRole('button', { name: 'Invoice details' }).click();
+  const invoiceDetail = page.locator('.panel.form-panel').filter({ hasText: 'Invoice SUP-002' });
+  await expect(invoiceDetail).toContainText('RET-002');
+  await expect(invoiceDetail).toContainText('Payment');
   await navigate(page, /Inventory/);
   await expect(page.getByRole('row').filter({ hasText: 'VC-02' })).toContainText('9');
   await page.locator('select[name="adj-batch"]').selectOption({ label: 'Vitamin C · VC-02 (9 units)' });

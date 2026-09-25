@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
 import { Medicine, MedicinesApi } from '../medicines/public-api';
 import { Supplier, SuppliersApi } from '../suppliers/public-api';
 import { PurchasesApi } from './purchases.api';
-import { PurchaseHistory } from './purchases.models';
+import { PurchaseHistory, SupplierAccountSummary, SupplierStatement } from './purchases.models';
 import { AuthSession } from '../authentication/public-api';
 
 @Component({
@@ -24,6 +24,8 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   readonly medicines = signal<Medicine[]>([]);
   readonly suppliers = signal<Supplier[]>([]);
   readonly purchases = signal<PurchaseHistory[]>([]);
+  readonly supplierAccounts = signal<SupplierAccountSummary[]>([]);
+  readonly selectedSupplierStatement = signal<SupplierStatement | null>(null);
   readonly selectedPurchase = signal<PurchaseHistory | null>(null);
   returnForm = { lineId: 0, quantity: 1, supplierReference: '', reason: '' };
   paymentForm = { amount: 0, method: 'Cash', reference: '' };
@@ -32,13 +34,14 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   purchase = this.emptyForm(0);
   ngOnInit(): void {
     void this.perform(async () => {
-      const [medicines, suppliers, purchases] = await Promise.all([
+      const [medicines, suppliers, purchases, supplierAccounts] = await Promise.all([
         this.medicinesApi.list(),
-        this.suppliersApi.list(), this.api.list(),
+        this.suppliersApi.list(), this.api.list(), this.api.supplierAccounts(),
       ]);
       this.medicines.set(medicines);
       this.suppliers.set(suppliers);
       this.purchases.set(purchases);
+      this.supplierAccounts.set(supplierAccounts);
     });
   }
   receivePurchase(): Promise<void> {
@@ -59,16 +62,30 @@ export class PurchasesPage extends PageFeedback implements OnInit {
         ],
       });
       this.purchase = this.emptyForm(p.supplierId);
-      await this.refreshPurchases();
+      await this.refreshFinancials();
       this.message.set('Purchase received; batch stock updated.');
     });
   }
   private async refreshPurchases(): Promise<void> { this.purchases.set(await this.api.list()); }
-  openReturn(purchase: PurchaseHistory): void {
+  private async refreshFinancials(): Promise<void> {
+    const [purchases, accounts] = await Promise.all([this.api.list(), this.api.supplierAccounts()]);
+    this.purchases.set(purchases);
+    this.supplierAccounts.set(accounts);
+    const statement = this.selectedSupplierStatement();
+    if (statement) this.selectedSupplierStatement.set(await this.api.supplierStatement(statement.supplierId));
+  }
+  openSupplierStatement(account: SupplierAccountSummary): Promise<void> {
+    return this.perform(async () => this.selectedSupplierStatement.set(await this.api.supplierStatement(account.supplierId)));
+  }
+  closeSupplierStatement(): void { this.selectedSupplierStatement.set(null); }
+  openStatementInvoice(purchase: PurchaseHistory): void {
     this.selectedPurchase.set(purchase);
-    const eligible = purchase.lines.find(x => x.quantity > x.returnedQuantity && x.onHand > 0);
+    const eligible = purchase.lines.find(line => line.quantity > line.returnedQuantity && line.onHand > 0);
     this.returnForm = { lineId: eligible?.id ?? 0, quantity: 1, supplierReference: '', reason: '' };
     this.paymentForm = { amount: 0, method: 'Cash', reference: '' };
+  }
+  openReturn(purchase: PurchaseHistory): void {
+    this.openStatementInvoice(purchase);
   }
   openPayment(purchase: PurchaseHistory): void { this.openReturn(purchase); this.paymentForm.amount = this.balance(purchase); }
   balance(purchase: PurchaseHistory): number { return Math.max(0, purchase.total - purchase.returnedTotal - purchase.paidTotal); }
@@ -77,14 +94,14 @@ export class PurchasesPage extends PageFeedback implements OnInit {
     return this.perform(async () => {
       await this.api.returnStock(purchase.id, { supplierReference: this.returnForm.supplierReference, reason: this.returnForm.reason,
         lines: [{ purchaseLineId: +this.returnForm.lineId, quantity: +this.returnForm.quantity }] });
-      this.selectedPurchase.set(null); await this.refreshPurchases(); this.message.set('Supplier return recorded and stock reduced.');
+      this.selectedPurchase.set(null); await this.refreshFinancials(); this.message.set('Supplier return recorded and stock reduced.');
     });
   }
   submitPayment(): Promise<void> {
     const purchase = this.selectedPurchase(); if (!purchase) return Promise.resolve();
     return this.perform(async () => {
       await this.api.paySupplier(purchase.id, { ...this.paymentForm, amount: +this.paymentForm.amount });
-      this.selectedPurchase.set(null); await this.refreshPurchases(); this.message.set('Supplier payment recorded.');
+      this.selectedPurchase.set(null); await this.refreshFinancials(); this.message.set('Supplier payment recorded.');
     });
   }
   private emptyForm(supplierId: number) {

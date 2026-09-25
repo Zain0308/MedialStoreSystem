@@ -54,6 +54,54 @@ public static class PurchaseEndpoints
                 payments = x.Payments.OrderByDescending(p => p.Id).Select(p => new { p.Id, p.Amount, p.Method, p.Reference, p.PaidAt })
             }).ToListAsync())).RequireAuthorization(StorePermissions.PurchasesRead);
 
+        api.MapGet("/purchases/supplier-accounts", async (StoreDb db) =>
+        {
+            var suppliers = await db.Suppliers.AsNoTracking().Select(x => new { x.Id, x.Name }).ToListAsync();
+            var purchases = await db.Purchases.AsNoTracking().Select(x => new { x.SupplierId, x.Total }).ToListAsync();
+            var returns = await db.PurchaseReturns.AsNoTracking()
+                .Select(x => new { x.Purchase.SupplierId, x.Total }).ToListAsync();
+            var payments = await db.SupplierPayments.AsNoTracking()
+                .Select(x => new { x.Purchase.SupplierId, x.Amount }).ToListAsync();
+            var purchaseTotals = purchases.GroupBy(x => x.SupplierId)
+                .ToDictionary(x => x.Key, x => x.Sum(item => item.Total));
+            var returnTotals = returns.GroupBy(x => x.SupplierId)
+                .ToDictionary(x => x.Key, x => x.Sum(item => item.Total));
+            var paidTotals = payments.GroupBy(x => x.SupplierId)
+                .ToDictionary(x => x.Key, x => x.Sum(item => item.Amount));
+            var invoiceCounts = purchases.GroupBy(x => x.SupplierId)
+                .ToDictionary(x => x.Key, x => x.Count());
+
+            return Results.Ok(suppliers.Select(supplier =>
+            {
+                var purchaseTotal = purchaseTotals.GetValueOrDefault(supplier.Id);
+                var returnedTotal = returnTotals.GetValueOrDefault(supplier.Id);
+                var paidTotal = paidTotals.GetValueOrDefault(supplier.Id);
+                return new SupplierAccountSummary(supplier.Id, supplier.Name, invoiceCounts.GetValueOrDefault(supplier.Id),
+                    purchaseTotal, returnedTotal, paidTotal, Math.Max(0m, purchaseTotal - returnedTotal - paidTotal));
+            }));
+        }).RequireAuthorization(StorePermissions.PurchasesRead);
+
+        api.MapGet("/purchases/suppliers/{supplierId:long}/statement", async (long supplierId, StoreDb db) =>
+        {
+            var supplier = await db.Suppliers.AsNoTracking().Where(x => x.Id == supplierId)
+                .Select(x => new { x.Id, x.Name }).SingleOrDefaultAsync();
+            if (supplier is null) return Results.NotFound("Supplier not found in this store.");
+            var invoices = await db.Purchases.AsNoTracking().Where(x => x.SupplierId == supplierId)
+                .OrderByDescending(x => x.CreatedAt).Select(x => new
+                {
+                    x.Id, supplier = x.Supplier.Name, x.SupplierInvoice, x.CreatedAt, x.Total,
+                    returnedTotal = x.Returns.Sum(r => (decimal?)r.Total) ?? 0,
+                    paidTotal = x.Payments.Sum(p => (decimal?)p.Amount) ?? 0,
+                    lines = x.Lines.Select(l => new { l.Id, medicine = l.Batch.Medicine.Name, batch = l.Batch.Number,
+                        l.Quantity, l.ReturnedQuantity, l.UnitCost, onHand = l.Batch.Quantity }),
+                    returns = x.Returns.OrderByDescending(r => r.CreatedAt)
+                        .Select(r => new { r.Id, r.SupplierReference, r.Reason, r.CreatedAt, r.Total }),
+                    payments = x.Payments.OrderByDescending(p => p.PaidAt)
+                        .Select(p => new { p.Id, p.Amount, p.Method, p.Reference, p.PaidAt })
+                }).ToListAsync();
+            return Results.Ok(new { supplierId = supplier.Id, supplier = supplier.Name, invoices });
+        }).RequireAuthorization(StorePermissions.PurchasesRead);
+
         api.MapPost("/purchases/{id:long}/returns", async (long id, PurchaseReturnRequest input, StoreDb db, ClaimsPrincipal principal) =>
         {
             if (string.IsNullOrWhiteSpace(input.SupplierReference) || string.IsNullOrWhiteSpace(input.Reason) ||
@@ -111,3 +159,6 @@ public static class PurchaseEndpoints
         }).RequireAuthorization(StorePermissions.PurchasesManage);
     }
 }
+
+public sealed record SupplierAccountSummary(long SupplierId, string Supplier, int InvoiceCount,
+    decimal PurchaseTotal, decimal ReturnedTotal, decimal PaidTotal, decimal Balance);
