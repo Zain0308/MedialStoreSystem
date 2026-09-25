@@ -1,12 +1,29 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiClient } from '../../core/api/api-client';
-import { LoginCredentials, LoginResponse, StoreRole, StoreUser } from './authentication.models';
+import { LoginCredentials, LoginResponse, StoreRole, StoreSummary, StoreUser } from './authentication.models';
 
 @Injectable({ providedIn: 'root' })
 export class AuthenticationApi {
   private readonly api = inject(ApiClient);
   login(credentials: LoginCredentials) {
     return this.api.post<LoginResponse>('/auth/login', credentials);
+  }
+  switchStore(storeId: number) {
+    return this.api.post<LoginResponse>('/auth/switch-store', { storeId });
+  }
+  stores() {
+    return this.api.get<StoreSummary[]>('/stores');
+  }
+  allStores() {
+    return this.api.get<StoreSummary[]>('/stores/all');
+  }
+  createStore(input: { name: string; code: string }) {
+    return this.api.post<StoreSummary>('/stores', input);
+  }
+  updateUserStores(id: string, storeIds: number[], defaultStoreId: number) {
+    return this.api.put<{ userId: string; storeIds: number[]; defaultStoreId: number }>(
+      `/auth/users/${encodeURIComponent(id)}/stores`, { storeIds, defaultStoreId },
+    );
   }
   users() {
     return this.api.get<StoreUser[]>('/auth/users');

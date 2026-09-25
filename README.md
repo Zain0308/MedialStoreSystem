@@ -1,6 +1,6 @@
 # Medical Store — working starter
 
-ASP.NET Core 9 Web API, Angular 22, EF Core and SQL Server. This is an initial **single-store cash-sales MVP**, not yet a complete pharmacy deployment.
+ASP.NET Core 9 Web API, Angular 22, EF Core and SQL Server. This is a multi-store pharmacy management MVP, not yet a complete pharmacy deployment.
 
 The project uses **Modular Monolith** architecture: one API host, one SQL Server database and one Angular frontend. Business modules live under `api/Modules/` and `web/src/app/features/`. Each implemented feature owns its code, models and API interactions. See [architecture and ownership](ARCHITECTURE.md) and [backend module status](api/Modules/README.md).
 
@@ -15,6 +15,8 @@ The project uses **Modular Monolith** architecture: one API host, one SQL Server
 - POS with barcode/name search, FEFO batch allocation, discounts, cash/card/bank/mobile-wallet payments, sales returns and printable 80 mm receipts.
 - Dashboard, batch inventory, expiry indicators, recent invoices.
 - Purchase and sale stock changes run inside SQL transactions; sales use serializable isolation plus batch row versions.
+- Multiple stores share one SQL Server database. Medicines, inventory, purchases, sales, suppliers and reports are partitioned by store; administrators can create stores and assign users to one or more stores.
+- Users can switch only to assigned stores. Existing rows and users are assigned to `Main Store` by the automatic schema upgrade.
 - Prescription-required medicines are blocked at POS until a proper prescription workflow exists.
 
 ## Requirements
@@ -37,7 +39,7 @@ dotnet restore
 dotnet run --urls http://localhost:5080
 ```
 
-The Windows account running the API must be allowed to access and create tables in the application database. For a fresh database, `EnsureCreated` creates the schema. At every API startup, the idempotent `api/Database/upgrade-v2.sql` schema upgrade is applied automatically, adding missing columns/tables to an existing database while preserving rows. Keep the connection string, JWT key and owner password private.
+The Windows account running the API must be allowed to create and alter tables in the application database. For a fresh database, `EnsureCreated` creates the schema. At API startup, embedded idempotent `api/Database/upgrade-v*.sql` upgrades run automatically, adding missing columns/tables to existing databases while preserving rows. Keep the connection string, JWT key and owner password private.
 
 In a second PowerShell terminal:
 
@@ -80,11 +82,11 @@ npm start
 
 Visit `http://localhost:4200` and sign in with the `Bootstrap__Email` and `Bootstrap__Password` you set. Create a medicine and supplier, receive a batch, then create a sale. `GET http://localhost:5080/api/health` checks whether the API has started.
 
-The first run creates the SQL schema and owner account. Existing owner passwords are **not** changed by later environment variable changes.
+The first run creates the SQL schema and owner account. On each API startup, the idempotent `api/Database/upgrade-v2.sql` schema upgrade is also applied automatically, so existing databases receive the missing feature columns/tables without deleting rows. Existing owner passwords are **not** changed by later environment variable changes.
 
 ## Limits before real store rollout
 
-The current app supports one store; the purchase screen receives one batch line at a time. Customer credit, a consolidated supplier ledger, self-service password reset/invitations, regulatory registers, backups and prescription validation are not implemented. POS's displayed total is an estimate if batches have different sale prices; the API computes the final FEFO amount. Keep the API connection string pointed at `MedicalStoreSystem`; `EnsureCreated` creates a fresh database, and the startup schema upgrade adds missing columns/tables to an existing database. Use HTTPS and secure secret storage in any deployment.
+The purchase screen receives one batch line at a time. Customer credit, a consolidated supplier ledger, self-service password reset/invitations, regulatory registers, backups and prescription validation are not implemented. POS's displayed total is an estimate if batches have different sale prices; the API computes the final FEFO amount. Keep the API connection string pointed at the shared `MedicalStoreSystem` database. Use HTTPS and secure secret storage in any deployment.
 
 ## API shape
 

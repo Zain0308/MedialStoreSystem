@@ -3,6 +3,7 @@ using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 
 namespace MedicalStore.Api.Infrastructure;
 
@@ -34,21 +35,35 @@ public static class DatabaseInitializer
             var result = await users.AddToRoleAsync(owner, StoreRoles.Administrator);
             if (!result.Succeeded) throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
+
+        var defaultStore = await db.Stores.SingleAsync(x => x.Code == "MAIN");
+        if (!await db.UserStores.AnyAsync(x => x.UserId == owner.Id))
+        {
+            db.UserStores.Add(new MedicalStore.Api.Modules.Stores.UserStore
+            {
+                UserId = owner.Id, StoreId = defaultStore.Id, IsDefault = true
+            });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task ApplySchemaUpgradesAsync(StoreDb db)
     {
         var assembly = typeof(DatabaseInitializer).Assembly;
-        const string resourceSuffix = "Database.upgrade-v2.sql";
-        var resourceName = assembly.GetManifestResourceNames()
-            .SingleOrDefault(name => name.EndsWith(resourceSuffix, StringComparison.OrdinalIgnoreCase))
-            ?? throw new InvalidOperationException($"Embedded database upgrade script '{resourceSuffix}' was not found.");
+        var scripts = assembly.GetManifestResourceNames()
+            .Select(name => (Name: name, Match: Regex.Match(name, @"\.Database\.upgrade-v(?<version>\d+)\.sql$", RegexOptions.IgnoreCase)))
+            .Where(item => item.Match.Success)
+            .OrderBy(item => int.Parse(item.Match.Groups["version"].Value))
+            .ToArray();
+        if (scripts.Length == 0) throw new InvalidOperationException("No embedded database upgrade scripts were found.");
 
-        await using var stream = assembly.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException($"Could not open embedded database upgrade script '{resourceName}'.");
-        using var reader = new StreamReader(stream);
-        var sql = await reader.ReadToEndAsync();
-        await db.Database.ExecuteSqlRawAsync(sql);
+        foreach (var (resourceName, _) in scripts)
+        {
+            await using var stream = assembly.GetManifestResourceStream(resourceName)
+                ?? throw new InvalidOperationException($"Could not open embedded database upgrade script '{resourceName}'.");
+            using var reader = new StreamReader(stream);
+            await db.Database.ExecuteSqlRawAsync(await reader.ReadToEndAsync());
+        }
     }
 
     private static async Task SeedRolesAsync(RoleManager<IdentityRole> roles)

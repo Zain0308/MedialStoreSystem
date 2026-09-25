@@ -1,9 +1,11 @@
+using MedicalStore.Api.Infrastructure.Persistence;
 using MedicalStore.Api.Modules.Inventory;
 
 namespace MedicalStore.Api.Modules.Medicines;
 
-public sealed class Medicine
+public sealed class Medicine : IStoreScoped
 {
+    public long StoreId { get; set; }
     public long Id { get; set; }
     public required string Name { get; set; }
     public string? GenericName { get; set; }

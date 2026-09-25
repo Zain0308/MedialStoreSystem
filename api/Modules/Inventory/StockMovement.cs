@@ -1,8 +1,10 @@
+using MedicalStore.Api.Infrastructure.Persistence;
 
 namespace MedicalStore.Api.Modules.Inventory;
 
-public sealed class StockMovement
+public sealed class StockMovement : IStoreScoped
 {
+    public long StoreId { get; set; }
     public long Id { get; set; }
     public long BatchId { get; set; }
     public Batch Batch { get; set; } = null!;

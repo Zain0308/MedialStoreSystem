@@ -4,6 +4,7 @@ This is the user-approved architecture for Medical Store. The system has one API
 
 | Business module | Backend | Frontend | Current scope |
 | --- | --- | --- | --- |
+| Stores | `api/Modules/Stores` | Store selector and administration in `authentication` | Multiple stores in one database, user memberships and active-store selection |
 | Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Login, multi-user administration, roles, permissions and route/API authorization |
 | Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue metadata, editing and soft deactivation |
 | Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, audited adjustments, damaged stock and movement history |
@@ -17,6 +18,8 @@ This is the user-approved architecture for Medical Store. The system has one API
 ## Backend ownership
 
 Each module owns its endpoints, request records, entities and EF configurations. The shared `StoreDb` composes those mappings. `Program.cs` configures the host; `MedicalStoreModules.cs` registers routes. The current transport style is Minimal API.
+
+Business entities implement `IStoreScoped`. The active store comes from a signed token claim, is checked against the user's `UserStores` memberships, then enforced by EF Core query filters and `SaveChanges` stamping. Existing records and users are migrated into `Main Store`; new stores use separate `StoreId` partitions in the same SQL Server database.
 
 ## Frontend ownership
 
@@ -34,6 +37,6 @@ Each module owns its endpoints, request records, entities and EF configurations.
 
 Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
 
-At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then the idempotent `api/Database/upgrade-v2.sql` upgrade is executed automatically. It adds missing columns/tables to existing databases and preserves existing rows.
+At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`. Existing business rows are preserved.
 
 GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.

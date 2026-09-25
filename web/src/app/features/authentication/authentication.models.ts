@@ -4,9 +4,20 @@ export interface LoginCredentials {
 }
 export interface LoginResponse {
   token: string;
+  userId: string;
   email: string;
   roles: string[];
   permissions: string[];
+  activeStoreId: number;
+  stores: StoreSummary[];
+}
+
+export interface StoreSummary {
+  id: number;
+  name: string;
+  code: string;
+  isDefault?: boolean;
+  isActive?: boolean;
 }
 
 export interface StoreUser {
@@ -14,6 +25,7 @@ export interface StoreUser {
   email: string;
   roles: string[];
   isActive: boolean;
+  storeIds: number[];
 }
 
 export interface StoreRole {

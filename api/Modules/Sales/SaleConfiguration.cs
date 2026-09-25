@@ -12,6 +12,6 @@ public sealed class SaleConfiguration : IEntityTypeConfiguration<Sale>
         builder.Property(x => x.DiscountAmount).HasPrecision(18, 2);
         builder.Property(x => x.PaymentMethod).HasMaxLength(30);
         builder.Property(x => x.CashReceived).HasPrecision(18, 2);
-        builder.HasIndex(x => x.InvoiceNumber).IsUnique();
+        builder.HasIndex(x => new { x.StoreId, x.InvoiceNumber }).IsUnique();
     }
 }

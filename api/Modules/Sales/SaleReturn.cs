@@ -1,7 +1,9 @@
+using MedicalStore.Api.Infrastructure.Persistence;
 namespace MedicalStore.Api.Modules.Sales;
 
-public sealed class SaleReturn
+public sealed class SaleReturn : IStoreScoped
 {
+    public long StoreId { get; set; }
     public long Id { get; set; }
     public long SaleId { get; set; }
     public Sale Sale { get; set; } = null!;
@@ -12,8 +14,9 @@ public sealed class SaleReturn
     public List<SaleReturnLine> Lines { get; set; } = [];
 }
 
-public sealed class SaleReturnLine
+public sealed class SaleReturnLine : IStoreScoped
 {
+    public long StoreId { get; set; }
     public long Id { get; set; }
     public long SaleReturnId { get; set; }
     public SaleReturn SaleReturn { get; set; } = null!;

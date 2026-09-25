@@ -1,9 +1,11 @@
+using MedicalStore.Api.Infrastructure.Persistence;
 using MedicalStore.Api.Modules.Suppliers;
 
 namespace MedicalStore.Api.Modules.Purchases;
 
-public sealed class Purchase
+public sealed class Purchase : IStoreScoped
 {
+    public long StoreId { get; set; }
     public long Id { get; set; }
     public long SupplierId { get; set; }
     public Supplier Supplier { get; set; } = null!;

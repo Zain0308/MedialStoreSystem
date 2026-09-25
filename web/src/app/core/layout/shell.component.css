@@ -143,6 +143,30 @@
   color: #768985;
   font-size: 12px;
 }
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.store-picker {
+  display: grid;
+  gap: 4px;
+  color: #768985;
+  font-size: 11px;
+}
+.store-picker select {
+  min-width: 170px;
+  padding: 9px 12px;
+  border: 1px solid #e8ece9;
+  border-radius: 8px;
+  background: white;
+  color: #253c36;
+}
+.store-error {
+  margin: -18px 0 18px;
+  color: #a33225;
+  font-size: 13px;
+}
 @media (max-width: 700px) {
   .layout {
     display: block;

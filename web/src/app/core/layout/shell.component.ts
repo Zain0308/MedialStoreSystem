@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import {
   ActivatedRoute,
@@ -11,6 +11,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs';
 import { AuthSession } from '../../features/authentication/public-api';
+import { AuthenticationApi } from '../../features/authentication/authentication.api';
 
 @Component({
   selector: 'app-shell',
@@ -20,12 +21,15 @@ import { AuthSession } from '../../features/authentication/public-api';
 })
 export class ShellComponent {
   readonly session = inject(AuthSession);
+  private readonly api = inject(AuthenticationApi);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly navigation = toSignal(
     this.router.events.pipe(filter((event) => event instanceof NavigationEnd)),
   );
   readonly today = new Date();
+  readonly switchingStore = signal(false);
+  readonly storeError = signal('');
   readonly title = computed(() => {
     this.navigation();
     let current = this.route.snapshot;
@@ -35,5 +39,18 @@ export class ShellComponent {
   logout(): void {
     this.session.clear();
     void this.router.navigateByUrl('/login');
+  }
+  switchStore(rawId: string): void {
+    const storeId = Number(rawId);
+    if (!storeId || storeId === this.session.activeStoreId() || this.switchingStore()) return;
+    this.switchingStore.set(true);
+    this.storeError.set('');
+    void this.api.switchStore(storeId).then((result) => {
+      this.session.accept(result);
+      window.location.reload();
+    }).catch(() => {
+      this.storeError.set('Store switch failed. Refresh and try again.');
+      this.switchingStore.set(false);
+    });
   }
 }

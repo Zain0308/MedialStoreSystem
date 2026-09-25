@@ -4,6 +4,7 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 
 | Module folder | Current implementation | Pending scope |
 | --- | --- | --- |
+| Stores | Store creation, per-user membership, active-store switching and tenant-scoped business data in one database | Store editing/deactivation and store-specific role definitions |
 | Authentication | Owner login, user management, predefined/custom roles, permission claims and API authorization | Password reset/invitation flow and audit history |
 | Medicines | Catalogue metadata, edit and soft deactivate/reactivate | Batch pricing is maintained through purchase lots |
 | Inventory | Batch stock/expiry, audited adjustment and damage write-off, movement report | Multi-location stock |

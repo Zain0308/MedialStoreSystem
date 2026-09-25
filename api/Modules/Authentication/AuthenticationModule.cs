@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 
@@ -44,10 +45,24 @@ public static class AuthenticationModule
                         return;
                     }
 
+                    var storeIdText = context.Principal?.FindFirstValue("store_id");
+                    if (!long.TryParse(storeIdText, out var storeId) || storeId <= 0)
+                    {
+                        context.Fail("The access token has no active store. Sign in again.");
+                        return;
+                    }
+
                     var users = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
                     var user = await users.FindByIdAsync(userId);
                     if (user is null || await users.IsLockedOutAsync(user) || user.SecurityStamp != stamp)
                         context.Fail("The account is inactive or its access has changed. Sign in again.");
+                    else
+                    {
+                        var db = context.HttpContext.RequestServices.GetRequiredService<StoreDb>();
+                        var membershipExists = await db.UserStores.AnyAsync(x => x.UserId == userId && x.StoreId == storeId && x.Store.IsActive);
+                        if (!membershipExists) context.Fail("The selected store is no longer assigned to this account.");
+                        else context.HttpContext.RequestServices.GetRequiredService<CurrentStoreContext>().Select(storeId);
+                    }
                 }
             };
         });

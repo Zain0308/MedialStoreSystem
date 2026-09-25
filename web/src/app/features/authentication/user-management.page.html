@@ -1,6 +1,22 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 
 <div class="page-content access-page">
+  @if (session.isAdministrator()) {
+  <section class="panel form-panel">
+    <div class="panel-head"><div><h3>Add store</h3><p>Stores share this database, while business records stay partitioned by store.</p></div></div>
+    <form class="new-role" (ngSubmit)="addStore()">
+      <label>Store name<input name="store-name" [(ngModel)]="newStore.name" minlength="2" maxlength="160" required placeholder="e.g. North Branch" /></label>
+      <label>Store code<input name="store-code" [(ngModel)]="newStore.code" minlength="2" maxlength="40" required placeholder="e.g. NORTH-01" /></label>
+      <button class="secondary" [disabled]="busy()">Create store</button>
+    </form>
+    <div class="store-list">
+      @for (store of stores(); track store.id) {
+        <span class="badge" [class.bad]="!store.isActive">{{ store.name }} · {{ store.code }}{{ store.isActive === false ? ' · Inactive' : '' }}</span>
+      }
+    </div>
+  </section>
+  }
+
   <section class="panel form-panel">
     <div class="panel-head">
       <div>
@@ -31,7 +47,7 @@
     <div class="panel-head"><div><h3>Store users</h3><p>Role or access changes revoke the user's current session.</p></div><span class="count">{{ users().length }} users</span></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Email</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Email</th><th>Roles</th>@if (session.isAdministrator()) { <th>Store access</th> }<th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           @for (user of users(); track user.id) {
             <tr>
@@ -41,9 +57,17 @@
                   @if (role.canAssign || (roleSelections()[user.id] ?? user.roles).includes(role.name)) { <option [value]="role.name">{{ role.name }}</option> }
                 }
               </select></td>
+              @if (session.isAdministrator()) {
+                <td><select multiple [ngModel]="storeDrafts()[user.id] ?? user.storeIds" (ngModelChange)="selectUserStores(user.id, $event)" [name]="'stores-' + user.id" [attr.aria-label]="'Stores for ' + user.email">
+                  @for (store of stores(); track store.id) {
+                    @if (store.isActive !== false) { <option [ngValue]="store.id">{{ store.name }} · {{ store.code }}</option> }
+                  }
+                </select></td>
+              }
               <td><span class="badge" [class.bad]="!user.isActive">{{ user.isActive ? 'Active' : 'Inactive' }}</span></td>
               <td class="actions">
                 <button class="text-button" [disabled]="busy()" (click)="saveUserRoles(user)">Save roles</button>
+                @if (session.isAdministrator() && user.id !== session.userId()) { <button class="text-button" [disabled]="busy()" (click)="saveUserStores(user)">Save stores</button> }
                 <button class="text-button" [disabled]="busy()" (click)="setUserActive(user, !user.isActive)">{{ user.isActive ? 'Deactivate' : 'Activate' }}</button>
               </td>
             </tr>

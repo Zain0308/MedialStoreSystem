@@ -14,6 +14,7 @@ if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
     throw new InvalidOperationException("Jwt__Key must contain at least 32 UTF-8 bytes.");
 
 builder.Services.AddDbContext<StoreDb>(o => o.UseSqlServer(connection));
+builder.Services.AddScoped<CurrentStoreContext>();
 builder.Services.AddAuthenticationModule(jwtKey);
 builder.Services.AddCors(o => o.AddPolicy("LocalWeb", p => p.WithOrigins("http://localhost:4200").AllowAnyHeader().AllowAnyMethod()));
 

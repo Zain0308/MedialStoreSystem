@@ -39,8 +39,20 @@
         <span class="eyebrow">PHARMACY MANAGEMENT</span>
         <h1>{{ title() }}</h1>
       </div>
-      <div class="date-tag">{{ today | date: 'EEEE, d MMMM y' }}</div>
+      <div class="topbar-actions">
+        @if (session.stores().length > 1) {
+          <label class="store-picker">Active store
+            <select aria-label="Active store" [value]="session.activeStoreId()" [disabled]="switchingStore()" (change)="switchStore($any($event.target).value)">
+              @for (store of session.stores(); track store.id) { <option [value]="store.id">{{ store.name }}</option> }
+            </select>
+          </label>
+        } @else if (session.activeStoreName()) {
+          <span class="date-tag">{{ session.activeStoreName() }}</span>
+        }
+        <div class="date-tag">{{ today | date: 'EEEE, d MMMM y' }}</div>
+      </div>
     </header>
+    @if (storeError()) { <p class="store-error" role="alert">{{ storeError() }}</p> }
     <router-outlet />
   </main>
 </div>

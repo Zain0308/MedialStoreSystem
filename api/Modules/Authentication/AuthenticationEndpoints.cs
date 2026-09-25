@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MedicalStore.Api.Infrastructure.Persistence;
+using MedicalStore.Api.Modules.Stores;
 
 namespace MedicalStore.Api.Modules.Authentication;
 
@@ -16,17 +17,19 @@ public static class AuthenticationEndpoints
     public static void MapAuthenticationEndpoints(this IEndpointRouteBuilder app, string jwtKey)
     {
         app.MapPost("/api/auth/login", LoginAsync).AllowAnonymous();
+        app.MapPost("/api/auth/switch-store", SwitchStoreAsync).RequireAuthorization();
 
         var management = app.MapGroup("/api/auth").RequireAuthorization(StorePermissions.UsersManage);
         management.MapGet("/users", ListUsersAsync);
         management.MapPost("/users", CreateUserAsync);
         management.MapPut("/users/{id}/roles", UpdateUserRolesAsync);
         management.MapPut("/users/{id}/status", UpdateUserStatusAsync);
+        management.MapPut("/users/{id}/stores", UpdateUserStoresAsync).RequireAuthorization(policy => policy.RequireRole(StoreRoles.Administrator));
         management.MapGet("/roles", ListRolesAsync);
         management.MapPost("/roles", CreateRoleAsync).RequireAuthorization(StorePermissions.RolesManage);
         management.MapPut("/roles/{id}/permissions", UpdateRolePermissionsAsync).RequireAuthorization(StorePermissions.RolesManage);
 
-        async Task<IResult> LoginAsync(LoginRequest request, UserManager<AppUser> users, RoleManager<IdentityRole> roles)
+        async Task<IResult> LoginAsync(LoginRequest request, UserManager<AppUser> users, RoleManager<IdentityRole> roles, StoreDb db)
         {
             var email = request.Email?.Trim();
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(request.Password)) return Results.Unauthorized();
@@ -39,42 +42,50 @@ public static class AuthenticationEndpoints
             }
 
             await users.ResetAccessFailedCountAsync(user);
-            var userRoles = await users.GetRolesAsync(user);
-            var permissions = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var roleName in userRoles)
-            {
-                var role = await roles.FindByNameAsync(roleName);
-                if (role is null) continue;
-                foreach (var claim in await roles.GetClaimsAsync(role))
-                    if (claim.Type == PermissionClaim && StorePermissions.All.ContainsKey(claim.Value)) permissions.Add(claim.Value);
-            }
-
-            var claims = new List<Claim>
-            {
-                new(JwtRegisteredClaimNames.Sub, user.Id),
-                new(JwtRegisteredClaimNames.Email, user.Email!),
-                new("security_stamp", await users.GetSecurityStampAsync(user) ?? "")
-            };
-            claims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
-            claims.AddRange(permissions.Select(permission => new Claim(PermissionClaim, permission)));
-
-            var token = new JwtSecurityToken("MedicalStore", "MedicalStore.Web", claims,
-                expires: DateTime.UtcNow.AddHours(8), signingCredentials: new SigningCredentials(
-                    new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)), SecurityAlgorithms.HmacSha256));
-            return Results.Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token), email = user.Email,
-                roles = userRoles, permissions = permissions.Order().ToArray() });
+            var memberships = await db.UserStores.Include(x => x.Store)
+                .Where(x => x.UserId == user.Id && x.Store.IsActive).OrderByDescending(x => x.IsDefault).ThenBy(x => x.Store.Name).ToListAsync();
+            if (memberships.Count == 0) return Results.Problem("This user is not assigned to an active store.", statusCode: 403);
+            return await CreateSessionAsync(user, memberships.First().StoreId, memberships, users, roles, jwtKey);
         }
 
-        static async Task<IResult> ListUsersAsync(UserManager<AppUser> users)
+        async Task<IResult> SwitchStoreAsync(SwitchStoreRequest request, ClaimsPrincipal principal,
+            UserManager<AppUser> users, RoleManager<IdentityRole> roles, StoreDb db)
         {
+            var userId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
+            var membership = await db.UserStores.Include(x => x.Store)
+                .Where(x => x.UserId == userId && x.StoreId == request.StoreId && x.Store.IsActive)
+                .SingleOrDefaultAsync();
+            if (membership is null) return Results.Forbid();
+
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            var memberships = await db.UserStores.Include(x => x.Store)
+                .Where(x => x.UserId == userId && x.Store.IsActive).ToListAsync();
+            foreach (var item in memberships) item.IsDefault = item.StoreId == request.StoreId;
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var user = await users.FindByIdAsync(userId);
+            if (user is null) return Results.Unauthorized();
+            return await CreateSessionAsync(user, request.StoreId, memberships, users, roles, jwtKey);
+        }
+
+        static async Task<IResult> ListUsersAsync(UserManager<AppUser> users, StoreDb db, CurrentStoreContext currentStore)
+        {
+            var storeId = currentStore.StoreId ?? throw new InvalidOperationException("No active store is selected.");
+            var memberIds = await db.UserStores.Where(x => x.StoreId == storeId).Select(x => x.UserId).ToListAsync();
             var result = new List<UserSummary>();
-            foreach (var user in await users.Users.OrderBy(x => x.Email).ToListAsync())
-                result.Add(new UserSummary(user.Id, user.Email ?? user.UserName ?? "", await users.GetRolesAsync(user), !await users.IsLockedOutAsync(user)));
+            foreach (var user in await users.Users.Where(x => memberIds.Contains(x.Id)).OrderBy(x => x.Email).ToListAsync())
+            {
+                var stores = await db.UserStores.Where(x => x.UserId == user.Id).Select(x => x.StoreId).ToArrayAsync();
+                result.Add(new UserSummary(user.Id, user.Email ?? user.UserName ?? "", await users.GetRolesAsync(user), !await users.IsLockedOutAsync(user), stores));
+            }
             return Results.Ok(result);
         }
 
         static async Task<IResult> CreateUserAsync(CreateStoreUserRequest request, UserManager<AppUser> users,
-            RoleManager<IdentityRole> roles, StoreDb db, HttpContext http)
+            RoleManager<IdentityRole> roles, StoreDb db, HttpContext http, CurrentStoreContext currentStore)
         {
             var email = request.Email?.Trim() ?? "";
             var roleNames = NormalizeRoleNames(request.Roles);
@@ -82,6 +93,7 @@ public static class AuthenticationEndpoints
                 return Results.BadRequest("A valid email, password and at least one role are required.");
             if (!await RolesExistAsync(roleNames, roles)) return Results.BadRequest("One or more selected roles do not exist.");
             if (!await CanAssignRolesAsync(http.User, roleNames, roles)) return Results.Forbid();
+            var storeId = currentStore.StoreId ?? throw new InvalidOperationException("No active store is selected.");
 
             await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var user = new AppUser { UserName = email, Email = email, EmailConfirmed = true, LockoutEnabled = true };
@@ -93,16 +105,19 @@ public static class AuthenticationEndpoints
                 await users.DeleteAsync(user);
                 return Results.BadRequest(string.Join("; ", IdentityErrors(assigned)));
             }
+            db.UserStores.Add(new UserStore { UserId = user.Id, StoreId = storeId, IsDefault = true });
+            await db.SaveChangesAsync();
             await transaction.CommitAsync();
-            return Results.Created($"/api/auth/users/{user.Id}", new UserSummary(user.Id, email, roleNames, true));
+            return Results.Created($"/api/auth/users/{user.Id}", new UserSummary(user.Id, email, roleNames, true, [storeId]));
         }
 
         static async Task<IResult> UpdateUserRolesAsync(string id, UpdateUserRolesRequest request,
-            HttpContext http, UserManager<AppUser> users, RoleManager<IdentityRole> roles, StoreDb db)
+            HttpContext http, UserManager<AppUser> users, RoleManager<IdentityRole> roles, StoreDb db, CurrentStoreContext currentStore)
         {
             await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var user = await users.FindByIdAsync(id);
             if (user is null) return Results.NotFound();
+            if (!await IsMemberOfStoreAsync(db, id, currentStore)) return Results.NotFound();
             var currentId = http.User.FindFirstValue(JwtRegisteredClaimNames.Sub)
                 ?? http.User.FindFirstValue(ClaimTypes.NameIdentifier);
             var currentRoles = await users.GetRolesAsync(user);
@@ -128,15 +143,17 @@ public static class AuthenticationEndpoints
             }
             await users.UpdateSecurityStampAsync(user);
             await transaction.CommitAsync();
-            return Results.Ok(new UserSummary(user.Id, user.Email ?? "", nextRoles, !await users.IsLockedOutAsync(user)));
+            var storeIds = await db.UserStores.Where(x => x.UserId == user.Id).Select(x => x.StoreId).ToArrayAsync();
+            return Results.Ok(new UserSummary(user.Id, user.Email ?? "", nextRoles, !await users.IsLockedOutAsync(user), storeIds));
         }
 
         static async Task<IResult> UpdateUserStatusAsync(string id, UpdateUserStatusRequest request,
-            HttpContext http, UserManager<AppUser> users, StoreDb db)
+            HttpContext http, UserManager<AppUser> users, StoreDb db, CurrentStoreContext currentStore)
         {
             await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var user = await users.FindByIdAsync(id);
             if (user is null) return Results.NotFound();
+            if (!await IsMemberOfStoreAsync(db, id, currentStore)) return Results.NotFound();
             var currentId = http.User.FindFirstValue(JwtRegisteredClaimNames.Sub)
                 ?? http.User.FindFirstValue(ClaimTypes.NameIdentifier);
             var userRoles = await users.GetRolesAsync(user);
@@ -151,7 +168,44 @@ public static class AuthenticationEndpoints
             if (!changed.Succeeded) return Results.BadRequest(string.Join("; ", IdentityErrors(changed)));
             await users.UpdateSecurityStampAsync(user);
             await transaction.CommitAsync();
-            return Results.Ok(new UserSummary(user.Id, user.Email ?? "", userRoles, request.IsActive));
+            var storeIds = await db.UserStores.Where(x => x.UserId == user.Id).Select(x => x.StoreId).ToArrayAsync();
+            return Results.Ok(new UserSummary(user.Id, user.Email ?? "", userRoles, request.IsActive, storeIds));
+        }
+
+        static async Task<IResult> UpdateUserStoresAsync(string id, UpdateUserStoresRequest request,
+            ClaimsPrincipal principal, UserManager<AppUser> users, StoreDb db)
+        {
+            var actorId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (id == actorId) return Results.BadRequest("Use another Administrator to change your own store access.");
+            var user = await users.FindByIdAsync(id);
+            if (user is null) return Results.NotFound();
+
+            var storeIds = (request.StoreIds ?? []).Where(x => x > 0).Distinct().ToArray();
+            if (storeIds.Length == 0) return Results.BadRequest("Assign the user to at least one store.");
+            var defaultStoreId = request.DefaultStoreId ?? storeIds[0];
+            if (!storeIds.Contains(defaultStoreId)) return Results.BadRequest("The default store must be included in the assigned stores.");
+            if (await db.Stores.CountAsync(x => storeIds.Contains(x.Id) && x.IsActive) != storeIds.Length)
+                return Results.BadRequest("One or more selected stores are inactive or do not exist.");
+
+            await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var current = await db.UserStores.Where(x => x.UserId == id).ToListAsync();
+            foreach (var membership in current) membership.IsDefault = false;
+            await db.SaveChangesAsync();
+
+            var keep = storeIds.ToHashSet();
+            db.UserStores.RemoveRange(current.Where(x => !keep.Contains(x.StoreId)));
+            var existing = current.Where(x => keep.Contains(x.StoreId)).ToDictionary(x => x.StoreId);
+            foreach (var storeId in storeIds)
+            {
+                if (existing.TryGetValue(storeId, out var membership)) membership.IsDefault = storeId == defaultStoreId;
+                else db.UserStores.Add(new UserStore { UserId = id, StoreId = storeId, IsDefault = storeId == defaultStoreId });
+            }
+            await db.SaveChangesAsync();
+            await users.UpdateSecurityStampAsync(user);
+            await transaction.CommitAsync();
+            var assignedStoreIds = await db.UserStores.Where(x => x.UserId == id).Select(x => x.StoreId).ToArrayAsync();
+            return Results.Ok(new { userId = id, storeIds = assignedStoreIds, defaultStoreId });
         }
 
         static async Task<IResult> ListRolesAsync(RoleManager<IdentityRole> roles, HttpContext http)
@@ -239,7 +293,39 @@ public static class AuthenticationEndpoints
 
     private static string[] IdentityErrors(IdentityResult result) => result.Errors.Select(error => error.Description).ToArray();
 
-    private sealed record UserSummary(string Id, string Email, IList<string> Roles, bool IsActive);
+    private sealed record UserSummary(string Id, string Email, IList<string> Roles, bool IsActive, long[] StoreIds);
+
+    private static async Task<IResult> CreateSessionAsync(AppUser user, long storeId, IReadOnlyCollection<UserStore> memberships,
+        UserManager<AppUser> users, RoleManager<IdentityRole> roles, string jwtKey)
+    {
+        var userRoles = await users.GetRolesAsync(user);
+        var permissions = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var roleName in userRoles)
+        {
+            var role = await roles.FindByNameAsync(roleName);
+            if (role is null) continue;
+            foreach (var claim in await roles.GetClaimsAsync(role))
+                if (claim.Type == PermissionClaim && StorePermissions.All.ContainsKey(claim.Value)) permissions.Add(claim.Value);
+        }
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.Id),
+            new(JwtRegisteredClaimNames.Email, user.Email!),
+            new("security_stamp", await users.GetSecurityStampAsync(user) ?? ""),
+            new("store_id", storeId.ToString(System.Globalization.CultureInfo.InvariantCulture))
+        };
+        claims.AddRange(userRoles.Select(role => new Claim(ClaimTypes.Role, role)));
+        claims.AddRange(permissions.Select(permission => new Claim(PermissionClaim, permission)));
+        var token = new JwtSecurityToken("MedicalStore", "MedicalStore.Web", claims,
+            expires: DateTime.UtcNow.AddHours(8), signingCredentials: new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)), SecurityAlgorithms.HmacSha256));
+        var stores = memberships.Select(x => new StoreSummary(x.StoreId, x.Store.Name, x.Store.Code, x.IsDefault)).ToArray();
+        return Results.Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token), userId = user.Id, email = user.Email,
+            roles = userRoles, permissions = permissions.Order().ToArray(), activeStoreId = storeId, stores });
+    }
+
+    private static async Task<bool> IsMemberOfStoreAsync(StoreDb db, string userId, CurrentStoreContext currentStore) =>
+        currentStore.StoreId is long storeId && await db.UserStores.AnyAsync(x => x.UserId == userId && x.StoreId == storeId);
     private static async Task<bool> CanAssignRolesAsync(ClaimsPrincipal actor, IEnumerable<string> roleNames, RoleManager<IdentityRole> roles)
     {
         if (actor.IsInRole(StoreRoles.Administrator)) return true;

@@ -9,6 +9,6 @@ public sealed class PurchaseConfiguration : IEntityTypeConfiguration<Purchase>
     {
         builder.Property(x => x.SupplierInvoice).HasMaxLength(100);
         builder.Property(x => x.Total).HasPrecision(18, 2);
-        builder.HasIndex(x => new { x.SupplierId, x.SupplierInvoice }).IsUnique();
+        builder.HasIndex(x => new { x.StoreId, x.SupplierId, x.SupplierInvoice }).IsUnique();
     }
 }

@@ -1,8 +1,10 @@
+using MedicalStore.Api.Infrastructure.Persistence;
 
 namespace MedicalStore.Api.Modules.Sales;
 
-public sealed class Sale
+public sealed class Sale : IStoreScoped
 {
+    public long StoreId { get; set; }
     public long Id { get; set; }
     public string InvoiceNumber { get; set; } = "PENDING";
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

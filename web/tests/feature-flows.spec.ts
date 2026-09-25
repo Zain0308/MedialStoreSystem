@@ -10,7 +10,11 @@ async function mockApi(page: Page) {
     receipts: {} as Record<number, unknown>,
     purchases: [] as { id: number; supplier: string; supplierInvoice: string; createdAt: string; total: number; returnedTotal: number; paidTotal: number; lines: { id: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitCost: number; onHand: number }[]; returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[]; payments: { id: number; amount: number; method: string; reference: string; paidAt: string }[] }[],
     movements: [] as { id: number; batchId: number; medicine: string; batch: string; type: string; quantityChange: number; balanceAfter: number; reason: string; createdAt: string }[],
-    users: [{ id: 'owner', email: 'owner@example.com', roles: ['Administrator'], isActive: true }],
+    users: [{ id: 'owner', email: 'owner@example.com', roles: ['Administrator'], isActive: true, storeIds: [1] }],
+    stores: [
+      { id: 1, name: 'Main Store', code: 'MAIN', isDefault: true, isActive: true },
+      { id: 2, name: 'West Branch', code: 'WEST', isDefault: false, isActive: true },
+    ],
     permissionOptions: [
       ['users.manage', 'Manage users and roles'], ['roles.manage', 'Create roles and change permissions'], ['medicines.read', 'View medicines'],
       ['medicines.manage', 'Create medicines'], ['inventory.read', 'View inventory'],
@@ -40,15 +44,28 @@ async function mockApi(page: Page) {
       const body = request.postDataJSON();
       if (body.password === 'wrong') return reply({}, 401);
       const isCashier = body.email === 'cashier@example.com';
-      return reply({ token: 'test-token', email: body.email, roles: [isCashier ? 'Cashier' : 'Administrator'],
+      return reply({ token: 'test-token', userId: isCashier ? 'cashier' : 'owner', email: body.email, activeStoreId: 1, stores: state.stores, roles: [isCashier ? 'Cashier' : 'Administrator'],
         permissions: isCashier ? ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'] : allPermissionKeys });
     }
     if (request.headers()['authorization'] !== 'Bearer test-token') return reply({}, 401);
+    if (path === '/api/auth/switch-store' && method === 'POST') {
+      const activeStoreId = request.postDataJSON().storeId;
+      state.stores.forEach(store => store.isDefault = store.id === activeStoreId);
+      return reply({ token: 'test-token', userId: 'owner', email: 'owner@example.com', activeStoreId,
+        stores: state.stores, roles: ['Administrator'], permissions: allPermissionKeys });
+    }
     if (path === '/api/auth/users' && method === 'GET') return reply(state.users);
     if (path === '/api/auth/users' && method === 'POST') {
       const body = request.postDataJSON();
-      const user = { id: `user-${state.users.length}`, email: body.email, roles: body.roles, isActive: true };
+      const user = { id: `user-${state.users.length}`, email: body.email, roles: body.roles, isActive: true, storeIds: [1] };
       state.users.push(user); return reply(user, 201);
+    }
+    if (path === '/api/stores' && method === 'GET') return reply(state.stores);
+    if (path === '/api/stores/all' && method === 'GET') return reply(state.stores);
+    if (path === '/api/stores' && method === 'POST') {
+      const body = request.postDataJSON();
+      const store = { id: state.stores.length + 1, name: body.name, code: body.code.toUpperCase(), isDefault: false, isActive: true };
+      state.stores.push(store); return reply(store, 201);
     }
     const userRoles = path.match(/^\/api\/auth\/users\/([^/]+)\/roles$/);
     if (userRoles && method === 'PUT') {
@@ -59,6 +76,11 @@ async function mockApi(page: Page) {
     if (userStatus && method === 'PUT') {
       const user = state.users.find(x => x.id === userStatus[1])!;
       user.isActive = request.postDataJSON().isActive; return reply(user);
+    }
+    const userStores = path.match(/^\/api\/auth\/users\/([^/]+)\/stores$/);
+    if (userStores && method === 'PUT') {
+      const user = state.users.find(x => x.id === userStores[1])!;
+      user.storeIds = request.postDataJSON().storeIds; return reply({ userId: user.id, storeIds: user.storeIds });
     }
     if (path === '/api/auth/roles' && method === 'GET') return reply(state.roles);
     if (path === '/api/auth/roles' && method === 'POST') {
@@ -218,6 +240,15 @@ test('protected deep links, session restore and 401 redirect', async ({ page }) 
   await navigate(page, /Dashboard/); await navigate(page, /Inventory/);
   await expect(page).toHaveURL(/\/login/);
   expect(await page.evaluate(() => sessionStorage.getItem('medical-token'))).toBeNull();
+});
+
+test('switching stores persists the active store and reloads the workspace', async ({ page }) => {
+  await mockApi(page);
+  await signIn(page, '/reports');
+  await expect(page.getByLabel('Active store')).toHaveValue('1');
+  await page.getByLabel('Active store').selectOption('2');
+  await expect(page.getByLabel('Active store')).toHaveValue('2');
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('medical-store-id'))).toBe('2');
 });
 
 test('medicine, supplier and purchase pages keep their own forms and update inventory', async ({ page }) => {

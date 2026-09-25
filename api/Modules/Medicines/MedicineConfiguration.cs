@@ -7,7 +7,7 @@ public sealed class MedicineConfiguration : IEntityTypeConfiguration<Medicine>
 {
     public void Configure(EntityTypeBuilder<Medicine> builder)
     {
-        builder.HasIndex(x => x.Barcode).IsUnique().HasFilter("[Barcode] IS NOT NULL");
+        builder.HasIndex(x => new { x.StoreId, x.Barcode }).IsUnique().HasFilter("[Barcode] IS NOT NULL");
         builder.Property(x => x.Name).HasMaxLength(200);
         builder.Property(x => x.Barcode).HasMaxLength(100);
         builder.Property(x => x.Strength).HasMaxLength(80);
