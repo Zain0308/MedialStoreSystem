@@ -8,10 +8,27 @@ async function mockApi(page: Page) {
     batches: [{ id: 1, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-01', expiryDate: '2050-12-31', costPrice: 2, salePrice: 5, quantity: 20 }],
     sales: [] as { id: number; invoiceNumber: string; createdAt: string; total: number }[],
     receipts: {} as Record<number, unknown>,
+    users: [{ id: 'owner', email: 'owner@example.com', roles: ['Administrator'], isActive: true }],
+    permissionOptions: [
+      ['users.manage', 'Manage users and roles'], ['roles.manage', 'Create roles and change permissions'], ['medicines.read', 'View medicines'],
+      ['medicines.manage', 'Create medicines'], ['inventory.read', 'View inventory'],
+      ['inventory.manage', 'Adjust inventory'], ['purchases.read', 'View purchases'],
+      ['purchases.manage', 'Receive purchases'], ['sales.read', 'View sales and receipts'],
+      ['sales.create', 'Create sales at POS'], ['suppliers.read', 'View suppliers'],
+      ['suppliers.manage', 'Manage suppliers'], ['reports.read', 'View reports and dashboard'],
+    ] as [string, string][],
+    roles: [] as { id: string; name: string; permissions: string[]; availablePermissions: { key: string; label: string }[]; canAssign: boolean }[],
     failReceipt: false,
     unauthorizedInventory: false,
     salePosts: 0,
   };
+  const allPermissionKeys = state.permissionOptions.map(([key]) => key);
+  state.roles.push(
+    { id: 'admin', name: 'Administrator', permissions: allPermissionKeys, availablePermissions: state.permissionOptions.map(([key, label]) => ({ key, label })), canAssign: true },
+    { id: 'pharmacist', name: 'Pharmacist', permissions: ['medicines.read', 'inventory.read', 'purchases.read', 'sales.read', 'sales.create', 'suppliers.read', 'reports.read'], availablePermissions: state.permissionOptions.map(([key, label]) => ({ key, label })), canAssign: true },
+    { id: 'cashier', name: 'Cashier', permissions: ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'], availablePermissions: state.permissionOptions.map(([key, label]) => ({ key, label })), canAssign: true },
+    { id: 'inventory-manager', name: 'Inventory Manager', permissions: ['medicines.read', 'medicines.manage', 'inventory.read', 'inventory.manage', 'purchases.read', 'purchases.manage', 'sales.read', 'suppliers.read', 'reports.read'], availablePermissions: state.permissionOptions.map(([key, label]) => ({ key, label })), canAssign: true },
+  );
   await page.route('**/api/**', async route => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -20,9 +37,38 @@ async function mockApi(page: Page) {
     if (path === '/api/auth/login') {
       const body = request.postDataJSON();
       if (body.password === 'wrong') return reply({}, 401);
-      return reply({ token: 'test-token', email: body.email });
+      const isCashier = body.email === 'cashier@example.com';
+      return reply({ token: 'test-token', email: body.email, roles: [isCashier ? 'Cashier' : 'Administrator'],
+        permissions: isCashier ? ['medicines.read', 'inventory.read', 'sales.read', 'sales.create'] : allPermissionKeys });
     }
     if (request.headers()['authorization'] !== 'Bearer test-token') return reply({}, 401);
+    if (path === '/api/auth/users' && method === 'GET') return reply(state.users);
+    if (path === '/api/auth/users' && method === 'POST') {
+      const body = request.postDataJSON();
+      const user = { id: `user-${state.users.length}`, email: body.email, roles: body.roles, isActive: true };
+      state.users.push(user); return reply(user, 201);
+    }
+    const userRoles = path.match(/^\/api\/auth\/users\/([^/]+)\/roles$/);
+    if (userRoles && method === 'PUT') {
+      const user = state.users.find(x => x.id === userRoles[1])!;
+      user.roles = request.postDataJSON().roles; return reply(user);
+    }
+    const userStatus = path.match(/^\/api\/auth\/users\/([^/]+)\/status$/);
+    if (userStatus && method === 'PUT') {
+      const user = state.users.find(x => x.id === userStatus[1])!;
+      user.isActive = request.postDataJSON().isActive; return reply(user);
+    }
+    if (path === '/api/auth/roles' && method === 'GET') return reply(state.roles);
+    if (path === '/api/auth/roles' && method === 'POST') {
+      const body = request.postDataJSON();
+      const role = { id: `role-${state.roles.length}`, name: body.name, permissions: [], availablePermissions: state.roles[0].availablePermissions, canAssign: true };
+      state.roles.push(role); return reply(role, 201);
+    }
+    const rolePermissions = path.match(/^\/api\/auth\/roles\/([^/]+)\/permissions$/);
+    if (rolePermissions && method === 'PUT') {
+      const role = state.roles.find(x => x.id === rolePermissions[1])!;
+      role.permissions = request.postDataJSON().permissions; return reply(role);
+    }
     if (path === '/api/medicines' && method === 'GET') return reply(state.medicines);
     if (path === '/api/medicines' && method === 'POST') {
       const body = request.postDataJSON();
@@ -95,6 +141,7 @@ async function navigate(page: Page, name: RegExp) {
     '/inventory': 'Inventory',
     '/suppliers': 'Suppliers',
     '/sales': 'Sales history',
+    '/users': 'Users & roles',
   };
   await link.click();
   if (href && pageTitleByPath[href]) {
@@ -196,6 +243,45 @@ test('invalid login and API validation errors are displayed on the owning page',
   await page.getByRole('button', { name: 'Add medicine', exact: true }).click();
   await expect(page.getByText('Barcode already exists.')).toBeVisible();
   await expect(page.getByLabel('Medicine name')).toHaveValue('Duplicate medicine');
+});
+
+test('admins can create users, configure roles and deactivate access', async ({ page }) => {
+  const state = await mockApi(page); await signIn(page);
+  await navigate(page, /Users & roles/);
+  await page.getByLabel('Email', { exact: true }).fill('cashier@example.com');
+  await page.getByLabel('Initial password').fill('ValidStrongPassword123!');
+  await page.getByLabel('Cashier', { exact: true }).check();
+  await page.getByRole('button', { name: 'Create user' }).click();
+  const userRow = page.getByRole('row').filter({ hasText: 'cashier@example.com' });
+  await expect(userRow).toContainText('Cashier');
+  await userRow.getByRole('combobox', { name: 'Roles for cashier@example.com' }).selectOption(['Pharmacist']);
+  await userRow.getByRole('button', { name: 'Save roles' }).click();
+  await expect(userRow).toContainText('Pharmacist');
+  await userRow.getByRole('button', { name: 'Deactivate' }).click();
+  await expect(userRow).toContainText('Inactive');
+
+  await page.getByLabel('New role name').fill('Store Supervisor');
+  await page.getByRole('button', { name: 'Add role' }).click();
+  const supervisor = page.locator('.role-card').filter({ has: page.getByRole('heading', { name: 'Store Supervisor' }) });
+  await supervisor.getByLabel('View reports and dashboard').check();
+  await supervisor.getByRole('button', { name: 'Save permissions' }).click();
+  expect(state.roles.find(role => role.name === 'Store Supervisor')?.permissions).toContain('reports.read');
+  expect(state.users.find(user => user.email === 'cashier@example.com')?.isActive).toBe(false);
+});
+
+test('cashier permissions limit navigation and hide medicine management', async ({ page }) => {
+  await mockApi(page); await page.goto('/login');
+  await page.getByLabel('Email', { exact: true }).fill('cashier@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('ExamplePassword123!');
+  await page.getByRole('button', { name: /Sign in/ }).click();
+  await expect(page).toHaveURL(/\/forbidden$/);
+  await expect(page.getByRole('navigation').getByRole('link', { name: /Users & roles/ })).toHaveCount(0);
+  await navigate(page, /Medicines/);
+  await expect(page.getByRole('button', { name: 'Add medicine', exact: true })).toHaveCount(0);
+  await navigate(page, /New sale/);
+  await expect(page.getByRole('button', { name: /Complete sale/ })).toBeVisible();
+  await page.goto('/purchases');
+  await expect(page).toHaveURL(/\/forbidden$/);
 });
 
 test('desktop dashboard and mobile POS remain usable after component styling split', async ({ page }, testInfo) => {

@@ -1,5 +1,6 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 <div class="page-content">
+  @if (session.hasPermission('suppliers.manage')) {
   <section class="panel form-panel">
     <h3>Suppliers</h3>
     <p>Add a supplier before receiving stock.</p>
@@ -28,4 +29,5 @@
       }
     </div>
   </section>
+  }
 </div>

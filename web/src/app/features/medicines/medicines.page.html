@@ -39,7 +39,8 @@
         <p class="empty">No medicines added yet.</p>
       }
     </section>
-    <section class="panel form-panel">
+  @if (session.hasPermission('medicines.manage')) {
+  <section class="panel form-panel">
       <h3>Add medicine</h3>
       <p>Stock will be added when you receive a purchase.</p>
       <form (ngSubmit)="addMedicine()">
@@ -74,6 +75,7 @@
         >
         <button class="primary full" [disabled]="busy()">Add medicine</button>
       </form>
-    </section>
+  </section>
+  }
   </div>
 </div>

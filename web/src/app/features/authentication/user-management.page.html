@@ -1,0 +1,78 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+
+<div class="page-content access-page">
+  <section class="panel form-panel">
+    <div class="panel-head">
+      <div>
+        <h3>Add store user</h3>
+        <p>Create a sign-in and assign one or more roles.</p>
+      </div>
+    </div>
+    <form (ngSubmit)="addUser()">
+      <div class="form-grid">
+        <label>Email<input name="user-email" type="email" [(ngModel)]="newUser.email" required autocomplete="off" /></label>
+        <label>Initial password<input name="user-password" type="password" [(ngModel)]="newUser.password" required minlength="12" autocomplete="new-password" /></label>
+      </div>
+      <fieldset>
+        <legend>Assign roles</legend>
+        <div class="checks">
+          @for (role of roles(); track role.id) {
+            @if (role.canAssign) {
+            <label class="check"><input type="checkbox" [checked]="newUser.roles.includes(role.name)" (change)="toggleNewUserRole(role.name, $any($event.target).checked)" />{{ role.name }}</label>
+            }
+          }
+        </div>
+      </fieldset>
+      <button class="primary" [disabled]="busy()">Create user</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><div><h3>Store users</h3><p>Role or access changes revoke the user's current session.</p></div><span class="count">{{ users().length }} users</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Email</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          @for (user of users(); track user.id) {
+            <tr>
+              <td><strong>{{ user.email }}</strong></td>
+              <td><select multiple [ngModel]="roleSelections()[user.id] ?? user.roles" (ngModelChange)="selectUserRoles(user.id, $event)" [name]="'roles-' + user.id" [attr.aria-label]="'Roles for ' + user.email">
+                @for (role of roles(); track role.id) {
+                  @if (role.canAssign || (roleSelections()[user.id] ?? user.roles).includes(role.name)) { <option [value]="role.name">{{ role.name }}</option> }
+                }
+              </select></td>
+              <td><span class="badge" [class.bad]="!user.isActive">{{ user.isActive ? 'Active' : 'Inactive' }}</span></td>
+              <td class="actions">
+                <button class="text-button" [disabled]="busy()" (click)="saveUserRoles(user)">Save roles</button>
+                <button class="text-button" [disabled]="busy()" (click)="setUserActive(user, !user.isActive)">{{ user.isActive ? 'Deactivate' : 'Activate' }}</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel form-panel">
+    <div class="panel-head"><div><h3>Roles and permissions</h3><p>Permissions are enforced by the API. Administrator retains all access.</p></div></div>
+    @if (session.hasPermission('roles.manage')) {
+    <form class="new-role" (ngSubmit)="addRole()">
+      <label>New role name<input name="new-role-name" [(ngModel)]="newRoleName" minlength="3" maxlength="40" required placeholder="e.g. Store Supervisor" /></label>
+      <button class="secondary" [disabled]="busy()">Add role</button>
+    </form>
+    }
+    <div class="role-grid">
+      @for (role of roles(); track role.id) {
+        <article class="role-card">
+          <div class="role-title"><h4>{{ role.name }}</h4>@if (role.name === 'Administrator') { <span class="badge">Full access</span> }</div>
+          <div class="permission-list">
+            @for (permission of role.availablePermissions; track permission.key) {
+              <label class="check"><input type="checkbox" [checked]="permissionDrafts()[role.id]?.includes(permission.key) ?? false" [disabled]="role.name === 'Administrator' || !session.hasPermission('roles.manage') || busy()" (change)="togglePermission(role.id, permission.key, $any($event.target).checked)" />{{ permission.label }}</label>
+            }
+          </div>
+          @if (role.name !== 'Administrator' && session.hasPermission('roles.manage')) { <button class="secondary" [disabled]="busy()" (click)="savePermissions(role)">Save permissions</button> }
+        </article>
+      }
+    </div>
+  </section>
+</div>

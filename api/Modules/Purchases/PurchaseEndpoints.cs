@@ -1,4 +1,5 @@
 using MedicalStore.Api.Modules.Inventory;
+using MedicalStore.Api.Modules.Authentication;
 using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -38,6 +39,6 @@ public static class PurchaseEndpoints
             await db.SaveChangesAsync();
             await tx.CommitAsync();
             return Results.Created($"/api/purchases/{purchase.Id}", new { purchase.Id, purchase.Total });
-        });
+        }).RequireAuthorization(StorePermissions.PurchasesManage);
     }
 }

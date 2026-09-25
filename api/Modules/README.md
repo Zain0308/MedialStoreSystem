@@ -4,7 +4,7 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 
 | Module folder | Current implementation | Pending scope |
 | --- | --- | --- |
-| Authentication | Owner login, Identity user, JWT configuration | Additional users, roles and permissions |
+| Authentication | Owner login, user management, predefined/custom roles, permission claims and API authorization | Password reset/invitation flow and audit history |
 | Medicines | Medicine catalogue, creation and barcode checks | Edit/deactivate flows and additional medicine metadata |
 | Inventory | Batch stock, expiry data and stock movement entities | Adjustments, damaged stock handling and movement reports |
 | Purchases | Receive purchases and record stock increases | Purchase history, returns and supplier payments |

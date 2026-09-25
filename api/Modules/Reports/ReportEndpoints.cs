@@ -1,4 +1,5 @@
 using MedicalStore.Api.Infrastructure.Persistence;
+using MedicalStore.Api.Modules.Authentication;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedicalStore.Api.Modules.Reports;
@@ -19,6 +20,6 @@ public static class ReportEndpoints
                 expiringBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate >= today && x.ExpiryDate <= today.AddDays(60)),
                 expiredBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate < today)
             });
-        });
+        }).RequireAuthorization(StorePermissions.ReportsRead);
     }
 }

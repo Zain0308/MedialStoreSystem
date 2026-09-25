@@ -4,7 +4,7 @@ This is the user-approved architecture for Medical Store. The system has one API
 
 | Business module | Backend | Frontend | Current scope |
 | --- | --- | --- | --- |
-| Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Owner login, session, route guard and authorization header handling |
+| Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Login, multi-user administration, roles, permissions and route/API authorization |
 | Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue and medicine creation |
 | Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities and expiry display |
 | Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receive a stock batch |
@@ -22,6 +22,7 @@ Each module owns its endpoints, request records, entities and EF configurations.
 
 - `app.ts` renders the router outlet; `app.routes.ts` composes lazy feature routes.
 - `core/layout` provides the authenticated shell. `core/api` provides HTTP transport and error formatting.
+- Authentication owns user and role management. Permission policies are enforced by the API; the frontend also hides unavailable modules and management controls. Administrator access is fixed as a recovery role.
 - Each feature has its own route file, page components, templates, models and API service. Signals hold asynchronous page data and feedback.
 - Public cross-feature dependencies go through `public-api.ts`, which exports API clients and models rather than pages or internal stores. For example, Purchases uses the public Medicines and Suppliers clients to populate its selectors.
 - `shared/ui` contains presentation helpers only; it does not own catalogue, purchase or sales data.
@@ -31,6 +32,6 @@ Each module owns its endpoints, request records, entities and EF configurations.
 
 ## Validation
 
-Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, CRUD forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
+Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
 
 GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.

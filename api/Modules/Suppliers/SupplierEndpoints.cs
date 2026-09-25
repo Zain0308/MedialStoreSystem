@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MedicalStore.Api.Infrastructure.Persistence;
+using MedicalStore.Api.Modules.Authentication;
 
 namespace MedicalStore.Api.Modules.Suppliers;
 
@@ -7,7 +8,8 @@ public static class SupplierEndpoints
 {
     public static void MapSupplierEndpoints(this RouteGroupBuilder api)
     {
-        api.MapGet("/suppliers", async (StoreDb db) => Results.Ok(await db.Suppliers.OrderBy(x => x.Name).ToListAsync()));
+        api.MapGet("/suppliers", async (StoreDb db) => Results.Ok(await db.Suppliers.OrderBy(x => x.Name).ToListAsync()))
+            .RequireAuthorization(StorePermissions.SuppliersRead);
         api.MapPost("/suppliers", async (SupplierRequest input, StoreDb db) =>
         {
             if (string.IsNullOrWhiteSpace(input.Name)) return Results.BadRequest("Supplier name is required.");
@@ -15,6 +17,6 @@ public static class SupplierEndpoints
             db.Suppliers.Add(supplier);
             await db.SaveChangesAsync();
             return Results.Created($"/api/suppliers/{supplier.Id}", new { supplier.Id });
-        });
+        }).RequireAuthorization(StorePermissions.SuppliersManage);
     }
 }

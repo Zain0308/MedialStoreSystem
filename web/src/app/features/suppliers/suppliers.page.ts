@@ -6,6 +6,7 @@ import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
 
 import { SuppliersApi } from './suppliers.api';
 import { Supplier, CreateSupplier } from './suppliers.models';
+import { AuthSession } from '../authentication/public-api';
 
 @Component({
   selector: 'app-suppliers-page',
@@ -15,6 +16,7 @@ import { Supplier, CreateSupplier } from './suppliers.models';
 })
 export class SuppliersPage extends PageFeedback implements OnInit {
   private readonly api = inject(SuppliersApi);
+  readonly session = inject(AuthSession);
   readonly suppliers = signal<Supplier[]>([]);
   supplierForm: CreateSupplier = { name: '', phone: '' };
   ngOnInit(): void {

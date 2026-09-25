@@ -6,20 +6,29 @@
     </div>
     <div class="nav-label">WORKSPACE</div>
     <nav aria-label="Store navigation">
-      <a routerLink="/reports" routerLinkActive="active"><span>◫</span> Dashboard</a>
-      <a routerLink="/sales/pos" routerLinkActive="active"><span>▣</span> New sale <em>POS</em></a>
-      <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a>
-      <a routerLink="/purchases" routerLinkActive="active"><span>↘</span> Purchases</a>
-      <a routerLink="/inventory" routerLinkActive="active"><span>▦</span> Inventory</a>
-      <a routerLink="/suppliers" routerLinkActive="active"><span>↙</span> Suppliers</a>
-      <a routerLink="/sales" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
-        ><span>≡</span> Sales history</a
-      >
+      @if (session.hasPermission('reports.read') && session.hasPermission('medicines.read') && session.hasPermission('sales.read')) {
+        <a routerLink="/reports" routerLinkActive="active"><span>◫</span> Dashboard</a>
+      }
+      @if (session.hasPermission('users.manage')) {
+        <a routerLink="/users" routerLinkActive="active"><span>♙</span> Users &amp; roles</a>
+      }
+      @if (session.hasPermission('sales.create') && session.hasPermission('medicines.read') && session.hasPermission('inventory.read')) {
+        <a routerLink="/sales/pos" routerLinkActive="active"><span>▣</span> New sale <em>POS</em></a>
+      }
+      @if (session.hasPermission('medicines.read')) { <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a> }
+      @if (session.hasPermission('purchases.manage') && session.hasPermission('medicines.read') && session.hasPermission('suppliers.read')) {
+        <a routerLink="/purchases" routerLinkActive="active"><span>↘</span> Purchases</a>
+      }
+      @if (session.hasPermission('inventory.read')) { <a routerLink="/inventory" routerLinkActive="active"><span>▦</span> Inventory</a> }
+      @if (session.hasPermission('suppliers.read')) { <a routerLink="/suppliers" routerLinkActive="active"><span>↙</span> Suppliers</a> }
+      @if (session.hasPermission('sales.read')) {
+        <a routerLink="/sales" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><span>≡</span> Sales history</a>
+      }
     </nav>
     <div class="sidebar-foot">
       <div class="avatar">{{ session.email().slice(0, 1).toUpperCase() }}</div>
       <div class="account">
-        <strong>Store owner</strong><small>{{ session.email() }}</small>
+        <strong>{{ session.roles()[0] || 'Store user' }}</strong><small>{{ session.email() }}</small>
       </div>
       <button class="logout" title="Sign out" (click)="logout()">↪</button>
     </div>

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PageFeedback } from '../../shared/ui/page-feedback';
 import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
+import { AuthSession } from '../authentication/public-api';
 
 import { MedicinesApi } from './medicines.api';
 import { Medicine, CreateMedicine } from './medicines.models';
@@ -14,6 +15,7 @@ import { Medicine, CreateMedicine } from './medicines.models';
 })
 export class MedicinesPage extends PageFeedback implements OnInit {
   private readonly api = inject(MedicinesApi);
+  readonly session = inject(AuthSession);
   readonly medicines = signal<Medicine[]>([]);
   medicineForm: CreateMedicine = this.emptyForm();
   ngOnInit(): void {

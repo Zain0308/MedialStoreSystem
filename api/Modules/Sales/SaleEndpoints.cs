@@ -1,4 +1,5 @@
 using MedicalStore.Api.Modules.Inventory;
+using MedicalStore.Api.Modules.Authentication;
 using MedicalStore.Api.Infrastructure.Persistence;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -24,7 +25,8 @@ public static class SaleEndpoints
             var batches = await db.Batches.Where(x => ids.Contains(x.MedicineId) && x.ExpiryDate >= today && x.Quantity > 0)
                 .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Id).ToListAsync();
             var sale = new Sale { InvoiceNumber = $"TMP-{Guid.NewGuid():N}", CashReceived = input.CashReceived,
-                CashierId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub) ?? "" };
+                CashierId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                    ?? principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? "" };
             var movements = new List<(Batch batch, int taken)>();
             foreach (var item in wanted)
             {
@@ -52,10 +54,11 @@ public static class SaleEndpoints
             await db.SaveChangesAsync();
             await tx.CommitAsync();
             return Results.Created($"/api/sales/{sale.Id}", new { sale.Id, sale.InvoiceNumber, sale.Total, change = sale.CashReceived - sale.Total });
-        });
+        }).RequireAuthorization(StorePermissions.SalesCreate);
 
         api.MapGet("/sales", async (StoreDb db) => Results.Ok(await db.Sales.OrderByDescending(x => x.Id)
-            .Take(50).Select(x => new { x.Id, x.InvoiceNumber, x.CreatedAt, x.Total }).ToListAsync()));
+            .Take(50).Select(x => new { x.Id, x.InvoiceNumber, x.CreatedAt, x.Total }).ToListAsync()))
+            .RequireAuthorization(StorePermissions.SalesRead);
 
         api.MapGet("/sales/{id:long}", async (long id, StoreDb db) =>
         {
@@ -66,6 +69,6 @@ public static class SaleEndpoints
                     y.Quantity, y.UnitPrice, total = y.Quantity * y.UnitPrice })
             }).SingleOrDefaultAsync();
             return sale is null ? Results.NotFound() : Results.Ok(sale);
-        });
+        }).RequireAuthorization(StorePermissions.SalesRead);
     }
 }

@@ -2,6 +2,7 @@ using MedicalStore.Api.Modules.Authentication;
 using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace MedicalStore.Api.Infrastructure;
 
@@ -13,6 +14,8 @@ public static class DatabaseInitializer
         var db = scope.ServiceProvider.GetRequiredService<StoreDb>();
         await db.Database.EnsureCreatedAsync();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        await SeedRolesAsync(roles);
         var adminEmail = configuration["Bootstrap:Email"];
         var adminPassword = configuration["Bootstrap:Password"];
         if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
@@ -21,6 +24,43 @@ public static class DatabaseInitializer
         {
             var result = await users.CreateAsync(new AppUser { UserName = adminEmail, Email = adminEmail, EmailConfirmed = true, LockoutEnabled = true }, adminPassword);
             if (!result.Succeeded) throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        var owner = await users.FindByEmailAsync(adminEmail)
+            ?? throw new InvalidOperationException("The bootstrap owner could not be loaded.");
+        if (!await users.IsInRoleAsync(owner, StoreRoles.Administrator))
+        {
+            var result = await users.AddToRoleAsync(owner, StoreRoles.Administrator);
+            if (!result.Succeeded) throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    private static async Task SeedRolesAsync(RoleManager<IdentityRole> roles)
+    {
+        foreach (var (name, permissions) in StorePermissions.DefaultRoles)
+        {
+            var role = await roles.FindByNameAsync(name);
+            var createdNewRole = false;
+            if (role is null)
+            {
+                role = new IdentityRole(name);
+                var created = await roles.CreateAsync(role);
+                if (!created.Succeeded) throw new InvalidOperationException(string.Join("; ", created.Errors.Select(e => e.Description)));
+                createdNewRole = true;
+            }
+
+            // The Administrator role is the fixed recovery role; other built-in role permissions
+            // can be adjusted by a store administrator after initialization.
+            if (name != StoreRoles.Administrator && !createdNewRole) continue;
+            var existing = (await roles.GetClaimsAsync(role))
+                .Where(claim => claim.Type == "permission")
+                .Select(claim => claim.Value)
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (var permission in permissions.Where(permission => !existing.Contains(permission)))
+            {
+                var added = await roles.AddClaimAsync(role, new Claim("permission", permission));
+                if (!added.Succeeded) throw new InvalidOperationException(string.Join("; ", added.Errors.Select(e => e.Description)));
+            }
         }
     }
 }

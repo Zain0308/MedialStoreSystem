@@ -11,4 +11,7 @@ export class ApiClient {
   post<T>(path: string, body: unknown): Promise<T> {
     return firstValueFrom(this.http.post<T>(`/api${path}`, body));
   }
+  put<T>(path: string, body: unknown): Promise<T> {
+    return firstValueFrom(this.http.put<T>(`/api${path}`, body));
+  }
 }

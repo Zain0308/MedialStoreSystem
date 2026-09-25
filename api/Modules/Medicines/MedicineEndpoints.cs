@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MedicalStore.Api.Infrastructure.Persistence;
+using MedicalStore.Api.Modules.Authentication;
 
 namespace MedicalStore.Api.Modules.Medicines;
 
@@ -15,7 +16,7 @@ public static class MedicineEndpoints
                 x.Id, x.Name, x.GenericName, x.Barcode, x.RequiresPrescription, x.MinimumStock, x.IsActive,
                 stock = x.Batches.Where(b => b.ExpiryDate >= today).Sum(b => b.Quantity)
             }).ToListAsync());
-        });
+        }).RequireAuthorization(StorePermissions.MedicinesRead);
 
         api.MapPost("/medicines", async (MedicineRequest input, StoreDb db) =>
         {
@@ -27,6 +28,6 @@ public static class MedicineEndpoints
             db.Medicines.Add(medicine);
             await db.SaveChangesAsync();
             return Results.Created($"/api/medicines/{medicine.Id}", new { medicine.Id });
-        });
+        }).RequireAuthorization(StorePermissions.MedicinesManage);
     }
 }

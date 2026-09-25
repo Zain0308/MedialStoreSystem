@@ -3,6 +3,7 @@ using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 
 namespace MedicalStore.Api.Modules.Authentication;
 
@@ -16,7 +17,7 @@ public static class AuthenticationModule
             o.Password.RequireNonAlphanumeric = true;
             o.Lockout.MaxFailedAccessAttempts = 5;
             o.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
-        }).AddEntityFrameworkStores<StoreDb>();
+        }).AddRoles<IdentityRole>().AddEntityFrameworkStores<StoreDb>();
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o =>
         {
             o.TokenValidationParameters = new TokenValidationParameters
@@ -26,10 +27,37 @@ public static class AuthenticationModule
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
                 ValidateLifetime = true,
+                RoleClaimType = ClaimTypes.Role,
                 ClockSkew = TimeSpan.FromSeconds(30)
             };
+            o.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = async context =>
+                {
+                    var userId = context.Principal?.FindFirstValue(JwtRegisteredClaimNames.Sub)
+                        ?? context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+                    var stamp = context.Principal?.FindFirstValue("security_stamp");
+                    if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(stamp))
+                    {
+                        context.Fail("The access token is incomplete.");
+                        return;
+                    }
+
+                    var users = context.HttpContext.RequestServices.GetRequiredService<UserManager<AppUser>>();
+                    var user = await users.FindByIdAsync(userId);
+                    if (user is null || await users.IsLockedOutAsync(user) || user.SecurityStamp != stamp)
+                        context.Fail("The account is inactive or its access has changed. Sign in again.");
+                }
+            };
         });
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            foreach (var permission in StorePermissions.All.Keys)
+            {
+                options.AddPolicy(permission, policy => policy.RequireAssertion(context =>
+                    context.User.IsInRole(StoreRoles.Administrator) || context.User.HasClaim("permission", permission)));
+            }
+        });
         return services;
     }
 }
