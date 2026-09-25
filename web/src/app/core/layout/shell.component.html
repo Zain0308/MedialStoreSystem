@@ -1,0 +1,37 @@
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-icon">✚</span>
+      <div>MEDICAL<br /><strong>STORE</strong></div>
+    </div>
+    <div class="nav-label">WORKSPACE</div>
+    <nav aria-label="Store navigation">
+      <a routerLink="/reports" routerLinkActive="active"><span>◫</span> Dashboard</a>
+      <a routerLink="/sales/pos" routerLinkActive="active"><span>▣</span> New sale <em>POS</em></a>
+      <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a>
+      <a routerLink="/purchases" routerLinkActive="active"><span>↘</span> Purchases</a>
+      <a routerLink="/inventory" routerLinkActive="active"><span>▦</span> Inventory</a>
+      <a routerLink="/suppliers" routerLinkActive="active"><span>↙</span> Suppliers</a>
+      <a routerLink="/sales" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        ><span>≡</span> Sales history</a
+      >
+    </nav>
+    <div class="sidebar-foot">
+      <div class="avatar">{{ session.email().slice(0, 1).toUpperCase() }}</div>
+      <div class="account">
+        <strong>Store owner</strong><small>{{ session.email() }}</small>
+      </div>
+      <button class="logout" title="Sign out" (click)="logout()">↪</button>
+    </div>
+  </aside>
+  <main class="content">
+    <header class="topbar">
+      <div>
+        <span class="eyebrow">PHARMACY MANAGEMENT</span>
+        <h1>{{ title() }}</h1>
+      </div>
+      <div class="date-tag">{{ today | date: 'EEEE, d MMMM y' }}</div>
+    </header>
+    <router-outlet />
+  </main>
+</div>

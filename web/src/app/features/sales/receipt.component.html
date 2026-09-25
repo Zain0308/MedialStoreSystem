@@ -1,0 +1,38 @@
+<section class="receipt panel">
+  <div class="panel-head no-print">
+    <h3>Receipt · {{ receipt().invoiceNumber }}</h3>
+    <div>
+      <button class="text-button" (click)="closed.emit()">Close</button>
+      <button class="secondary" (click)="printReceipt()">Print receipt</button>
+    </div>
+  </div>
+  <div class="receipt-paper">
+    <div class="receipt-logo">✚</div>
+    <h3>MEDICAL STORE</h3>
+    <p>{{ receipt().invoiceNumber }}<br />{{ receipt().createdAt | date: 'medium' }}</p>
+    <div class="receipt-rule"></div>
+    @for (line of receipt().lines; track $index) {
+      <div class="receipt-line">
+        <span
+          >{{ line.medicine
+          }}<small
+            >Batch {{ line.batch }} · {{ line.quantity }} × Rs
+            {{ line.unitPrice | number: '1.2-2' }}</small
+          ></span
+        ><b>Rs {{ line.total | number: '1.2-2' }}</b>
+      </div>
+    }
+    <div class="receipt-rule"></div>
+    <div class="receipt-line">
+      <b>TOTAL</b><b>Rs {{ receipt().total | number: '1.2-2' }}</b>
+    </div>
+    <div class="receipt-line">
+      <span>Cash</span><span>Rs {{ receipt().cashReceived | number: '1.2-2' }}</span>
+    </div>
+    <div class="receipt-line">
+      <span>Change</span
+      ><span>Rs {{ receipt().cashReceived - receipt().total | number: '1.2-2' }}</span>
+    </div>
+    <p class="receipt-thanks">Thank you for shopping with us.</p>
+  </div>
+</section>

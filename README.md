@@ -2,7 +2,7 @@
 
 ASP.NET Core 10 Web API, Angular 22, EF Core and SQL Server. This is an initial **single-store cash-sales MVP**, not yet a complete pharmacy deployment.
 
-The API is a modular monolith with one API host and one SQL Server database. Business modules live under `api/Modules/`. Each implemented module owns its endpoints, request models, entities and EF configurations. `api/Infrastructure/Persistence/StoreDb.cs` provides the shared database context; `api/Program.cs` configures the host and registers modules. See [module structure and status](api/Modules/README.md).
+The project uses **Modular Monolith** architecture: one API host, one SQL Server database and one Angular frontend. Business modules live under `api/Modules/` and `web/src/app/features/`. Each implemented feature owns its code, models and API interactions. See [architecture and ownership](ARCHITECTURE.md) and [backend module status](api/Modules/README.md).
 
 ## Implemented
 

@@ -1,0 +1,124 @@
+.pos-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  align-items: start;
+  gap: 20px;
+}
+.search-field {
+  height: 46px;
+  border: 1px solid #dae9df;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 23px;
+  color: #7d9b85;
+}
+.search-field input {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.medicine-results {
+  margin-top: 13px;
+}
+.medicine-result {
+  width: 100%;
+  background: #fff;
+  border: 0;
+  border-bottom: 1px solid #eef1ee;
+  padding: 14px 4px;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  gap: 12px;
+  color: #203f36;
+}
+.medicine-result:hover {
+  background: #f5fbf6;
+}
+.medicine-result > div:nth-child(2) {
+  flex: 1;
+}
+.medicine-result strong,
+.medicine-result small {
+  display: block;
+  font-size: 12px;
+}
+.medicine-result small {
+  font-size: 11px;
+  color: #829790;
+  margin-top: 4px;
+}
+.medicine-result > span {
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.medicine-result b {
+  color: #387b54;
+  margin-left: 9px;
+  font-size: 17px;
+}
+.cart > p {
+  font-size: 12px;
+  margin: 6px 0 17px;
+}
+.cart-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid #edf0ed;
+  font-size: 12px;
+}
+.cart-row div {
+  flex: 1;
+}
+.cart-row strong,
+.cart-row small {
+  display: block;
+}
+.cart-row small {
+  color: #8aa095;
+  margin-top: 4px;
+}
+.cart-row input {
+  width: 56px;
+}
+.cart-row button {
+  border: 0;
+  background: none;
+  color: #bc7065;
+  font-size: 22px;
+}
+.cart-empty {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  text-align: center;
+  color: #90a49a;
+  padding: 60px 0;
+}
+.cart-empty span {
+  font-size: 38px;
+  color: #c8ddcc;
+}
+.cart-empty strong {
+  color: #536f60;
+  font-size: 13px;
+}
+.cart-empty small {
+  font-size: 11px;
+}
+.cart-bottom {
+  margin-top: 20px;
+}
+.cart-bottom label {
+  margin-bottom: 16px;
+}
+@media (max-width: 1050px) {
+  .pos-grid {
+    grid-template-columns: 1fr;
+  }
+}

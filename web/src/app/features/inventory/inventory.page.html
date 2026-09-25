@@ -1,0 +1,51 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content">
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h3>Batch inventory</h3>
+        <p>Expiry dates and quantities for each received lot</p>
+      </div>
+      <span class="count">{{ batches().length }} batches</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Medicine / batch</th>
+            <th>Expiry</th>
+            <th>Cost</th>
+            <th>Sale price</th>
+            <th>Units</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (b of batches(); track b.id) {
+            <tr>
+              <td>
+                <strong>{{ b.medicine }}</strong
+                ><small>{{ b.number }}</small>
+              </td>
+              <td>{{ b.expiryDate | date: 'mediumDate' }}</td>
+              <td>Rs {{ b.costPrice | number: '1.2-2' }}</td>
+              <td>Rs {{ b.salePrice | number: '1.2-2' }}</td>
+              <td>{{ b.quantity }}</td>
+              <td>
+                <span
+                  class="badge"
+                  [class.bad]="status(b) === 'Expired'"
+                  [class.amber]="status(b) === 'Near expiry'"
+                  >{{ status(b) }}</span
+                >
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (batches().length === 0) {
+      <p class="empty">No batches received yet. Receive a purchase to create stock.</p>
+    }
+  </section>
+</div>

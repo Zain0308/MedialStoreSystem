@@ -1,0 +1,79 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content">
+  <div class="split wide-left">
+    <section class="panel">
+      <div class="panel-head">
+        <h3>Medicine catalogue</h3>
+        <span class="count">{{ medicines().length }} items</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Medicine</th>
+              <th>Barcode</th>
+              <th>Saleable stock</th>
+              <th>Prescription</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of medicines(); track m.id) {
+              <tr>
+                <td>
+                  <strong>{{ m.name }}</strong
+                  ><small>{{ m.genericName || '—' }}</small>
+                </td>
+                <td>{{ m.barcode || '—' }}</td>
+                <td>
+                  <span class="badge" [class.bad]="m.stock <= m.minimumStock"
+                    >{{ m.stock }} units</span
+                  >
+                </td>
+                <td>{{ m.requiresPrescription ? 'Required' : 'No' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (medicines().length === 0) {
+        <p class="empty">No medicines added yet.</p>
+      }
+    </section>
+    <section class="panel form-panel">
+      <h3>Add medicine</h3>
+      <p>Stock will be added when you receive a purchase.</p>
+      <form (ngSubmit)="addMedicine()">
+        <label
+          >Medicine name
+          <input
+            name="m-name"
+            [(ngModel)]="medicineForm.name"
+            required
+            placeholder="e.g. Paracetamol 500mg"
+        /></label>
+        <label
+          >Generic name
+          <input name="m-generic" [(ngModel)]="medicineForm.genericName" placeholder="Optional"
+        /></label>
+        <label
+          >Barcode
+          <input name="m-barcode" [(ngModel)]="medicineForm.barcode" placeholder="Scan or enter"
+        /></label>
+        <label
+          >Minimum stock (units)
+          <input
+            name="m-min"
+            type="number"
+            min="0"
+            [(ngModel)]="medicineForm.minimumStock"
+            required
+        /></label>
+        <label class="check"
+          ><input name="m-rx" type="checkbox" [(ngModel)]="medicineForm.requiresPrescription" />
+          Prescription required</label
+        >
+        <button class="primary full" [disabled]="busy()">Add medicine</button>
+      </form>
+    </section>
+  </div>
+</div>

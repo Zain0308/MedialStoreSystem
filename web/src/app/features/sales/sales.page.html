@@ -1,0 +1,41 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content">
+  <section class="panel">
+    <div class="panel-head">
+      <h3>Recent invoices</h3>
+      <span class="count">Latest 50</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Invoice</th>
+            <th>Date</th>
+            <th>Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of sales(); track s.id) {
+            <tr>
+              <td>
+                <strong>{{ s.invoiceNumber }}</strong>
+              </td>
+              <td>{{ s.createdAt | date: 'medium' }}</td>
+              <td>Rs {{ s.total | number: '1.2-2' }}</td>
+              <td>
+                <button class="text-button" (click)="viewReceipt(s.id)">View receipt →</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (sales().length === 0) {
+      <p class="empty">No sales yet.</p>
+    }
+  </section>
+</div>
+@if (receipt(); as savedReceipt) {
+  <app-receipt [receipt]="savedReceipt" (closed)="receipt.set(null)" />
+}

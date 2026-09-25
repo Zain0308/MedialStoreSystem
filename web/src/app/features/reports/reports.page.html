@@ -1,0 +1,73 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content">
+  <div class="hero">
+    <div>
+      <span class="eyebrow">YOUR STORE AT A GLANCE</span>
+      <h2>Every detail, in its place.</h2>
+      <p>Track your stock, stay ahead of expiry and serve customers with confidence.</p>
+      <button class="hero-button" routerLink="/sales/pos">Start a new sale <span>→</span></button>
+    </div>
+    <div class="hero-symbol">✚</div>
+  </div>
+  <div class="stats">
+    <div class="stat">
+      <span>SALES TODAY</span
+      ><strong>Rs {{ dashboard()?.todaySales ?? 0 | number: '1.2-2' }}</strong
+      ><small>{{ dashboard()?.todayInvoices ?? 0 }} invoices</small>
+    </div>
+    <div class="stat">
+      <span>MEDICINES</span><strong>{{ dashboard()?.medicineCount ?? 0 }}</strong
+      ><small>In catalogue</small>
+    </div>
+    <div class="stat warning">
+      <span>NEAR EXPIRY</span><strong>{{ dashboard()?.expiringBatches ?? 0 }}</strong
+      ><small>Within 60 days</small>
+    </div>
+    <div class="stat danger">
+      <span>EXPIRED BATCHES</span><strong>{{ dashboard()?.expiredBatches ?? 0 }}</strong
+      ><small>Cannot be sold</small>
+    </div>
+  </div>
+  <div class="split">
+    <section class="panel">
+      <div class="panel-head">
+        <h3>Low stock</h3>
+        <button class="text-button" routerLink="/inventory">View inventory →</button>
+      </div>
+      @for (m of medicines(); track m.id) {
+        @if (m.stock <= m.minimumStock) {
+          <div class="list-row">
+            <div class="pill-icon">✚</div>
+            <div>
+              <strong>{{ m.name }}</strong
+              ><small>Minimum {{ m.minimumStock }} units</small>
+            </div>
+            <span class="badge bad">{{ m.stock }} left</span>
+          </div>
+        }
+      }
+      @if (medicines().length === 0) {
+        <p class="empty">Add your first medicine to begin tracking stock.</p>
+      }
+    </section>
+    <section class="panel">
+      <div class="panel-head">
+        <h3>Recent sales</h3>
+        <button class="text-button" routerLink="/sales">View all →</button>
+      </div>
+      @for (s of sales().slice(0, 5); track s.id) {
+        <div class="list-row">
+          <div class="pill-icon mint">↗</div>
+          <div>
+            <strong>{{ s.invoiceNumber }}</strong
+            ><small>{{ s.createdAt | date: 'medium' }}</small>
+          </div>
+          <b>Rs {{ s.total | number: '1.2-2' }}</b>
+        </div>
+      }
+      @if (sales().length === 0) {
+        <p class="empty">Your sales will appear here.</p>
+      }
+    </section>
+  </div>
+</div>

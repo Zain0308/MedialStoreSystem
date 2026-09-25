@@ -1,0 +1,45 @@
+.receipt {
+  margin-top: 25px;
+}
+.receipt-paper {
+  font-family: Arial, sans-serif;
+  background: #fff;
+  max-width: 340px;
+  margin: 10px auto;
+  padding: 27px;
+  border: 1px dashed #cbd9d1;
+  color: #222;
+}
+.receipt-paper h3 {
+  text-align: center;
+  margin: 10px 0;
+}
+.receipt-paper p {
+  text-align: center;
+  font-size: 11px;
+  color: #666;
+}
+.receipt-logo {
+  text-align: center;
+  font-size: 25px;
+  color: #29734b;
+}
+.receipt-rule {
+  border-top: 1px dashed #888;
+  margin: 15px 0;
+}
+.receipt-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  margin: 9px 0;
+}
+.receipt-line small {
+  display: block;
+  color: #777;
+  margin-top: 4px;
+}
+.receipt-thanks {
+  margin: 28px 0 0;
+}

@@ -6,7 +6,8 @@
     "start": "ng serve --proxy-config src/app/proxy.conf.json",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "playwright test",
+    "test:e2e": "playwright test"
   },
   "private": true,
   "packageManager": "npm@11.9.0",
@@ -24,6 +25,7 @@
     "@angular/build": "^22.2.0",
     "@angular/cli": "^22.2.0",
     "@angular/compiler-cli": "^22.2.0",
+    "@playwright/test": "^1.62.1",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2"
   }

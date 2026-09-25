@@ -1,0 +1,31 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content">
+  <section class="panel form-panel">
+    <h3>Suppliers</h3>
+    <p>Add a supplier before receiving stock.</p>
+    <form (ngSubmit)="addSupplier()">
+      <label
+        >Supplier name
+        <input
+          name="s-name"
+          [(ngModel)]="supplierForm.name"
+          required
+          placeholder="e.g. ABC Pharma" /></label
+      ><label
+        >Phone
+        <input name="s-phone" [(ngModel)]="supplierForm.phone" placeholder="Optional" /></label
+      ><button class="secondary" [disabled]="busy()">Add supplier</button>
+    </form>
+    <div class="supplier-list">
+      @for (s of suppliers(); track s.id) {
+        <div class="list-row">
+          <div class="pill-icon">↘</div>
+          <div>
+            <strong>{{ s.name }}</strong
+            ><small>{{ s.phone || 'Supplier' }}</small>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+</div>

@@ -1,0 +1,86 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content">
+  <section class="panel form-panel">
+    <h3>Receive stock</h3>
+    <p><a routerLink="/suppliers">Manage suppliers →</a></p>
+    <p>Each received line creates a traceable batch. Quantities are individual sale units.</p>
+    <form (ngSubmit)="receivePurchase()">
+      <div class="form-grid">
+        <label
+          >Supplier
+          <select name="p-supplier" [(ngModel)]="purchase.supplierId" required>
+            <option [ngValue]="0" disabled>Select supplier</option>
+            @for (s of suppliers(); track s.id) {
+              <option [ngValue]="s.id">{{ s.name }}</option>
+            }
+          </select></label
+        >
+        <label
+          >Supplier invoice
+          <input
+            name="p-invoice"
+            [(ngModel)]="purchase.supplierInvoice"
+            required
+            placeholder="e.g. SUP-0042"
+        /></label>
+        <label
+          >Medicine
+          <select name="p-medicine" [(ngModel)]="purchase.medicineId" required>
+            <option [ngValue]="0" disabled>Select medicine</option>
+            @for (m of medicines(); track m.id) {
+              <option [ngValue]="m.id">{{ m.name }}</option>
+            }
+          </select></label
+        >
+        <label
+          >Batch number
+          <input
+            name="p-batch"
+            [(ngModel)]="purchase.batchNumber"
+            required
+            placeholder="e.g. LOT-123"
+        /></label>
+        <label
+          >Expiry date
+          <input
+            name="p-expiry"
+            type="date"
+            [min]="today"
+            [(ngModel)]="purchase.expiryDate"
+            required
+        /></label>
+        <label
+          >Quantity (units)
+          <input name="p-qty" type="number" min="1" [(ngModel)]="purchase.quantity" required
+        /></label>
+        <label
+          >Unit cost (Rs)
+          <input
+            name="p-cost"
+            type="number"
+            step="0.01"
+            min="0"
+            [(ngModel)]="purchase.costPrice"
+            required
+        /></label>
+        <label
+          >Sale price (Rs)
+          <input
+            name="p-price"
+            type="number"
+            step="0.01"
+            min="0"
+            [(ngModel)]="purchase.salePrice"
+            required
+        /></label>
+      </div>
+      <div class="form-total">
+        <span>Purchase total</span
+        ><strong>Rs {{ purchase.quantity * purchase.costPrice | number: '1.2-2' }}</strong>
+      </div>
+      <button class="primary" [disabled]="busy() || !purchase.supplierId || !purchase.medicineId">
+        Receive batch →
+      </button>
+    </form>
+  </section>
+</div>

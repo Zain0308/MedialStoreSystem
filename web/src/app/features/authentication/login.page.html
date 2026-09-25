@@ -1,0 +1,40 @@
+<main class="login-shell">
+  <div class="login-art">
+    <div class="mark">✚</div>
+    <h1>Good care starts<br />with good records.</h1>
+    <p>Inventory, billing and expiry tracking in one calm workspace.</p>
+    <span class="art-caption">MEDICAL STORE / DESK</span>
+  </div>
+  <form class="login-card" (ngSubmit)="login()">
+    <div class="mini-mark">✚</div>
+    <div class="eyebrow">WELCOME BACK</div>
+    <h2>Sign in to your store</h2>
+    <p>Enter the owner credentials configured for this installation.</p>
+    <label
+      >Email
+      <input
+        name="email"
+        type="email"
+        [(ngModel)]="credentials.email"
+        autocomplete="username"
+        required
+        placeholder="owner@store.com"
+    /></label>
+    <label
+      >Password
+      <input
+        name="password"
+        type="password"
+        [(ngModel)]="credentials.password"
+        autocomplete="current-password"
+        required
+        placeholder="••••••••••••"
+    /></label>
+    <button class="primary full" [disabled]="busy()">
+      {{ busy() ? 'Signing in…' : 'Sign in →' }}
+    </button>
+    @if (message()) {
+      <div class="notice error">{{ message() }}</div>
+    }
+  </form>
+</main>
