@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PageFeedback } from '../../shared/ui/page-feedback';
@@ -28,6 +28,12 @@ export class PosPage extends PageFeedback implements OnInit {
   readonly batches = signal<Batch[]>([]);
   readonly customers = signal<{ id: number; name: string }[]>([]);
   customerId: number | null = null;
+  readonly customerSearch = signal('');
+  readonly matchingCustomers = computed(() => {
+    const term = this.customerSearch().trim().toLocaleLowerCase();
+    if (!term) return [];
+    return this.customers().filter(customer => customer.name.toLocaleLowerCase().includes(term)).slice(0, 10);
+  });
   readonly receipt = signal<Receipt | null>(null);
   search = '';
   discountAmount = 0;
@@ -61,6 +67,18 @@ export class PosPage extends PageFeedback implements OnInit {
     this.message.set(error ?? '');
     this.hasError.set(!!error);
   }
+  searchCustomers(value: string): void {
+    this.customerSearch.set(value);
+    this.customerId = null;
+  }
+  selectCustomer(customer: { id: number; name: string }): void {
+    this.customerId = customer.id;
+    this.customerSearch.set(customer.name);
+  }
+  clearCustomer(): void {
+    this.customerId = null;
+    this.customerSearch.set('');
+  }
   price(medicine: Medicine): number {
     const today = new Date().toISOString().slice(0, 10);
     return (
@@ -92,6 +110,7 @@ export class PosPage extends PageFeedback implements OnInit {
       this.cart.clear();
       this.discountAmount = 0; this.paymentMethod = 'Cash';
       this.customerId = null;
+      this.customerSearch.set('');
       this.receipt.set(null);
       try {
         this.receipt.set(await this.api.receipt(result.id));

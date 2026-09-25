@@ -6,17 +6,15 @@
     <p>Each received line creates a traceable batch. Quantities are individual sale units.</p>
     <form (ngSubmit)="receivePurchase()">
       <div class="form-grid">
-        <label
-          >Supplier
-          <select name="p-supplier" [(ngModel)]="purchase.supplierId" required>
-            <option [ngValue]="0" disabled>Select supplier</option>
-            @for (s of suppliers(); track s.id) {
-              @if (s.isActive) {
-              <option [ngValue]="s.id">{{ s.name }}</option>
-              }
-            }
-          </select></label
-        >
+        <label class="supplier-picker">Supplier
+          <input name="p-supplier" aria-label="Search supplier" [ngModel]="supplierPickerSearch()" (ngModelChange)="searchSuppliers($event)" placeholder="Type supplier name, contact or phone" autocomplete="off" required />
+          @if (purchase.supplierId) { <small>Selected: {{ supplierPickerSearch() }} · <button type="button" class="text-button" (click)="clearSupplier()">Change</button></small> }
+          @if (matchingSuppliers().length) {
+            <div class="supplier-picker-results">
+              @for (supplier of matchingSuppliers(); track supplier.id) { <button type="button" (click)="selectSupplier(supplier)"><strong>{{ supplier.name }}</strong>@if (supplier.phone) { <small>{{ supplier.phone }}</small> }</button> }
+            </div>
+          } @else if (supplierPickerSearch().trim() && !purchase.supplierId) { <small>No matching active suppliers.</small> }
+        </label>
         <label
           >Supplier invoice
           <input

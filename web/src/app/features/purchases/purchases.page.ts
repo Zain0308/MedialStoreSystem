@@ -24,6 +24,16 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   private readonly suppliersApi = inject(SuppliersApi);
   readonly medicines = signal<Medicine[]>([]);
   readonly suppliers = signal<Supplier[]>([]);
+  readonly supplierPickerSearch = signal('');
+  readonly matchingSuppliers = computed(() => {
+    const term = this.supplierPickerSearch().trim().toLocaleLowerCase();
+    if (!term) return [];
+    const selected = this.suppliers().find(supplier => supplier.id === this.purchase.supplierId);
+    if (selected?.name.toLocaleLowerCase() === term) return [];
+    return this.suppliers().filter(supplier => supplier.isActive &&
+      [supplier.name, supplier.contactPerson ?? '', supplier.phone ?? ''].some(value => value.toLocaleLowerCase().includes(term)))
+      .slice(0, 10);
+  });
   readonly purchases = signal<PurchaseHistory[]>([]);
   readonly supplierAccounts = signal<SupplierAccountSummary[]>([]);
   readonly selectedSupplierStatement = signal<SupplierStatement | null>(null);
@@ -121,6 +131,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
         ],
       });
       this.purchase = this.emptyForm(p.supplierId);
+      this.supplierPickerSearch.set(this.suppliers().find(supplier => supplier.id === p.supplierId)?.name ?? '');
       await this.refreshFinancials();
       this.message.set('Purchase received; batch stock updated.');
     });
@@ -177,5 +188,17 @@ export class PurchasesPage extends PageFeedback implements OnInit {
       costPrice: 0,
       salePrice: 0,
     };
+  }
+  searchSuppliers(value: string): void {
+    this.supplierPickerSearch.set(value);
+    this.purchase.supplierId = 0;
+  }
+  selectSupplier(supplier: Supplier): void {
+    this.purchase.supplierId = supplier.id;
+    this.supplierPickerSearch.set(supplier.name);
+  }
+  clearSupplier(): void {
+    this.purchase.supplierId = 0;
+    this.supplierPickerSearch.set('');
   }
 }

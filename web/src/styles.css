@@ -196,6 +196,12 @@ td small {
 .nested-filter label {
   min-width: 120px;
 }
+.supplier-picker { position: relative; }
+.supplier-picker > small { display: block; margin-top: 5px; color: #829790; }
+.supplier-picker-results { position: absolute; z-index: 5; top: 100%; left: 0; right: 0; max-height: 220px; overflow: auto; border: 1px solid #dae9df; border-radius: 8px; background: #fff; box-shadow: 0 8px 20px #17392c1c; }
+.supplier-picker-results button { display: flex; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-bottom: 1px solid #eef1ee; background: #fff; color: #203f36; text-align: left; }
+.supplier-picker-results button:hover { background: #f5fbf6; }
+.supplier-picker-results small { color: #829790; }
 @media (max-width: 600px) {
   .table-filters,
   .customer-table-filters,

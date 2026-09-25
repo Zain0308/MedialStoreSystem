@@ -32,10 +32,21 @@
     </section>
     <section class="panel cart">
       <h3>Current sale</h3>
-      <label>Customer <select aria-label="Customer" [(ngModel)]="customerId" [required]="paymentMethod === 'Not Received'">
-        <option [ngValue]="null">Walk-in customer</option>
-        @for (customer of customers(); track customer.id) { <option [ngValue]="customer.id">{{ customer.name }}</option> }
-      </select></label>
+      <label class="customer-picker">Customer (optional)
+        <input aria-label="Customer search" [ngModel]="customerSearch()" (ngModelChange)="searchCustomers($event)" placeholder="Search customer or leave blank for walk-in" autocomplete="off" />
+      </label>
+      @if (customerId) {
+        <div class="selected-customer"><span>Selected: {{ customerSearch() }}</span><button type="button" class="text-button" (click)="clearCustomer()">Clear</button></div>
+      } @else if (customerSearch().trim()) {
+        <div class="customer-results">
+          @for (customer of matchingCustomers(); track customer.id) {
+            <button type="button" class="customer-result" (click)="selectCustomer(customer)">{{ customer.name }}</button>
+          }
+          @if (!matchingCustomers().length) { <p class="empty">No matching customers.</p> }
+        </div>
+      } @else {
+        <small class="walk-in-hint">No customer selected · Walk-in sale</small>
+      }
       @for (row of cart.items(); track row.medicine.id) {
         <div class="cart-row">
           <div>

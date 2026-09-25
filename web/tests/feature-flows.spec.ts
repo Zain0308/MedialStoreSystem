@@ -473,7 +473,8 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await expect(page.getByText('No suppliers match this filter.')).toBeVisible();
   await page.getByRole('button', { name: 'Clear filter' }).click();
   await navigate(page, /Purchases/);
-  await page.getByRole('combobox', { name: 'Supplier', exact: true }).selectOption({ label: 'City Pharma' });
+  await page.getByLabel('Search supplier').fill('City');
+  await page.getByRole('button', { name: /City Pharma/ }).click();
   await page.getByLabel('Supplier invoice').fill('SUP-002');
   await page.getByRole('combobox', { name: 'Medicine', exact: true }).selectOption({ label: 'Vitamin C' });
   await page.getByLabel('Batch number').fill('VC-02');
@@ -527,7 +528,8 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
   await page.getByLabel('Payment method').selectOption('Not Received');
   await expect(page.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
-  await page.locator('select[aria-label="Customer"]').selectOption({ label: 'Ayesha Khan' });
+  await page.getByLabel('Customer search').fill('Ayesha');
+  await page.getByRole('button', { name: 'Ayesha Khan', exact: true }).click();
   await page.getByRole('button', { name: /Complete sale/ }).click();
   await expect(page.getByText('Sale completed. Invoice is ready to print.')).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
