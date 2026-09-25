@@ -63,19 +63,27 @@ public static class CustomerEndpoints
                 .Select(x => new { x.Id, x.Name, x.Phone, x.Email, x.IsActive }).SingleOrDefaultAsync();
             if (customer is null) return Results.NotFound();
             var customerSales = await db.Sales.AsNoTracking().Where(x => x.CustomerId == id)
-                .Select(x => new { x.Total, x.PaymentMethod, Returned = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
-                    Paid = db.CustomerPayments.Where(p => p.SaleId == x.Id).Sum(p => (decimal?)p.Amount) ?? 0 }).ToListAsync();
-            var paidTotal = customerSales.Sum(x => NotReceivedMethods.Contains(x.PaymentMethod)
-                ? Math.Min(x.Paid, Math.Max(0, x.Total - x.Returned)) : Math.Max(0, x.Total - x.Returned));
-            var invoices = await db.Sales.AsNoTracking().Where(x => x.CustomerId == id && NotReceivedMethods.Contains(x.PaymentMethod))
                 .OrderByDescending(x => x.CreatedAt).Select(x => new
                 {
-                    x.Id, x.InvoiceNumber, x.CreatedAt, x.Total,
-                    returned = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
-                    paid = db.CustomerPayments.Where(p => p.SaleId == x.Id).Sum(p => (decimal?)p.Amount) ?? 0,
-                    payments = db.CustomerPayments.Where(p => p.SaleId == x.Id).OrderByDescending(p => p.PaidAt)
-                        .Select(p => new { p.Id, p.Amount, p.Method, p.Reference, p.PaidAt })
+                    x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.PaymentMethod,
+                    Returned = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
+                    Paid = db.CustomerPayments.Where(p => p.SaleId == x.Id).Sum(p => (decimal?)p.Amount) ?? 0
                 }).ToListAsync();
+            var paidTotal = customerSales.Sum(x => NotReceivedMethods.Contains(x.PaymentMethod)
+                ? Math.Min(x.Paid, Math.Max(0, x.Total - x.Returned)) : Math.Max(0, x.Total - x.Returned));
+            var unpaidSales = customerSales.Where(x => NotReceivedMethods.Contains(x.PaymentMethod)).ToList();
+            var saleIds = unpaidSales.Select(x => x.Id).ToArray();
+            var payments = await db.CustomerPayments.AsNoTracking().Where(x => saleIds.Contains(x.SaleId))
+                .OrderByDescending(x => x.PaidAt)
+                .Select(x => new { x.Id, x.SaleId, x.Amount, x.Method, x.Reference, x.PaidAt }).ToListAsync();
+            var invoices = unpaidSales.Select(x => new
+            {
+                x.Id, x.InvoiceNumber, x.CreatedAt, x.Total,
+                returned = x.Returned,
+                paid = x.Paid,
+                payments = payments.Where(p => p.SaleId == x.Id)
+                    .Select(p => new { p.Id, p.Amount, p.Method, p.Reference, p.PaidAt }).ToList()
+            }).ToList();
             return Results.Ok(new { customer, invoices, paidTotal, receivable = invoices.Sum(x => Math.Max(0, x.Total - x.returned - x.paid)) });
         }).RequireAuthorization(StorePermissions.CustomersRead);
 
