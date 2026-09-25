@@ -4,8 +4,9 @@
     <section class="panel">
       <div class="panel-head">
         <h3>Medicine catalogue</h3>
-        <span class="count">{{ medicines().length }} items</span>
+        <span class="count">{{ filteredMedicines().length }} of {{ medicines().length }} items</span>
       </div>
+      <div class="table-filters"><label>Search medicines<input aria-label="Search medicines" [ngModel]="search()" (ngModelChange)="search.set($event); tablePage.set(1)" placeholder="Name, generic, barcode, strength or maker" /></label><label>Status<select aria-label="Medicine status filter" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); tablePage.set(1)"><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -19,7 +20,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (m of medicines(); track m.id) {
+            @for (m of visibleMedicines(); track m.id) {
               <tr>
                 <td>
                   <strong>{{ m.name }}</strong>
@@ -43,9 +44,11 @@
           </tbody>
         </table>
       </div>
+      <app-table-pagination [page]="tablePage()" [total]="filteredMedicines().length" [pageSize]="pageSize" (pageChange)="tablePage.set($event)" />
       @if (medicines().length === 0) {
         <p class="empty">No medicines added yet.</p>
       }
+      @if (medicines().length && !filteredMedicines().length) { <p class="empty">No medicines match these filters.</p> }
     </section>
   @if (session.hasPermission('medicines.manage')) {
   <section class="panel form-panel">

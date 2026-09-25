@@ -4,23 +4,41 @@ import { PageFeedback } from '../../shared/ui/page-feedback';
 import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
 import { FormsModule } from '@angular/forms';
 import { AuthSession } from '../authentication/public-api';
+import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 
 import { InventoryApi } from './inventory.api';
 import { Batch, StockMovement } from './inventory.models';
 
 @Component({
   selector: 'app-inventory-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
   templateUrl: './inventory.page.html',
   styleUrl: './inventory.page.css',
 })
 export class InventoryPage extends PageFeedback implements OnInit {
-  private readonly pageSize = 20;
   private readonly api = inject(InventoryApi);
   readonly batches = signal<Batch[]>([]);
+  readonly batchSearch = signal('');
+  readonly batchStatus = signal('all');
+  readonly expiryFrom = signal('');
+  readonly expiryTo = signal('');
+  readonly batchPage = signal(1);
+  readonly filteredBatches = computed(() => {
+    const term = this.batchSearch().trim().toLocaleLowerCase();
+    const status = this.batchStatus();
+    const from = this.expiryFrom(); const to = this.expiryTo();
+    return this.batches().filter(batch => {
+      const batchStatus = this.status(batch);
+      return (!term || [batch.medicine, batch.number].some(value => value.toLocaleLowerCase().includes(term))) &&
+        (status === 'all' || status === batchStatus) && (!from || batch.expiryDate >= from) && (!to || batch.expiryDate <= to);
+    });
+  });
+  readonly visibleBatches = computed(() => pageSlice(this.filteredBatches(), this.batchPage()));
+  readonly pageSize = TABLE_PAGE_SIZE;
   readonly movements = signal<StockMovement[]>([]);
   readonly session = inject(AuthSession);
   readonly movementType = signal<'All' | 'Purchase' | 'Sale' | 'Adjustment'>('All');
+  readonly movementSearch = signal('');
   readonly movementFromDate = signal('');
   readonly movementToDate = signal('');
   readonly movementPage = signal(1);
@@ -32,6 +50,9 @@ export class InventoryPage extends PageFeedback implements OnInit {
       const date = this.localDateKey(movement.createdAt);
       if (from && date < from) return false;
       if (to && date > to) return false;
+      const term = this.movementSearch().trim().toLocaleLowerCase();
+      if (term && ![movement.medicine, movement.batch, movement.reason, movement.type]
+        .some(value => value.toLocaleLowerCase().includes(term))) return false;
       if (type === 'Purchase') return movement.type === 'Purchase' || movement.type === 'PurchaseReturn';
       if (type === 'Sale') return movement.type === 'Sale' || movement.type === 'SaleReturn' || movement.type === 'DamagedReturn';
       if (type === 'Adjustment') return movement.type === 'Adjustment' || movement.type === 'Damage';
@@ -50,12 +71,13 @@ export class InventoryPage extends PageFeedback implements OnInit {
   private async refresh(): Promise<void> {
     const [batches, movements] = await Promise.all([this.api.list(), this.api.movements()]);
     this.batches.set(batches); this.movements.set(movements);
+    this.batchPage.set(1);
     this.movementPage.set(1);
     if (!this.adjustment.batchId && batches.length) this.adjustment.batchId = batches[0].id;
   }
   resetMovementPage(): void { this.movementPage.set(1); }
   clearMovementFilters(): void {
-    this.movementType.set('All'); this.movementFromDate.set(''); this.movementToDate.set('');
+    this.movementType.set('All'); this.movementFromDate.set(''); this.movementToDate.set(''); this.movementSearch.set('');
     this.movementPage.set(1);
   }
   previousMovementPage(): void { this.movementPage.update(page => Math.max(1, page - 1)); }

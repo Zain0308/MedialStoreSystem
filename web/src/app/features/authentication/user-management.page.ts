@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PageFeedback } from '../../shared/ui/page-feedback';
 import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
 import { AuthenticationApi } from './authentication.api';
 import { StoreRole, StoreSummary, StoreUser } from './authentication.models';
 import { AuthSession } from './auth-session';
+import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 
 type SubscriptionDraft = {
   planName: string;
@@ -16,7 +17,7 @@ type SubscriptionDraft = {
 
 @Component({
   selector: 'app-user-management-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
   templateUrl: './user-management.page.html',
   styleUrl: './user-management.page.css',
 })
@@ -24,6 +25,18 @@ export class UserManagementPage extends PageFeedback implements OnInit {
   private readonly api = inject(AuthenticationApi);
   readonly session = inject(AuthSession);
   readonly users = signal<StoreUser[]>([]);
+  readonly userSearch = signal('');
+  readonly userStatus = signal('all');
+  readonly userPage = signal(1);
+  readonly pageSize = TABLE_PAGE_SIZE;
+  readonly filteredUsers = computed(() => {
+    const term = this.userSearch().trim().toLocaleLowerCase();
+    const status = this.userStatus();
+    return this.users().filter(user => (status === 'all' || (status === 'active') === user.isActive) &&
+      (!term || [user.email, user.roles.join(' '), user.storeIds.join(' '), user.isActive ? 'active' : 'inactive']
+        .some(value => value.toLocaleLowerCase().includes(term))));
+  });
+  readonly visibleUsers = computed(() => pageSlice(this.filteredUsers(), this.userPage()));
   readonly roles = signal<StoreRole[]>([]);
   readonly stores = signal<StoreSummary[]>([]);
   readonly roleSelections = signal<Record<string, string[]>>({});
@@ -45,6 +58,7 @@ export class UserManagementPage extends PageFeedback implements OnInit {
       this.api.users(), this.api.roles(), this.api.allStores(),
     ]);
     this.users.set(users);
+    this.userPage.set(1);
     this.roles.set(roles);
     this.stores.set(stores);
     this.roleSelections.set(Object.fromEntries(users.map(user => [user.id, [...user.roles]])));
@@ -237,4 +251,3 @@ export class UserManagementPage extends PageFeedback implements OnInit {
     return new Date(`${value}T23:59:59.999`).toISOString();
   }
 }
-

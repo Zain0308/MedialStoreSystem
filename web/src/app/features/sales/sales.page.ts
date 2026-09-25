@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PageFeedback } from '../../shared/ui/page-feedback';
@@ -8,22 +8,39 @@ import { SalesApi } from './sales.api';
 import { SaleSummary, Receipt } from './sales.models';
 import { ReceiptComponent } from './receipt.component';
 import { AuthSession } from '../authentication/public-api';
+import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 
 @Component({
   selector: 'app-sales-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent, ReceiptComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, ReceiptComponent, TablePaginationComponent],
   templateUrl: './sales.page.html',
 })
 export class SalesPage extends PageFeedback implements OnInit {
   private readonly api = inject(SalesApi);
   readonly sales = signal<SaleSummary[]>([]);
+  readonly search = signal('');
+  readonly paymentFilter = signal('all');
+  readonly fromDate = signal('');
+  readonly toDate = signal('');
+  readonly tablePage = signal(1);
+  readonly pageSize = TABLE_PAGE_SIZE;
+  readonly filteredSales = computed(() => {
+    const term = this.search().trim().toLocaleLowerCase();
+    const method = this.paymentFilter(); const from = this.fromDate(); const to = this.toDate();
+    return this.sales().filter(sale => {
+      const date = sale.createdAt.slice(0, 10);
+      return (!term || [sale.invoiceNumber, sale.paymentMethod].some(value => value.toLocaleLowerCase().includes(term))) &&
+        (method === 'all' || sale.paymentMethod === method) && (!from || date >= from) && (!to || date <= to);
+    });
+  });
+  readonly visibleSales = computed(() => pageSlice(this.filteredSales(), this.tablePage()));
   readonly receipt = signal<Receipt | null>(null);
   readonly session = inject(AuthSession);
-  readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
+  readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet', 'Credit'];
   returnSaleId: number | null = null;
   returnForm = { saleLineId: 0, quantity: 1, restock: true, reason: '', refundMethod: 'Cash' };
   ngOnInit(): void {
-    void this.perform(async () => this.sales.set(await this.api.list()));
+    void this.perform(async () => { this.sales.set(await this.api.list()); this.tablePage.set(1); });
   }
   viewReceipt(id: number): Promise<void> {
     return this.perform(async () => this.loadReceipt(id));

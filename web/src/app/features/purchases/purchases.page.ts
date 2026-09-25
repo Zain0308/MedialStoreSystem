@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { PageFeedback } from '../../shared/ui/page-feedback';
@@ -10,10 +10,11 @@ import { Supplier, SuppliersApi } from '../suppliers/public-api';
 import { PurchasesApi } from './purchases.api';
 import { PurchaseHistory, SupplierAccountSummary, SupplierStatement } from './purchases.models';
 import { AuthSession } from '../authentication/public-api';
+import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 
 @Component({
   selector: 'app-purchases-page',
-  imports: [CommonModule, FormsModule, RouterLink, PageNoticeComponent],
+  imports: [CommonModule, FormsModule, RouterLink, PageNoticeComponent, TablePaginationComponent],
   templateUrl: './purchases.page.html',
 })
 export class PurchasesPage extends PageFeedback implements OnInit {
@@ -27,6 +28,64 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   readonly supplierAccounts = signal<SupplierAccountSummary[]>([]);
   readonly selectedSupplierStatement = signal<SupplierStatement | null>(null);
   readonly selectedPurchase = signal<PurchaseHistory | null>(null);
+  readonly supplierSearch = signal('');
+  readonly supplierBalanceFilter = signal('all');
+  readonly supplierPage = signal(1);
+  readonly statementSearch = signal('');
+  readonly statementFrom = signal('');
+  readonly statementTo = signal('');
+  readonly statementPage = signal(1);
+  readonly purchaseSearch = signal('');
+  readonly purchaseFrom = signal('');
+  readonly purchaseTo = signal('');
+  readonly purchasePage = signal(1);
+  readonly transactionSearch = signal('');
+  readonly transactionType = signal('all');
+  readonly transactionPage = signal(1);
+  readonly pageSize = TABLE_PAGE_SIZE;
+  readonly filteredSupplierAccounts = computed(() => {
+    const term = this.supplierSearch().trim().toLocaleLowerCase();
+    const state = this.supplierBalanceFilter();
+    return this.supplierAccounts().filter(account => {
+      const balanceState = account.balance > 0 ? 'due' : account.balance < 0 ? 'credit' : 'settled';
+      return (!term || account.supplier.toLocaleLowerCase().includes(term)) && (state === 'all' || state === balanceState);
+    });
+  });
+  readonly visibleSupplierAccounts = computed(() => pageSlice(this.filteredSupplierAccounts(), this.supplierPage()));
+  readonly filteredStatementInvoices = computed(() => {
+    const statement = this.selectedSupplierStatement();
+    const term = this.statementSearch().trim().toLocaleLowerCase();
+    const from = this.statementFrom(); const to = this.statementTo();
+    return (statement?.invoices ?? []).filter(invoice => {
+      const date = invoice.createdAt.slice(0, 10);
+      return (!term || invoice.supplierInvoice.toLocaleLowerCase().includes(term)) && (!from || date >= from) && (!to || date <= to);
+    });
+  });
+  readonly visibleStatementInvoices = computed(() => pageSlice(this.filteredStatementInvoices(), this.statementPage()));
+  readonly filteredPurchases = computed(() => {
+    const term = this.purchaseSearch().trim().toLocaleLowerCase();
+    const from = this.purchaseFrom(); const to = this.purchaseTo();
+    return this.purchases().filter(purchase => {
+      const date = purchase.createdAt.slice(0, 10);
+      return (!term || [purchase.supplier, purchase.supplierInvoice].some(value => value.toLocaleLowerCase().includes(term))) &&
+        (!from || date >= from) && (!to || date <= to);
+    });
+  });
+  readonly visiblePurchases = computed(() => pageSlice(this.filteredPurchases(), this.purchasePage()));
+  readonly filteredTransactions = computed(() => {
+    const selected = this.selectedPurchase(); if (!selected) return [];
+    const term = this.transactionSearch().trim().toLocaleLowerCase();
+    const type = this.transactionType();
+    return [
+      ...selected.returns.map(item => ({ id: `r-${item.id}`, kind: 'Return', reference: item.supplierReference,
+        description: item.reason, amount: item.total, date: item.createdAt, method: '' })),
+      ...selected.payments.map(item => ({ id: `p-${item.id}`, kind: 'Payment', reference: item.reference ?? '',
+        description: item.method, amount: item.amount, date: item.paidAt, method: item.method })),
+    ].filter(item => (type === 'all' || item.kind.toLowerCase() === type) &&
+      (!term || [item.kind, item.reference, item.description].some(value => value.toLocaleLowerCase().includes(term))))
+      .sort((a, b) => b.date.localeCompare(a.date));
+  });
+  readonly visibleTransactions = computed(() => pageSlice(this.filteredTransactions(), this.transactionPage()));
   returnForm = { lineId: 0, quantity: 1, supplierReference: '', reason: '' };
   paymentForm = { amount: 0, method: 'Cash', reference: '' };
   readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
@@ -71,15 +130,18 @@ export class PurchasesPage extends PageFeedback implements OnInit {
     const [purchases, accounts] = await Promise.all([this.api.list(), this.api.supplierAccounts()]);
     this.purchases.set(purchases);
     this.supplierAccounts.set(accounts);
+    this.supplierPage.set(1); this.purchasePage.set(1);
     const statement = this.selectedSupplierStatement();
     if (statement) this.selectedSupplierStatement.set(await this.api.supplierStatement(statement.supplierId));
   }
   openSupplierStatement(account: SupplierAccountSummary): Promise<void> {
+    this.statementSearch.set(''); this.statementFrom.set(''); this.statementTo.set(''); this.statementPage.set(1);
     return this.perform(async () => this.selectedSupplierStatement.set(await this.api.supplierStatement(account.supplierId)));
   }
   closeSupplierStatement(): void { this.selectedSupplierStatement.set(null); }
   openStatementInvoice(purchase: PurchaseHistory): void {
     this.selectedPurchase.set(purchase);
+    this.transactionSearch.set(''); this.transactionType.set('all'); this.transactionPage.set(1);
     const eligible = purchase.lines.find(line => line.quantity > line.returnedQuantity && line.onHand > 0);
     this.returnForm = { lineId: eligible?.id ?? 0, quantity: 1, supplierReference: '', reason: '' };
     this.paymentForm = { amount: 0, method: 'Cash', reference: '' };

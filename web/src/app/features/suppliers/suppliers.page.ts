@@ -8,10 +8,11 @@ import { SuppliersApi } from './suppliers.api';
 import { Supplier, CreateSupplier } from './suppliers.models';
 import { AuthSession } from '../authentication/public-api';
 import { PurchasesApi, SupplierStatement } from '../purchases/public-api';
+import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 
 @Component({
   selector: 'app-suppliers-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
   styleUrl: './suppliers.page.css',
   templateUrl: './suppliers.page.html',
 })
@@ -22,6 +23,12 @@ export class SuppliersPage extends PageFeedback implements OnInit {
   readonly suppliers = signal<Supplier[]>([]);
   readonly searchText = signal('');
   readonly statusFilter = signal('all');
+  readonly tablePage = signal(1);
+  readonly ledgerSearch = signal('');
+  readonly ledgerFrom = signal('');
+  readonly ledgerTo = signal('');
+  readonly ledgerPage = signal(1);
+  readonly pageSize = TABLE_PAGE_SIZE;
   readonly editingId = signal<number | null>(null);
   readonly statement = signal<SupplierStatement | null>(null);
   readonly visibleSuppliers = computed(() => {
@@ -30,6 +37,17 @@ export class SuppliersPage extends PageFeedback implements OnInit {
       (!query || [supplier.name, supplier.phone, supplier.contactPerson, supplier.email, supplier.address]
         .some(value => value?.toLocaleLowerCase().includes(query))));
   });
+  readonly pagedSuppliers = computed(() => pageSlice(this.visibleSuppliers(), this.tablePage()));
+  readonly filteredLedgerInvoices = computed(() => {
+    const statement = this.statement();
+    const term = this.ledgerSearch().trim().toLocaleLowerCase();
+    const from = this.ledgerFrom(); const to = this.ledgerTo();
+    return (statement?.invoices ?? []).filter(invoice => {
+      const date = invoice.createdAt.slice(0, 10);
+      return (!term || invoice.supplierInvoice.toLocaleLowerCase().includes(term)) && (!from || date >= from) && (!to || date <= to);
+    });
+  });
+  readonly pagedLedgerInvoices = computed(() => pageSlice(this.filteredLedgerInvoices(), this.ledgerPage()));
   supplierForm: CreateSupplier = this.emptyForm();
   ngOnInit(): void {
     void this.perform(async () => this.suppliers.set(await this.api.list()));
@@ -61,12 +79,13 @@ export class SuppliersPage extends PageFeedback implements OnInit {
     });
   }
   openLedger(supplier: Supplier): Promise<void> {
+    this.ledgerPage.set(1); this.ledgerSearch.set(''); this.ledgerFrom.set(''); this.ledgerTo.set('');
     return this.perform(async () => this.statement.set(await this.purchasesApi.supplierStatement(supplier.id)));
   }
   closeLedger(): void { this.statement.set(null); }
   balance(invoice: { total: number; returnedTotal: number; paidTotal: number }): number {
     return Math.max(0, invoice.total - invoice.returnedTotal - invoice.paidTotal);
   }
-  clearSearch(): void { this.searchText.set(''); }
+  clearSearch(): void { this.searchText.set(''); this.tablePage.set(1); }
   private emptyForm(): CreateSupplier { return { name: '', phone: '', contactPerson: '', email: '', address: '' }; }
 }

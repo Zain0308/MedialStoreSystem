@@ -6,8 +6,12 @@
         <h3>Batch inventory</h3>
         <p>Expiry dates and quantities for each received lot</p>
       </div>
-      <span class="count">{{ batches().length }} batches</span>
+      <span class="count">{{ filteredBatches().length }} of {{ batches().length }} batches</span>
     </div>
+    <div class="movement-filters"><label>Search batches<input aria-label="Search batches" [ngModel]="batchSearch()" (ngModelChange)="batchSearch.set($event); batchPage.set(1)" placeholder="Medicine or batch number" /></label>
+      <label>Status<select aria-label="Batch status filter" [ngModel]="batchStatus()" (ngModelChange)="batchStatus.set($event); batchPage.set(1)"><option value="all">All statuses</option><option value="Available">Available</option><option value="Near expiry">Near expiry</option><option value="Expired">Expired</option><option value="Out of stock">Out of stock</option></select></label>
+      <label>Expiry from<input type="date" aria-label="Expiry from" [ngModel]="expiryFrom()" (ngModelChange)="expiryFrom.set($event); batchPage.set(1)" /></label><label>Expiry to<input type="date" aria-label="Expiry to" [ngModel]="expiryTo()" (ngModelChange)="expiryTo.set($event); batchPage.set(1)" /></label>
+      <button type="button" class="text-button" (click)="batchSearch.set(''); batchStatus.set('all'); expiryFrom.set(''); expiryTo.set(''); batchPage.set(1)">Clear filters</button></div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -21,7 +25,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (b of batches(); track b.id) {
+          @for (b of visibleBatches(); track b.id) {
             <tr>
               <td>
                 <strong>{{ b.medicine }}</strong
@@ -43,10 +47,12 @@
           }
         </tbody>
       </table>
-    </div>
+      </div>
+      <app-table-pagination [page]="batchPage()" [total]="filteredBatches().length" [pageSize]="pageSize" (pageChange)="batchPage.set($event)" />
     @if (batches().length === 0) {
       <p class="empty">No batches received yet. Receive a purchase to create stock.</p>
     }
+    @if (batches().length && !filteredBatches().length) { <p class="empty">No batches match these filters.</p> }
   </section>
   @if (session.hasPermission('inventory.manage')) {
     <section class="panel form-panel">
@@ -74,6 +80,7 @@
       <label>Movement type<select aria-label="Movement type" [ngModel]="movementType()" (ngModelChange)="movementType.set($event); resetMovementPage()">
         <option value="All">All movements</option><option value="Purchase">Purchases</option><option value="Sale">Sales</option><option value="Adjustment">Adjustments / damage</option>
       </select></label>
+      <label>Search movements<input aria-label="Search movements" [ngModel]="movementSearch()" (ngModelChange)="movementSearch.set($event); resetMovementPage()" placeholder="Medicine, batch or reason" /></label>
       <button type="button" class="secondary" (click)="clearMovementFilters()">Clear filters</button>
     </div>
     <p class="movement-range">Showing {{ movementStart() }}–{{ movementEnd() }} of {{ filteredMovements().length }} matching records</p>

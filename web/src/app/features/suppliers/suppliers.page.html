@@ -20,12 +20,12 @@
   <section class="panel supplier-directory">
     <div class="panel-head"><div><h3>Supplier directory</h3><p>Search supplier names, contact details and addresses.</p></div><span class="count">{{ visibleSuppliers().length }} of {{ suppliers().length }}</span></div>
     <div class="supplier-filter">
-      <label>Filter suppliers<input aria-label="Filter suppliers" [ngModel]="searchText()" (ngModelChange)="searchText.set($event)" placeholder="Search name, phone, email, contact or address" /></label>
-      <label>Status<select aria-label="Supplier status" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+      <label>Filter suppliers<input aria-label="Filter suppliers" [ngModel]="searchText()" (ngModelChange)="searchText.set($event); tablePage.set(1)" placeholder="Search name, phone, email, contact or address" /></label>
+      <label>Status<select aria-label="Supplier status" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); tablePage.set(1)"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
       @if (searchText()) { <button type="button" class="text-button" (click)="clearSearch()">Clear filter</button> }
     </div>
     <div class="supplier-list">
-      @for (s of visibleSuppliers(); track s.id) {
+      @for (s of pagedSuppliers(); track s.id) {
         <article class="supplier-card">
           <div class="pill-icon">↘</div>
           <div class="supplier-details">
@@ -48,13 +48,15 @@
         </article>
       }
     </div>
+    <app-table-pagination [page]="tablePage()" [total]="visibleSuppliers().length" [pageSize]="pageSize" (pageChange)="tablePage.set($event)" />
     @if (suppliers().length === 0) { <p class="empty">No suppliers added yet.</p> }
     @else if (visibleSuppliers().length === 0) { <p class="empty">No suppliers match this filter.</p> }
   </section>
   @if (statement(); as account) {<section class="panel supplier-statement">
     <div class="panel-head"><div><h3>{{ account.supplier }} ledger</h3><p>Purchases, returns, supplier payments and remaining balance.</p></div><button class="text-button" (click)="closeLedger()">Close</button></div>
+    <div class="supplier-filter"><label>Search invoice<input aria-label="Supplier ledger invoice filter" [ngModel]="ledgerSearch()" (ngModelChange)="ledgerSearch.set($event); ledgerPage.set(1)" placeholder="Supplier invoice" /></label><label>From date<input aria-label="Supplier ledger from date" type="date" [ngModel]="ledgerFrom()" (ngModelChange)="ledgerFrom.set($event); ledgerPage.set(1)" /></label><label>To date<input aria-label="Supplier ledger to date" type="date" [ngModel]="ledgerTo()" (ngModelChange)="ledgerTo.set($event); ledgerPage.set(1)" /></label></div>
     <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Purchase</th><th>Returned</th><th>Paid</th><th>Balance</th></tr></thead><tbody>
-      @for(invoice of account.invoices;track invoice.id){<tr><td>{{invoice.supplierInvoice}}</td><td>{{invoice.createdAt | date:'mediumDate'}}</td><td>Rs {{invoice.total | number:'1.2-2'}}</td><td>Rs {{invoice.returnedTotal | number:'1.2-2'}}</td><td>Rs {{invoice.paidTotal | number:'1.2-2'}}</td><td><strong>Rs {{balance(invoice) | number:'1.2-2'}}</strong></td></tr>}
-    </tbody></table></div>@if(!account.invoices.length){<p class="empty">No purchase invoices for this supplier.</p>}
+      @for(invoice of pagedLedgerInvoices();track invoice.id){<tr><td>{{invoice.supplierInvoice}}</td><td>{{invoice.createdAt | date:'mediumDate'}}</td><td>Rs {{invoice.total | number:'1.2-2'}}</td><td>Rs {{invoice.returnedTotal | number:'1.2-2'}}</td><td>Rs {{invoice.paidTotal | number:'1.2-2'}}</td><td><strong>Rs {{balance(invoice) | number:'1.2-2'}}</strong></td></tr>}
+    </tbody></table></div><app-table-pagination [page]="ledgerPage()" [total]="filteredLedgerInvoices().length" [pageSize]="pageSize" (pageChange)="ledgerPage.set($event)" />@if(!account.invoices.length){<p class="empty">No purchase invoices for this supplier.</p>}
   </section>}
 </div>

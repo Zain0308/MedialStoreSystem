@@ -169,6 +169,52 @@ td small {
 .table-wrap {
   overflow-x: auto;
 }
+.table-filters,
+.customer-table-filters,
+.user-table-filters,
+.sales-filters,
+.purchase-filters,
+.financial-table-filters {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 10px 0 16px;
+}
+.table-filters label,
+.customer-table-filters label,
+.user-table-filters label,
+.sales-filters label,
+.purchase-filters label,
+.financial-table-filters label {
+  min-width: 170px;
+  flex: 1 1 190px;
+}
+.nested-filter {
+  min-width: 340px;
+}
+.nested-filter label {
+  min-width: 120px;
+}
+@media (max-width: 600px) {
+  .table-filters,
+  .customer-table-filters,
+  .user-table-filters,
+  .sales-filters,
+  .purchase-filters,
+  .financial-table-filters {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .table-filters label,
+  .customer-table-filters label,
+  .user-table-filters label,
+  .sales-filters label,
+  .purchase-filters label,
+  .financial-table-filters label {
+    width: 100%;
+  }
+}
 table {
   border-collapse: collapse;
   width: 100%;

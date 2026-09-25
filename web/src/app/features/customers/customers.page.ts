@@ -4,22 +4,30 @@ import { FormsModule } from '@angular/forms';
 import { PageFeedback } from '../../shared/ui/page-feedback';
 import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
 import { AuthSession } from '../authentication/public-api';
+import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 import { CustomersApi } from './customers.api';
 import { Customer, CustomerLedger, SaveCustomer } from './customers.models';
 
-@Component({ selector: 'app-customers-page', imports: [CommonModule, FormsModule, PageNoticeComponent],
+@Component({ selector: 'app-customers-page', imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
   styleUrl: './customers.page.css', templateUrl: './customers.page.html' })
 export class CustomersPage extends PageFeedback implements OnInit {
   private readonly api = inject(CustomersApi);
   readonly session = inject(AuthSession);
   readonly customers = signal<Customer[]>([]);
   readonly search = signal('');
+  readonly statusFilter = signal('all');
+  readonly tablePage = signal(1);
+  readonly ledgerPage = signal(1);
+  readonly pageSize = TABLE_PAGE_SIZE;
   readonly ledger = signal<CustomerLedger | null>(null);
   readonly editingId = signal<number | null>(null);
   readonly visibleCustomers = computed(() => {
     const term = this.search().trim().toLocaleLowerCase();
-    return this.customers().filter(x => !term || [x.name, x.phone, x.email].some(v => v?.toLocaleLowerCase().includes(term)));
+    return this.customers().filter(x => (this.statusFilter() === 'all' || (this.statusFilter() === 'active') === x.isActive) &&
+      (!term || [x.name, x.phone, x.email].some(v => v?.toLocaleLowerCase().includes(term))));
   });
+  readonly pagedCustomers = computed(() => pageSlice(this.visibleCustomers(), this.tablePage()));
+  readonly visibleLedgerInvoices = computed(() => pageSlice(this.ledger()?.invoices ?? [], this.ledgerPage()));
   form: SaveCustomer = this.emptyForm();
   payment = { invoiceId: 0, amount: 0, method: 'Cash', reference: '' };
   readonly methods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
@@ -41,8 +49,8 @@ export class CustomersPage extends PageFeedback implements OnInit {
     return this.perform(async () => { await this.api.setActive(customer.id, !customer.isActive); await this.refresh();
       this.message.set(customer.isActive ? 'Customer deactivated.' : 'Customer activated.'); });
   }
-  openLedger(customer: Customer): Promise<void> { return this.perform(async () => this.ledger.set(await this.api.ledger(customer.id))); }
-  closeLedger(): void { this.ledger.set(null); }
+  openLedger(customer: Customer): Promise<void> { this.ledgerPage.set(1); return this.perform(async () => this.ledger.set(await this.api.ledger(customer.id))); }
+  closeLedger(): void { this.ledger.set(null); this.ledgerPage.set(1); }
   startPayment(invoiceId: number, due: number): void { this.payment = { invoiceId, amount: due, method: 'Cash', reference: '' }; }
   recordPayment(): Promise<void> {
     const ledger = this.ledger(); if (!ledger || this.payment.invoiceId === 0) return Promise.resolve();

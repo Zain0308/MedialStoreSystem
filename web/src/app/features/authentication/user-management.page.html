@@ -84,12 +84,13 @@
   </section>
 
   <section class="panel">
-    <div class="panel-head"><div><h3>Store users &amp; accounts</h3><p>Manage store assignments, user roles, account status and password resets.</p></div><span class="count">{{ users().length }} users</span></div>
+    <div class="panel-head"><div><h3>Store users &amp; accounts</h3><p>Manage store assignments, user roles, account status and password resets.</p></div><span class="count">{{ filteredUsers().length }} of {{ users().length }} users</span></div>
+    <div class="user-table-filters"><label>Search users<input aria-label="Search store users" [ngModel]="userSearch()" (ngModelChange)="userSearch.set($event); userPage.set(1)" placeholder="Email, role, store ID or status" /></label><label>Status<select aria-label="Store user status filter" [ngModel]="userStatus()" (ngModelChange)="userStatus.set($event); userPage.set(1)"><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Email</th><th>User permissions</th><th>Store access</th><th>Account</th><th>Password reset</th></tr></thead>
         <tbody>
-          @for (user of users(); track user.id) {
+          @for (user of visibleUsers(); track user.id) {
             <tr>
               <td><strong>{{ user.email }}</strong></td>
               <td>
@@ -118,6 +119,8 @@
         </tbody>
       </table>
     </div>
+    <app-table-pagination [page]="userPage()" [total]="filteredUsers().length" [pageSize]="pageSize" (pageChange)="userPage.set($event)" />
+    @if (!filteredUsers().length) { <p class="empty">No user accounts match these filters.</p> }
   </section>
 
   <section class="panel">
@@ -141,4 +144,3 @@
     </div>
   </section>
 </div>
-

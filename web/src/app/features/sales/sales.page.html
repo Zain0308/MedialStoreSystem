@@ -3,8 +3,9 @@
   <section class="panel">
     <div class="panel-head">
       <h3>Recent invoices</h3>
-      <span class="count">Latest 50</span>
+      <span class="count">{{ filteredSales().length }} matching · latest {{ sales().length }} loaded</span>
     </div>
+    <div class="sales-filters"><label>Search sales<input aria-label="Sales history search" [ngModel]="search()" (ngModelChange)="search.set($event); tablePage.set(1)" placeholder="Invoice or payment method" /></label><label>Payment<select aria-label="Sales payment filter" [ngModel]="paymentFilter()" (ngModelChange)="paymentFilter.set($event); tablePage.set(1)"><option value="all">All methods</option>@for(method of paymentMethods;track method){<option [value]="method">{{method}}</option>}<option value="Not Received">Not Received</option></select></label><label>From date<input type="date" aria-label="Sales from date" [ngModel]="fromDate()" (ngModelChange)="fromDate.set($event); tablePage.set(1)" /></label><label>To date<input type="date" aria-label="Sales to date" [ngModel]="toDate()" (ngModelChange)="toDate.set($event); tablePage.set(1)" /></label><button class="text-button" type="button" (click)="search.set(''); paymentFilter.set('all'); fromDate.set(''); toDate.set(''); tablePage.set(1)">Clear filters</button></div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -19,7 +20,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (s of sales(); track s.id) {
+          @for (s of visibleSales(); track s.id) {
             <tr>
               <td>
                 <strong>{{ s.invoiceNumber }}</strong>
@@ -37,9 +38,11 @@
         </tbody>
       </table>
     </div>
+    <app-table-pagination [page]="tablePage()" [total]="filteredSales().length" [pageSize]="pageSize" (pageChange)="tablePage.set($event)" />
     @if (sales().length === 0) {
       <p class="empty">No sales yet.</p>
     }
+    @if (sales().length && !filteredSales().length) { <p class="empty">No sales match these filters.</p> }
   </section>
 </div>
 @if (receipt(); as savedReceipt) {
