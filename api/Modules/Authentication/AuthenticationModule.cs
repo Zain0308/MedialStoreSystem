@@ -2,6 +2,7 @@ using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using MedicalStore.Api.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -11,7 +12,7 @@ namespace MedicalStore.Api.Modules.Authentication;
 
 public static class AuthenticationModule
 {
-    public static IServiceCollection AddAuthenticationModule(this IServiceCollection services, string jwtKey)
+    public static IServiceCollection AddAuthenticationModule(this IServiceCollection services, string jwtKey, string ownerEmail)
     {
         services.AddIdentityCore<AppUser>(o =>
         {
@@ -59,21 +60,36 @@ public static class AuthenticationModule
                     else
                     {
                         var db = context.HttpContext.RequestServices.GetRequiredService<StoreDb>();
-                        var membershipExists = await db.UserStores.AnyAsync(x => x.UserId == userId && x.StoreId == storeId && x.Store.IsActive);
+                        var isApplicationOwner = context.Principal?.HasClaim("app_owner", "true") == true;
+                        var membershipExists = await db.UserStores.AnyAsync(x =>
+                            x.UserId == userId && x.StoreId == storeId && (isApplicationOwner || x.Store.IsActive));
                         if (!membershipExists) context.Fail("The selected store is no longer assigned to this account.");
-                        else context.HttpContext.RequestServices.GetRequiredService<CurrentStoreContext>().Select(storeId);
+                        else
+                        {
+                            var store = await db.Stores.SingleAsync(x => x.Id == storeId);
+                            if (!isApplicationOwner && !IsSubscriptionAvailable(store, DateTimeOffset.UtcNow))
+                                context.Fail("This store's subscription is inactive or expired.");
+                            else context.HttpContext.RequestServices.GetRequiredService<CurrentStoreContext>().Select(storeId);
+                        }
                     }
                 }
             };
         });
         services.AddAuthorization(options =>
         {
+            options.AddPolicy(StorePermissions.ApplicationOwnerPolicy,
+                policy => policy.RequireClaim("app_owner", "true"));
             foreach (var permission in StorePermissions.All.Keys)
-            {
-                options.AddPolicy(permission, policy => policy.RequireAssertion(context =>
-                    context.User.IsInRole(StoreRoles.Administrator) || context.User.HasClaim("permission", permission)));
-            }
+                options.AddPolicy(permission, policy => policy.AddRequirements(new StorePermissionRequirement(permission)));
         });
+        services.AddScoped<IAuthorizationHandler, StorePermissionAuthorizationHandler>();
         return services;
     }
+
+    private static bool IsSubscriptionAvailable(Store store, DateTimeOffset now) =>
+        store.IsActive &&
+        ((string.Equals(store.SubscriptionStatus, "Active", StringComparison.OrdinalIgnoreCase) &&
+          (!store.SubscriptionExpiresAt.HasValue || store.SubscriptionExpiresAt.Value > now)) ||
+         (string.Equals(store.SubscriptionStatus, "Trial", StringComparison.OrdinalIgnoreCase) &&
+          store.TrialEndsAt.HasValue && store.TrialEndsAt.Value > now));
 }

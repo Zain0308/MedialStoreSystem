@@ -31,6 +31,7 @@ public sealed class StoreDb(DbContextOptions<StoreDb> options, CurrentStoreConte
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
     public DbSet<Store> Stores => Set<Store>();
     public DbSet<StoreMembership> UserStores => Set<StoreMembership>();
+    public DbSet<StorePermissionGrant> StorePermissionGrants => Set<StorePermissionGrant>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

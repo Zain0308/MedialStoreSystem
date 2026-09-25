@@ -20,6 +20,23 @@ export class AuthenticationApi {
   createStore(input: { name: string; code: string }) {
     return this.api.post<StoreSummary>('/stores', input);
   }
+  setStoreActive(id: number, isActive: boolean) {
+    return this.api.put<StoreSummary>(`/stores/${id}/status`, { isActive });
+  }
+  updateStoreSubscription(id: number, input: {
+    planName: string; status: 'Trial' | 'Active' | 'Suspended';
+    trialEndsAt: string | null; subscriptionExpiresAt: string | null;
+  }) {
+    return this.api.put<StoreSummary>(`/stores/${id}/subscription`, input);
+  }
+  updateStorePermissions(id: number, permissions: string[]) {
+    return this.api.put<{ storeId: number; permissions: string[] }>(`/stores/${id}/permissions`, { permissions });
+  }
+  resetUserPassword(id: string, newPassword: string) {
+    return this.api.put<{ userId: string; message: string }>(
+      `/auth/users/${encodeURIComponent(id)}/password`, { newPassword },
+    );
+  }
   updateUserStores(id: string, storeIds: number[], defaultStoreId: number) {
     return this.api.put<{ userId: string; storeIds: number[]; defaultStoreId: number }>(
       `/auth/users/${encodeURIComponent(id)}/stores`, { storeIds, defaultStoreId },

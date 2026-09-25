@@ -9,8 +9,8 @@
       @if (session.hasPermission('reports.read') && session.hasPermission('medicines.read') && session.hasPermission('sales.read')) {
         <a routerLink="/reports" routerLinkActive="active"><span>◫</span> Dashboard</a>
       }
-      @if (session.hasPermission('users.manage')) {
-        <a routerLink="/users" routerLinkActive="active"><span>♙</span> Users &amp; roles</a>
+      @if (session.isApplicationOwner()) {
+        <a routerLink="/owner" routerLinkActive="active"><span>♙</span> Owner panel</a>
       }
       @if (session.hasPermission('sales.create') && session.hasPermission('medicines.read') && session.hasPermission('inventory.read')) {
         <a routerLink="/sales/pos" routerLinkActive="active"><span>▣</span> New sale <em>POS</em></a>
@@ -28,7 +28,7 @@
     <div class="sidebar-foot">
       <div class="avatar">{{ session.email().slice(0, 1).toUpperCase() }}</div>
       <div class="account">
-        <strong>{{ session.roles()[0] || 'Store user' }}</strong><small>{{ session.email() }}</small>
+        <strong>{{ session.isApplicationOwner() ? 'Application Owner' : (session.roles()[0] || 'Store user') }}</strong><small>{{ session.email() }}</small>
       </div>
       <button class="logout" title="Sign out" (click)="logout()">↪</button>
     </div>

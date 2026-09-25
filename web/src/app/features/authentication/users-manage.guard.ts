@@ -3,4 +3,4 @@ import { CanActivateFn, Router } from '@angular/router';
 import { AuthSession } from './auth-session';
 
 export const usersManageGuard: CanActivateFn = () =>
-  inject(AuthSession).hasPermission('users.manage') || inject(Router).createUrlTree(['/forbidden']);
+  inject(AuthSession).isApplicationOwner() || inject(Router).createUrlTree(['/forbidden']);

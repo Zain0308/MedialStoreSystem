@@ -10,6 +10,7 @@ export interface LoginResponse {
   permissions: string[];
   activeStoreId: number;
   stores: StoreSummary[];
+  isApplicationOwner: boolean;
 }
 
 export interface StoreSummary {
@@ -18,6 +19,11 @@ export interface StoreSummary {
   code: string;
   isDefault?: boolean;
   isActive?: boolean;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+  trialEndsAt?: string | null;
+  subscriptionExpiresAt?: string | null;
+  permissions?: string[];
 }
 
 export interface StoreUser {

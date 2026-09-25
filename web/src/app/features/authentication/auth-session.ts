@@ -10,6 +10,7 @@ export class AuthSession {
   readonly permissions = signal(this.readList('medical-permissions'));
   readonly stores = signal(this.readStores());
   readonly activeStoreId = signal(Number(sessionStorage.getItem('medical-store-id') ?? 0));
+  readonly isApplicationOwner = signal(sessionStorage.getItem('medical-app-owner') === 'true');
   readonly activeStoreName = computed(() => this.stores().find(x => x.id === this.activeStoreId())?.name ?? '');
   readonly isAdministrator = computed(() => this.roles().includes('Administrator'));
   readonly isAuthenticated = computed(() => this.token().length > 0);
@@ -21,6 +22,7 @@ export class AuthSession {
     sessionStorage.setItem('medical-permissions', JSON.stringify(result.permissions ?? []));
     sessionStorage.setItem('medical-stores', JSON.stringify(result.stores ?? []));
     sessionStorage.setItem('medical-store-id', String(result.activeStoreId ?? result.stores?.[0]?.id ?? 0));
+    sessionStorage.setItem('medical-app-owner', String(result.isApplicationOwner === true));
     this.token.set(result.token);
     this.email.set(result.email);
     this.userId.set(result.userId ?? '');
@@ -28,6 +30,7 @@ export class AuthSession {
     this.permissions.set(result.permissions ?? []);
     this.stores.set(result.stores ?? []);
     this.activeStoreId.set(result.activeStoreId ?? result.stores?.[0]?.id ?? 0);
+    this.isApplicationOwner.set(result.isApplicationOwner === true);
   }
   updateStores(stores: StoreSummary[]): void {
     sessionStorage.setItem('medical-stores', JSON.stringify(stores));
@@ -44,6 +47,7 @@ export class AuthSession {
     sessionStorage.removeItem('medical-permissions');
     sessionStorage.removeItem('medical-stores');
     sessionStorage.removeItem('medical-store-id');
+    sessionStorage.removeItem('medical-app-owner');
     this.token.set('');
     this.email.set('');
     this.userId.set('');
@@ -51,6 +55,7 @@ export class AuthSession {
     this.permissions.set([]);
     this.stores.set([]);
     this.activeStoreId.set(0);
+    this.isApplicationOwner.set(false);
   }
   private readList(key: string): string[] {
     try {

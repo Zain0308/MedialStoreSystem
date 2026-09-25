@@ -11,9 +11,9 @@ namespace MedicalStore.Api.Modules;
 
 public static class MedicalStoreModules
 {
-    public static void MapMedicalStoreModules(this WebApplication app, string jwtKey)
+    public static void MapMedicalStoreModules(this WebApplication app, string jwtKey, string ownerEmail)
     {
-        app.MapAuthenticationEndpoints(jwtKey);
+        app.MapAuthenticationEndpoints(jwtKey, ownerEmail);
         var api = app.MapGroup("/api").RequireAuthorization();
         api.MapMedicineEndpoints();
         api.MapInventoryEndpoints();

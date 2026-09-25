@@ -10,6 +10,8 @@ public sealed class StoreConfiguration : IEntityTypeConfiguration<Store>
     {
         builder.Property(x => x.Name).HasMaxLength(160).IsRequired();
         builder.Property(x => x.Code).HasMaxLength(40).IsRequired();
+        builder.Property(x => x.SubscriptionPlan).HasMaxLength(80).IsRequired();
+        builder.Property(x => x.SubscriptionStatus).HasMaxLength(20).IsRequired();
         builder.HasIndex(x => x.Code).IsUnique();
     }
 }
@@ -24,5 +26,15 @@ public sealed class StoreMembershipConfiguration : IEntityTypeConfiguration<Stor
         builder.HasOne(x => x.Store).WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(x => new { x.UserId, x.IsDefault }).IsUnique().HasFilter("[IsDefault] = 1");
         builder.HasIndex(x => x.StoreId);
+    }
+}
+
+public sealed class StorePermissionGrantConfiguration : IEntityTypeConfiguration<StorePermissionGrant>
+{
+    public void Configure(EntityTypeBuilder<StorePermissionGrant> builder)
+    {
+        builder.HasKey(x => new { x.StoreId, x.PermissionKey });
+        builder.Property(x => x.PermissionKey).HasMaxLength(80).IsRequired();
+        builder.HasOne<Store>().WithMany().HasForeignKey(x => x.StoreId).OnDelete(DeleteBehavior.Cascade);
     }
 }

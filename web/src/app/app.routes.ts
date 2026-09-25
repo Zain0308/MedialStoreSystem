@@ -62,9 +62,16 @@ export const APP_ROUTES: Routes = [
           import('./features/reports/reports.routes').then((m) => m.REPORTS_ROUTES),
       },
       {
+        path: 'owner',
+        canActivate: [usersManageGuard],
+        data: { title: 'Application Owner Admin Panel' },
+        loadComponent: () =>
+          import('./features/authentication/user-management.page').then((m) => m.UserManagementPage),
+      },
+      {
         path: 'users',
         canActivate: [usersManageGuard],
-        data: { title: 'Users & roles' },
+        data: { title: 'Application Owner Admin Panel' },
         loadComponent: () =>
           import('./features/authentication/user-management.page').then((m) => m.UserManagementPage),
       },

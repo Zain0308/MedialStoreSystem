@@ -1,74 +1,117 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 
-<div class="page-content access-page">
-  @if (session.isAdministrator()) {
+<div class="page-content access-page owner-panel">
+  <p class="owner-intro">This panel is private to the Application Owner. Manage tenant stores, subscriptions, access and accounts here.</p>
+
   <section class="panel form-panel">
-    <div class="panel-head"><div><h3>Add store</h3><p>Stores share this database, while business records stay partitioned by store.</p></div></div>
+    <div class="panel-head"><div><h3>Add medical store</h3><p>New stores start with a 14-day free trial in the shared database.</p></div></div>
     <form class="new-role" (ngSubmit)="addStore()">
       <label>Store name<input name="store-name" [(ngModel)]="newStore.name" minlength="2" maxlength="160" required placeholder="e.g. North Branch" /></label>
       <label>Store code<input name="store-code" [(ngModel)]="newStore.code" minlength="2" maxlength="40" required placeholder="e.g. NORTH-01" /></label>
       <button class="secondary" [disabled]="busy()">Create store</button>
     </form>
-    <div class="store-list">
-      @for (store of stores(); track store.id) {
-        <span class="badge" [class.bad]="!store.isActive">{{ store.name }} · {{ store.code }}{{ store.isActive === false ? ' · Inactive' : '' }}</span>
-      }
-    </div>
   </section>
-  }
+
+  <section class="panel owner-stores">
+    <div class="panel-head"><div><h3>Medical stores</h3><p>Control access, subscription, trial dates and enabled features.</p></div><span class="count">{{ stores().length }} stores</span></div>
+    @for (store of stores(); track store.id) {
+      <article class="store-card">
+        <div class="store-card-head">
+          <div><h4>{{ store.name }} <span class="badge">{{ store.code }}</span></h4>
+            <p>{{ store.subscriptionPlan || 'Legacy' }} · {{ store.subscriptionStatus || 'Active' }}
+              @if (store.subscriptionStatus === 'Trial' && store.trialEndsAt) { · Trial ends {{ store.trialEndsAt | date:'mediumDate' }} }
+              @if (store.subscriptionExpiresAt) { · Expires {{ store.subscriptionExpiresAt | date:'mediumDate' }} }
+            </p>
+          </div>
+          <div class="actions">
+            <span class="badge" [class.bad]="!store.isActive">{{ store.isActive ? 'Store active' : 'Store inactive' }}</span>
+            <button class="text-button" [disabled]="busy()" (click)="setStoreActive(store, !store.isActive)">{{ store.isActive ? 'Deactivate store' : 'Activate store' }}</button>
+          </div>
+        </div>
+        <div class="owner-grid">
+          <form class="subscription-form" (ngSubmit)="saveStoreSubscription(store)">
+            <h5>Subscription &amp; free trial</h5>
+            <label>Plan name<input [name]="'plan-' + store.id" [ngModel]="subscriptionDrafts()[store.id]?.planName" (ngModelChange)="setSubscriptionField(store.id, 'planName', $event)" required maxlength="80" /></label>
+            <label>Status<select [name]="'status-' + store.id" [ngModel]="subscriptionDrafts()[store.id]?.status" (ngModelChange)="setSubscriptionField(store.id, 'status', $event)">
+              <option value="Trial">Free trial</option><option value="Active">Active subscription</option><option value="Suspended">Suspended</option>
+            </select></label>
+            @if (subscriptionDrafts()[store.id]?.status === 'Trial') {
+              <label>Trial ends<input type="date" [name]="'trial-' + store.id" [ngModel]="subscriptionDrafts()[store.id]?.trialEndsAt" (ngModelChange)="setSubscriptionField(store.id, 'trialEndsAt', $event)" /></label>
+            }
+            @if (subscriptionDrafts()[store.id]?.status === 'Active') {
+              <label>Subscription expires (optional)<input type="date" [name]="'expiry-' + store.id" [ngModel]="subscriptionDrafts()[store.id]?.subscriptionExpiresAt" (ngModelChange)="setSubscriptionField(store.id, 'subscriptionExpiresAt', $event)" /></label>
+            }
+            <div class="actions"><button class="secondary" [disabled]="busy()">Save subscription</button><button type="button" class="text-button" [disabled]="busy()" (click)="startFreeTrial(store)">Start 14-day trial</button></div>
+          </form>
+          <div class="store-permissions">
+            <h5>Store features</h5>
+            <p>Turn off a feature for everyone in this store.</p>
+            <div class="permission-list">
+              @for (permission of roles()[0]?.availablePermissions ?? []; track permission.key) {
+                <label class="check"><input type="checkbox" [checked]="storePermissionDrafts()[store.id]?.includes(permission.key) ?? false" [disabled]="busy()" (change)="toggleStorePermission(store.id, permission.key, $any($event.target).checked)" />{{ permission.label }}</label>
+              }
+            </div>
+            <button class="secondary" [disabled]="busy()" (click)="saveStorePermissions(store)">Save store features</button>
+          </div>
+        </div>
+      </article>
+    }
+  </section>
 
   <section class="panel form-panel">
-    <div class="panel-head">
-      <div>
-        <h3>Add store user</h3>
-        <p>Create a sign-in and assign one or more roles.</p>
-      </div>
-    </div>
+    <div class="panel-head"><div><h3>Create store user</h3><p>Assign roles and one or more medical stores.</p></div></div>
     <form (ngSubmit)="addUser()">
       <div class="form-grid">
         <label>Email<input name="user-email" type="email" [(ngModel)]="newUser.email" required autocomplete="off" /></label>
         <label>Initial password<input name="user-password" type="password" [(ngModel)]="newUser.password" required minlength="12" autocomplete="new-password" /></label>
       </div>
       <fieldset>
-        <legend>Assign roles</legend>
-        <div class="checks">
-          @for (role of roles(); track role.id) {
-            @if (role.canAssign) {
-            <label class="check"><input type="checkbox" [checked]="newUser.roles.includes(role.name)" (change)="toggleNewUserRole(role.name, $any($event.target).checked)" />{{ role.name }}</label>
-            }
+        <legend>Assign stores</legend><div class="checks">
+          @for (store of stores(); track store.id) {
+            @if (store.isActive) { <label class="check"><input type="checkbox" [checked]="newUser.storeIds.includes(store.id)" (change)="toggleNewUserStore(store.id, $any($event.target).checked)" />{{ store.name }}</label> }
           }
         </div>
       </fieldset>
-      <button class="primary" [disabled]="busy()">Create user</button>
+      <fieldset>
+        <legend>Assign user roles</legend><div class="checks">
+          @for (role of roles(); track role.id) {
+            @if (role.canAssign) { <label class="check"><input type="checkbox" [checked]="newUser.roles.includes(role.name)" (change)="toggleNewUserRole(role.name, $any($event.target).checked)" />{{ role.name }}</label> }
+          }
+        </div>
+      </fieldset>
+      <button class="primary" [disabled]="busy()">Create account</button>
     </form>
   </section>
 
   <section class="panel">
-    <div class="panel-head"><div><h3>Store users</h3><p>Role or access changes revoke the user's current session.</p></div><span class="count">{{ users().length }} users</span></div>
+    <div class="panel-head"><div><h3>Store users &amp; accounts</h3><p>Manage store assignments, user roles, account status and password resets.</p></div><span class="count">{{ users().length }} users</span></div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Email</th><th>Roles</th>@if (session.isAdministrator()) { <th>Store access</th> }<th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Email</th><th>User permissions</th><th>Store access</th><th>Account</th><th>Password reset</th></tr></thead>
         <tbody>
           @for (user of users(); track user.id) {
             <tr>
               <td><strong>{{ user.email }}</strong></td>
-              <td><select multiple [ngModel]="roleSelections()[user.id] ?? user.roles" (ngModelChange)="selectUserRoles(user.id, $event)" [name]="'roles-' + user.id" [attr.aria-label]="'Roles for ' + user.email">
-                @for (role of roles(); track role.id) {
-                  @if (role.canAssign || (roleSelections()[user.id] ?? user.roles).includes(role.name)) { <option [value]="role.name">{{ role.name }}</option> }
-                }
-              </select></td>
-              @if (session.isAdministrator()) {
-                <td><select multiple [ngModel]="storeDrafts()[user.id] ?? user.storeIds" (ngModelChange)="selectUserStores(user.id, $event)" [name]="'stores-' + user.id" [attr.aria-label]="'Stores for ' + user.email">
-                  @for (store of stores(); track store.id) {
-                    @if (store.isActive !== false) { <option [ngValue]="store.id">{{ store.name }} · {{ store.code }}</option> }
-                  }
-                </select></td>
-              }
-              <td><span class="badge" [class.bad]="!user.isActive">{{ user.isActive ? 'Active' : 'Inactive' }}</span></td>
-              <td class="actions">
+              <td>
+                <select multiple [ngModel]="roleSelections()[user.id] ?? user.roles" (ngModelChange)="selectUserRoles(user.id, $event)" [name]="'roles-' + user.id" [attr.aria-label]="'Roles for ' + user.email">
+                  @for (role of roles(); track role.id) { @if (role.canAssign || (roleSelections()[user.id] ?? user.roles).includes(role.name)) { <option [value]="role.name">{{ role.name }}</option> } }
+                </select>
                 <button class="text-button" [disabled]="busy()" (click)="saveUserRoles(user)">Save roles</button>
-                @if (session.isAdministrator() && user.id !== session.userId()) { <button class="text-button" [disabled]="busy()" (click)="saveUserStores(user)">Save stores</button> }
-                <button class="text-button" [disabled]="busy()" (click)="setUserActive(user, !user.isActive)">{{ user.isActive ? 'Deactivate' : 'Activate' }}</button>
+              </td>
+              <td>
+                <select multiple [ngModel]="storeDrafts()[user.id] ?? user.storeIds" (ngModelChange)="selectUserStores(user.id, $event)" [name]="'stores-' + user.id" [attr.aria-label]="'Stores for ' + user.email">
+                  @for (store of stores(); track store.id) { @if (store.isActive) { <option [ngValue]="store.id">{{ store.name }} · {{ store.code }}</option> } }
+                </select>
+                @if (user.id !== session.userId()) { <button class="text-button" [disabled]="busy()" (click)="saveUserStores(user)">Save stores</button> }
+              </td>
+              <td><span class="badge" [class.bad]="!user.isActive">{{ user.isActive ? 'Active' : 'Inactive' }}</span>
+                @if (user.id !== session.userId()) { <button class="text-button" [disabled]="busy()" (click)="setUserActive(user, !user.isActive)">{{ user.isActive ? 'Deactivate' : 'Activate' }}</button> }
+              </td>
+              <td>
+                @if (user.id !== session.userId()) {
+                  <input type="password" [value]="passwordDrafts()[user.id] ?? ''" (input)="setPasswordDraft(user.id, $any($event.target).value)" [attr.aria-label]="'New password for ' + user.email" minlength="12" autocomplete="new-password" placeholder="Temporary password" />
+                  <button class="text-button" [disabled]="busy()" (click)="resetUserPassword(user)">Reset password</button>
+                } @else { <span class="muted">Sign in as another account to reset this password.</span> }
               </td>
             </tr>
           }
@@ -77,24 +120,22 @@
     </div>
   </section>
 
-  <section class="panel form-panel">
-    <div class="panel-head"><div><h3>Roles and permissions</h3><p>Permissions are enforced by the API. Administrator retains all access.</p></div></div>
-    @if (session.hasPermission('roles.manage')) {
+  <section class="panel">
+    <div class="panel-head"><div><h3>User roles &amp; permissions</h3><p>These permissions control what assigned users can do. App Owner access is separate.</p></div></div>
     <form class="new-role" (ngSubmit)="addRole()">
       <label>New role name<input name="new-role-name" [(ngModel)]="newRoleName" minlength="3" maxlength="40" required placeholder="e.g. Store Supervisor" /></label>
       <button class="secondary" [disabled]="busy()">Add role</button>
     </form>
-    }
     <div class="role-grid">
       @for (role of roles(); track role.id) {
         <article class="role-card">
-          <div class="role-title"><h4>{{ role.name }}</h4>@if (role.name === 'Administrator') { <span class="badge">Full access</span> }</div>
+          <div class="role-title"><h4>{{ role.name }}</h4>@if (role.name === 'Administrator') { <span class="badge">Store admin</span> }</div>
           <div class="permission-list">
             @for (permission of role.availablePermissions; track permission.key) {
-              <label class="check"><input type="checkbox" [checked]="permissionDrafts()[role.id]?.includes(permission.key) ?? false" [disabled]="role.name === 'Administrator' || !session.hasPermission('roles.manage') || busy()" (change)="togglePermission(role.id, permission.key, $any($event.target).checked)" />{{ permission.label }}</label>
+              <label class="check"><input type="checkbox" [checked]="permissionDrafts()[role.id]?.includes(permission.key) ?? false" [disabled]="role.name === 'Administrator' || busy()" (change)="togglePermission(role.id, permission.key, $any($event.target).checked)" />{{ permission.label }}</label>
             }
           </div>
-          @if (role.name !== 'Administrator' && session.hasPermission('roles.manage')) { <button class="secondary" [disabled]="busy()" (click)="savePermissions(role)">Save permissions</button> }
+          @if (role.name !== 'Administrator') { <button class="secondary" [disabled]="busy()" (click)="savePermissions(role)">Save user permissions</button> }
         </article>
       }
     </div>
