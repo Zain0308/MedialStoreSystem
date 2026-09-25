@@ -34,6 +34,7 @@ async function mockApi(page: Page) {
     failReceipt: false,
     unauthorizedInventory: false,
     salePosts: 0,
+    reportQueries: [] as { from: string | null; to: string | null }[],
   };
   const allPermissionKeys = state.permissionOptions.map(([key]) => key);
   state.roles.push(
@@ -179,8 +180,28 @@ async function mockApi(page: Page) {
       const expense = { ...body, id: state.expenses.length + 1, category: category.name };
       state.expenses.push(expense); return reply({ id: expense.id }, 201);
     }
-    if (path === '/api/reports/details' && method === 'GET') return reply({ sales: [], inventory: [], expenses: [], netSales: 0, costOfGoods: 0, expenseTotal: 0,
-      netProfit: 0, returnedTotal: 0, inventoryCostValue: 0, inventorySaleValue: 0 });
+    if (path === '/api/reports/details' && method === 'GET') {
+      const query = new URL(request.url()).searchParams;
+      state.reportQueries.push({ from: query.get('from'), to: query.get('to') });
+      return reply({ sales: [], inventory: [], expenses: [], netSales: 0, costOfGoods: 0, expenseTotal: 0,
+        netProfit: 0, returnedTotal: 0, inventoryCostValue: 0, inventorySaleValue: 0 });
+    }
+    if (path === '/api/reports/payables' && method === 'GET') return reply({
+      payableTotal: 70, supplierCreditTotal: 0,
+      suppliers: [{ supplierId: 1, supplier: 'Demo Pharma', invoiceCount: 1, purchaseTotal: 100, returnedTotal: 20, paidTotal: 10,
+        balance: 70, payableAmount: 70, receivableAmount: 0,
+        invoices: [{ id: 1, supplierInvoice: 'SUP-101', createdAt: '2026-09-01T12:00:00Z', total: 100, returned: 20, paid: 10,
+          balance: 70, returns: [{ createdAt: '2026-09-02T12:00:00Z', supplierReference: 'RET-01', reason: 'Damaged', amount: 20 }],
+          payments: [{ paidAt: '2026-09-03T12:00:00Z', amount: 10, method: 'Cash', reference: 'PAY-01' }] }]
+      }],
+    });
+    if (path === '/api/reports/receivables' && method === 'GET') return reply({
+      totalReceivable: 55,
+      customers: [{ customerId: 1, customer: 'Ayesha Khan', phone: '03000000000', email: '', isActive: true, paidTotal: 5, amountDue: 55, invoiceCount: 1,
+        invoices: [{ id: 2, invoiceNumber: 'INV-202', createdAt: '2026-09-04T12:00:00Z', total: 60, returned: 0, paid: 5, due: 55,
+          payments: [{ paidAt: '2026-09-05T12:00:00Z', amount: 5, method: 'Cash', reference: 'RCPT-01' }] }]
+      }],
+    });
     if (path === '/api/medicines' && method === 'POST') {
       const body = request.postDataJSON();
       if (state.medicines.some(m => body.barcode && m.barcode === body.barcode)) return reply('Barcode already exists.', 409);
@@ -393,6 +414,30 @@ test('inventory movement report filters dates and purchase or sale sources with 
   await report.getByLabel('From date').fill('2026-09-10');
   await report.getByLabel('To date').fill('2026-09-20');
   await expect(report.locator('tbody tr')).toHaveCount(5);
+});
+
+test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {
+  const state = await mockApi(page);
+  await signIn(page, '/reports');
+  const accounts = page.locator('.financial-accounts');
+
+  await accounts.getByLabel('Profit and loss month').fill('2026-02');
+  await accounts.getByRole('button', { name: 'Apply month' }).click();
+  await expect.poll(() => state.reportQueries.at(-1)).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+
+  await accounts.getByRole('tab', { name: 'Payables' }).click();
+  await expect(accounts.getByText('Demo Pharma')).toBeVisible();
+  await expect(accounts.getByText('Rs 70.00').first()).toBeVisible();
+  await accounts.locator('summary', { hasText: 'Invoices' }).first().click();
+  await expect(accounts.getByText('SUP-101')).toBeVisible();
+  await expect(accounts.getByText('Payment Cash')).toBeVisible();
+
+  await accounts.getByRole('tab', { name: 'Receivables' }).click();
+  await expect(accounts.getByText('Ayesha Khan')).toBeVisible();
+  await expect(accounts.getByText('Rs 55.00').first()).toBeVisible();
+  await accounts.locator('summary', { hasText: 'Invoices' }).click();
+  await expect(accounts.getByText('INV-202')).toBeVisible();
+  await expect(accounts.getByText('RCPT-01')).toBeVisible();
 });
 
 test('medicine, supplier and purchase pages keep their own forms and update inventory', async ({ page }) => {

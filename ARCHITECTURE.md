@@ -13,7 +13,7 @@ This is the user-approved architecture for Medical Store. The system has one API
 | Customers | `api/Modules/Customers` | `web/src/app/features/customers` | Store-scoped records, paid/due totals, unpaid invoice ledger and payment collection |
 | Suppliers | `api/Modules/Suppliers` | `web/src/app/features/suppliers` | Supplier contact details, edit/deactivation, search and purchase ledger |
 | Expenses | `api/Modules/Expenses` | `web/src/app/features/expenses` | Store-scoped categories, expense entry and date/category filters |
-| Reports | `api/Modules/Reports` | `web/src/app/features/reports` | Sales, inventory valuation, operating expenses, estimated profit and CSV exports |
+| Reports | `api/Modules/Reports` | `web/src/app/features/reports` | Month-filtered profit and loss, supplier payables/credits, customer receivables, inventory valuation and CSV exports |
 
 ## Backend ownership
 

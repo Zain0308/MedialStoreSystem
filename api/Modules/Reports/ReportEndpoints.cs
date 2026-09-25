@@ -30,6 +30,90 @@ public static class ReportEndpoints
             return Results.Ok(report);
         }).RequireAuthorization(StorePermissions.ReportsRead);
 
+        api.MapGet("/reports/payables", async (StoreDb db) =>
+        {
+            var suppliers = await db.Suppliers.AsNoTracking().OrderBy(x => x.Name)
+                .Select(x => new { x.Id, x.Name }).ToListAsync();
+            var invoices = await db.Purchases.AsNoTracking().OrderByDescending(x => x.CreatedAt)
+                .Select(x => new
+                {
+                    supplierId = x.SupplierId, x.Id, x.SupplierInvoice, x.CreatedAt, x.Total,
+                    returned = x.Returns.Sum(r => (decimal?)r.Total) ?? 0,
+                    paid = x.Payments.Sum(p => (decimal?)p.Amount) ?? 0,
+                    returns = x.Returns.OrderByDescending(r => r.CreatedAt)
+                        .Select(r => new { r.CreatedAt, r.SupplierReference, r.Reason, amount = r.Total }),
+                    payments = x.Payments.OrderByDescending(p => p.PaidAt)
+                        .Select(p => new { p.PaidAt, p.Amount, p.Method, p.Reference })
+                }).ToListAsync();
+            var accounts = suppliers.Select(supplier =>
+            {
+                var supplierInvoices = invoices.Where(x => x.supplierId == supplier.Id).ToList();
+                var purchaseTotal = supplierInvoices.Sum(x => x.Total);
+                var returnedTotal = supplierInvoices.Sum(x => x.returned);
+                var paidTotal = supplierInvoices.Sum(x => x.paid);
+                var balance = purchaseTotal - returnedTotal - paidTotal;
+                return new
+                {
+                    supplierId = supplier.Id, supplier = supplier.Name, invoiceCount = supplierInvoices.Count,
+                    purchaseTotal, returnedTotal, paidTotal, balance,
+                    payableAmount = Math.Max(0m, balance), receivableAmount = Math.Max(0m, -balance),
+                    invoices = supplierInvoices.Select(x => new
+                    {
+                        x.Id, x.SupplierInvoice, x.CreatedAt, x.Total, x.returned, x.paid,
+                        balance = x.Total - x.returned - x.paid, x.returns, x.payments
+                    })
+                };
+            }).ToList();
+
+            return Results.Ok(new
+            {
+                payableTotal = accounts.Sum(x => x.payableAmount),
+                supplierCreditTotal = accounts.Sum(x => x.receivableAmount),
+                suppliers = accounts
+            });
+        }).RequireAuthorization(StorePermissions.ReportsRead);
+
+        api.MapGet("/reports/receivables", async (StoreDb db) =>
+        {
+            var customers = await db.Customers.AsNoTracking().OrderBy(x => x.Name)
+                .Select(x => new { x.Id, x.Name, x.Phone, x.Email, x.IsActive }).ToListAsync();
+            var sales = await db.Sales.AsNoTracking().Where(x => x.CustomerId != null)
+                .OrderByDescending(x => x.CreatedAt).Select(x => new
+                {
+                    customerId = x.CustomerId!.Value, x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.PaymentMethod,
+                    returned = x.Returns.Sum(r => (decimal?)r.TotalRefund) ?? 0,
+                    paid = db.CustomerPayments.Where(p => p.SaleId == x.Id).Sum(p => (decimal?)p.Amount) ?? 0,
+                    payments = db.CustomerPayments.Where(p => p.SaleId == x.Id).OrderByDescending(p => p.PaidAt)
+                        .Select(p => new { p.PaidAt, p.Amount, p.Method, p.Reference })
+                }).ToListAsync();
+            var unpaidMethods = new[] { "Not Received", "Credit" };
+            var accounts = customers.Select(customer =>
+            {
+                var customerSales = sales.Where(x => x.customerId == customer.Id).ToList();
+                var paidTotal = customerSales.Sum(x => unpaidMethods.Contains(x.PaymentMethod)
+                    ? Math.Min(x.paid, Math.Max(0m, x.Total - x.returned))
+                    : Math.Max(0m, x.Total - x.returned));
+                var unpaidSales = customerSales.Where(x => unpaidMethods.Contains(x.PaymentMethod)).ToList();
+                var invoices = unpaidSales.Select(x => new
+                {
+                    x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.returned, x.paid,
+                    due = Math.Max(0m, x.Total - x.returned - x.paid), x.payments
+                }).ToList();
+                return new
+                {
+                    customerId = customer.Id, customer = customer.Name, customer.Phone, customer.Email,
+                    customer.IsActive, paidTotal,
+                    amountDue = invoices.Sum(x => x.due), invoiceCount = invoices.Count(x => x.due > 0), invoices
+                };
+            }).ToList();
+
+            return Results.Ok(new
+            {
+                totalReceivable = accounts.Sum(x => x.amountDue),
+                customers = accounts
+            });
+        }).RequireAuthorization(StorePermissions.ReportsRead);
+
         api.MapGet("/reports/export", async (string type, DateOnly? from, DateOnly? to, StoreDb db) =>
         {
             if (from.HasValue && to.HasValue && from > to) return Results.BadRequest("From date must be on or before To date.");

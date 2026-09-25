@@ -13,7 +13,7 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 | Customers | Store-scoped records, paid and receivable totals, unpaid invoice ledger, payment collection and account status | Customer-specific pricing |
 | Suppliers | Supplier records/contact details, edit/deactivate, search and purchase ledger | Reconciliation |
 | Expenses | Store-scoped categories, expense entries and date/category filters | Recurring expenses |
-| Reports | Dashboard, sales detail, inventory valuation, expenses, estimated profit and CSV exports | PDF/Excel exports |
+| Reports | Dashboard, month-filtered profit and loss, supplier payables/credits, customer receivables, inventory valuation and CSV exports | PDF/Excel exports |
 
 ## File ownership
 
