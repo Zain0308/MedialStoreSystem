@@ -253,7 +253,7 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await expect(page.getByText('Supplier payment recorded.')).toBeVisible();
   await navigate(page, /Inventory/);
   await expect(page.getByRole('row').filter({ hasText: 'VC-02' })).toContainText('9');
-  await page.getByLabel('Batch', { exact: true }).selectOption({ label: 'Vitamin C · VC-02 (9 units)' });
+  await page.locator('select[name="adj-batch"]').selectOption({ label: 'Vitamin C · VC-02 (9 units)' });
   await page.getByLabel('Reason', { exact: true }).fill('Broken units');
   await page.getByRole('button', { name: 'Record movement' }).click();
   await expect(page.getByRole('row').filter({ hasText: 'Broken units' })).toContainText('-1');
