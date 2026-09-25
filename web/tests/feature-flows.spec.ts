@@ -630,7 +630,7 @@ test('receipt fetch failure does not allow a completed cart to be resubmitted', 
   const state = await mockApi(page); state.failReceipt = true;
   await signIn(page, '/sales/pos');
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
-  await page.getByLabel('Cash received (Rs)').fill('10');
+  await page.getByLabel('Cash received now (Rs)').fill('10');
   await page.getByRole('button', { name: /Complete sale/ }).click();
   await expect(page.getByText(/Sale INV-00000001 was saved/)).toBeVisible();
   await expect(page.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
