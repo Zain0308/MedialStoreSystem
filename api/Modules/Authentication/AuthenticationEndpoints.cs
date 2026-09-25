@@ -54,15 +54,17 @@ public static class AuthenticationEndpoints
             var userId = principal.FindFirstValue(JwtRegisteredClaimNames.Sub)
                 ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
-            var membership = await db.UserStores.Include(x => x.Store)
-                .Where(x => x.UserId == userId && x.StoreId == request.StoreId && x.Store.IsActive)
-                .SingleOrDefaultAsync();
-            if (membership is null) return Results.Forbid();
-
-            await using var transaction = await db.Database.BeginTransactionAsync();
+            await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var memberships = await db.UserStores.Include(x => x.Store)
                 .Where(x => x.UserId == userId && x.Store.IsActive).ToListAsync();
-            foreach (var item in memberships) item.IsDefault = item.StoreId == request.StoreId;
+            var selectedMembership = memberships.SingleOrDefault(x => x.StoreId == request.StoreId);
+            if (selectedMembership is null) return Results.Forbid();
+
+            // The filtered unique index allows one default store per user. Clear the current
+            // default first so SQL Server never observes two defaults during the update batch.
+            foreach (var item in memberships) item.IsDefault = false;
+            await db.SaveChangesAsync();
+            selectedMembership.IsDefault = true;
             await db.SaveChangesAsync();
             await transaction.CommitAsync();
 
