@@ -351,6 +351,7 @@ async function navigate(page: Page, name: RegExp) {
   const href = await link.getAttribute('href');
   const pageTitleByPath: Record<string, string> = {
     '/reports': 'Overview',
+    '/reports/financial-accounts': 'Financial Accounts',
     '/customers': 'Customers',
     '/expenses': 'Expenses',
     '/sales/pos': 'New sale',
@@ -419,8 +420,14 @@ test('inventory movement report filters dates and purchase or sale sources with 
 test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {
   const state = await mockApi(page);
   await signIn(page, '/reports');
+  const dashboard = page.locator('.financial-shortcuts');
+  await expect(dashboard).toBeVisible();
+  await expect(page.locator('.financial-accounts')).toHaveCount(0);
+  await dashboard.getByRole('link', { name: /View customer accounts/ }).click();
+  await expect(page).toHaveURL(/\/reports\/financial-accounts\?tab=receivables$/);
   const accounts = page.locator('.financial-accounts');
 
+  await accounts.getByRole('tab', { name: 'Profit & Loss' }).click();
   await accounts.getByLabel('Profit and loss month').fill('2026-02');
   await accounts.getByRole('button', { name: 'Apply month' }).click();
   await expect.poll(() => state.reportQueries.at(-1)).toEqual({ from: '2026-02-01', to: '2026-02-28' });
