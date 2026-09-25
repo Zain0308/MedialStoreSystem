@@ -11,6 +11,6 @@ public sealed class StockMovementConfiguration : IEntityTypeConfiguration<StockM
         builder.Property(x => x.Reason).HasMaxLength(300);
         builder.Property(x => x.ActorId).HasMaxLength(450);
         builder.HasIndex(x => new { x.BatchId, x.CreatedAt });
-        builder.HasOne<Batch>().WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Batch).WithMany().HasForeignKey(x => x.BatchId).OnDelete(DeleteBehavior.Restrict);
     }
 }

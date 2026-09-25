@@ -5,6 +5,7 @@ public sealed class StockMovement
 {
     public long Id { get; set; }
     public long BatchId { get; set; }
+    public Batch Batch { get; set; } = null!;
     public string Type { get; set; } = "";
     public long ReferenceId { get; set; }
     public int QuantityChange { get; set; }
