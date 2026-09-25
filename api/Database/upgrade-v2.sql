@@ -23,7 +23,7 @@ END;
 IF COL_LENGTH('dbo.Sales', 'Subtotal') IS NULL
 BEGIN
     ALTER TABLE dbo.Sales ADD Subtotal decimal(18,2) NOT NULL CONSTRAINT DF_Sales_Subtotal DEFAULT 0;
-    UPDATE dbo.Sales SET Subtotal = Total;
+    EXEC sys.sp_executesql N'UPDATE dbo.Sales SET Subtotal = Total;';
 END;
 IF COL_LENGTH('dbo.Sales', 'DiscountAmount') IS NULL ALTER TABLE dbo.Sales ADD DiscountAmount decimal(18,2) NOT NULL CONSTRAINT DF_Sales_DiscountAmount DEFAULT 0;
 IF COL_LENGTH('dbo.Sales', 'PaymentMethod') IS NULL ALTER TABLE dbo.Sales ADD PaymentMethod nvarchar(30) NOT NULL CONSTRAINT DF_Sales_PaymentMethod DEFAULT N'Cash';
