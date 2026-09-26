@@ -504,13 +504,15 @@ test('inventory movement report filters dates and purchase or sale sources with 
 
 test('inventory lists one row per medicine and expands complete batch purchase details', async ({ page }) => {
   const state = await mockApi(page);
-  state.batches.push({ id: 2, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-02',
-    expiryDate: '2051-12-31', costPrice: 3, salePrice: 6, quantity: 8 });
+  state.batches.push(...Array.from({ length: 20 }, (_, index) => ({ id: index + 2, medicineId: 1,
+    medicine: 'Paracetamol 500mg', number: `LOT-${String(index + 2).padStart(2, '0')}`,
+    expiryDate: '2051-12-31', costPrice: index === 0 ? 3 : 1, salePrice: index === 0 ? 6 : 2,
+    quantity: index === 0 ? 8 : 1 })));
   await signIn(page, '/inventory');
   const table = page.locator('.inventory-product-table');
   await expect(table.locator('tbody tr')).toHaveCount(1);
-  await expect(table.locator('tbody tr').first()).toContainText('28');
-  await expect(table.locator('tbody tr').first()).toContainText('2');
+  await expect(table.locator('tbody tr').first()).toContainText('47');
+  await expect(table.locator('tbody tr').first()).toContainText('21');
   await page.getByRole('button', { name: 'View details for Paracetamol 500mg' }).click();
   const details = page.getByRole('dialog', { name: 'Paracetamol 500mg' });
   await expect(details).toContainText('SUP-1');
@@ -518,6 +520,11 @@ test('inventory lists one row per medicine and expands complete batch purchase d
   await expect(details).toContainText('Demo Pharma');
   await expect(details).toContainText('LOT-01');
   await expect(details).toContainText('LOT-02');
+  await expect(details.getByRole('article')).toHaveCount(20);
+  await details.getByRole('button', { name: 'Next' }).click();
+  await expect(details).toContainText('SUP-21');
+  await details.getByLabel('Search purchases').fill('SUP-21');
+  await expect(details).toContainText('Showing 1–1 of 1');
   await details.getByRole('tab', { name: /Payments/ }).click();
   await expect(details).toContainText('No payments recorded');
   await details.getByRole('button', { name: 'Close medicine details' }).click();
