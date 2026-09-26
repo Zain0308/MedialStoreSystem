@@ -2,6 +2,9 @@ export interface Batch {
   id: number;
   medicineId: number;
   medicine: string;
+  genericName?: string | null;
+  strength?: string | null;
+  dosageForm?: string | null;
   number: string;
   expiryDate: string;
   costPrice: number;

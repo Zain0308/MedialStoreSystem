@@ -62,7 +62,13 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
       [medicine.name, medicine.genericName ?? '', medicine.barcode ?? '', medicine.strength ?? '', medicine.dosageForm ?? '']
         .some(value => value.toLocaleLowerCase().includes(term))).slice(0, 8);
   });
-  readonly purchaseTotal = computed(() => this.lines().reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0));
+  readonly inactiveMedicineMatch = computed(() => {
+    const term = this.medicineSearch().trim().toLocaleLowerCase();
+    return this.medicines().find(medicine => !medicine.isActive && medicine.name.trim().toLocaleLowerCase() === term) ?? null;
+  });
+  purchaseTotal(): number {
+    return this.lines().reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0);
+  }
   readonly today = new Date().toISOString().slice(0, 10);
   readonly canAddSupplier = computed(() => this.session.hasPermission('suppliers.manage'));
   readonly canAddMedicine = computed(() => this.session.hasPermission('medicines.manage'));
@@ -119,7 +125,16 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
   }
 
   medicineNotFound(): boolean {
-    return !!this.medicineSearch().trim() && this.medicineResults().length === 0;
+    return !!this.medicineSearch().trim() && this.medicineResults().length === 0 && !this.inactiveMedicineMatch();
+  }
+
+  async activateAndAddMedicine(medicine: Medicine): Promise<void> {
+    await this.perform(async () => {
+      await this.medicinesApi.setActive(medicine.id, true);
+      const active = { ...medicine, isActive: true };
+      this.medicines.update(items => items.map(item => item.id === active.id ? active : item));
+      this.addMedicineLine(active);
+    });
   }
 
   startAddingMedicine(): void {
@@ -133,6 +148,11 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
     this.medicineSearch.set('');
     this.addMedicineForm.set(false);
     this.message.set(`${medicine.name} added to this purchase.`);
+  }
+
+  updateLine(lineKey: number, patch: Partial<Pick<PurchaseLineDraft,
+    'batchNumber' | 'expiryDate' | 'quantity' | 'costPrice' | 'salePrice'>>): void {
+    this.lines.update(lines => lines.map(line => line.key === lineKey ? { ...line, ...patch } : line));
   }
 
   medicineDetails(medicine: Medicine): string {

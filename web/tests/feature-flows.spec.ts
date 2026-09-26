@@ -1,12 +1,12 @@
-Warning: truncated output (original token count: 17734)
-Total output lines: 1018
-
 import { expect, Page, test } from '@playwright/test';
 
 // UI contract fixtures only. These tests do not replace API/SQL integration tests.
 async function mockApi(page: Page) {
   const state = {
-    medicines: [{ id: 1, name: 'Paracetamol 500mg', genericName: 'Paracetamol', barcode: '12345', stock: 20, minimumStock: 10, requiresPrescription: false, isActive: true }],
+    medicines: [{ id: 1, name: 'Paracetamol 500mg', genericName: 'Paracetamol', barcode: '12345', stock: 20,
+      minimumStock: 10, requiresPrescription: false, isActive: true }] as { id: number; name: string; genericName?: string;
+        barcode?: string; stock: number; minimumStock: number; requiresPrescription: boolean; isActive: boolean;
+        strength?: string | null; dosageForm?: string | null }[],
     suppliers: [{ id: 1, name: 'Demo Pharma', phone: '0000000000', contactPerson: '', email: '', address: '', isActive: true }],
     customers: [] as { id: number; name: string; phone?: string; email?: string; isActive: boolean }[],
     expenseCategories: [] as { id: number; name: string; isActive: boolean }[],
@@ -215,6 +215,11 @@ async function mockApi(page: Page) {
     if (path === '/api/medicines' && method === 'POST') {
       const body = request.postDataJSON();
       if (state.medicines.some(m => body.barcode && m.barcode === body.barcode)) return reply('Barcode already exists.', 409);
+      const normalized = (value?: string | null) => (value ?? '').trim().toLocaleLowerCase();
+      if (state.medicines.some(m => normalized(m.name) === normalized(body.name) &&
+        normalized(m.genericName) === normalized(body.genericName) &&
+        normalized(m.strength) === normalized(body.strength) && normalized(m.dosageForm) === normalized(body.dosageForm)))
+        return reply('A medicine with this name, generic name, strength and dosage form already exists in this store. Select the existing medicine for the purchase.', 409);
       const medicine = { ...body, id: state.medicines.length + 1, stock: 0, isActive: true };
       state.medicines.push(medicine); return reply({ id: medicine.id }, 201);
     }
@@ -247,7 +252,7 @@ async function mockApi(page: Page) {
       const medicineId = Number(medicineInventoryDetails[1]);
       const batches = state.batches.filter(batch => batch.medicineId === medicineId);
       const medicine = state.medicines.find(item => item.id === medicineId)!;
-      const purchases = batches.map((batch, index) => ({ purchaseId: index + 1, purchaseLineId: index + 1,
+      const purchases = batches.map((batch, index) => ({ purchaseId: batch.id, purchaseLineId: batch.id,
         batchId: batch.id, batch: batch.number, supplier: 'Demo Pharma', supplierInvoice: `SUP-${index + 1}`,
         purchasedAt: `2026-08-${String(index + 1).padStart(2, '0')}T12:00:00Z`, expiryDate: batch.expiryDate,
         quantity: batch.quantity + index, returnedQuantity: index, onHand: batch.quantity, unitCost: batch.costPrice,
@@ -261,7 +266,14 @@ async function mockApi(page: Page) {
       state.movements.push({ id: state.movements.length + 1, batchId: batch.id, medicine: batch.medicine, batch: batch.number, type: body.type, quantityChange: body.quantityChange, balanceAfter: batch.quantity, reason: body.reason, createdAt: new Date().toISOString() });
       return reply({ id: batch.id, quantity: batch.quantity });
     }
-    if (path === '/api/inventory') return reply(state.unauthorizedInventory ? {} : state.batches, state.unauthorizedInventory ? 401 : 200);
+    if (path === '/api/inventory') {
+      const inventory = state.batches.map(batch => {
+        const medicine = state.medicines.find(item => item.id === batch.medicineId);
+        return { ...batch, genericName: medicine?.genericName ?? null, strength: medicine?.strength ?? null,
+          dosageForm: medicine?.dosageForm ?? null };
+      });
+      return reply(state.unauthorizedInventory ? {} : inventory, state.unauthorizedInventory ? 401 : 200);
+    }
     if (path === '/api/purchases' && method === 'GET') return reply(state.purchases);
     if (path === '/api/purchases/supplier-accounts' && method === 'GET') {
       return reply(state.suppliers.map(supplier => {
@@ -389,13 +401,191 @@ async function mockApi(page: Page) {
       if (state.failReceipt) return reply('Receipt unavailable', 500);
       return reply(state.receipts[Number(path.split('/').pop())]);
     }
-    return reply(`Unexpected A…1734 tokens truncated…);
+    return reply(`Unexpected API request: ${method} ${path}`, 501);
+  });
+  return state;
+}
+
+async function submitLogin(page: Page) {
+  await page.getByLabel('Email', { exact: true }).fill('owner@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('ExamplePassword123!');
+  await page.getByRole('button', { name: /Sign in/ }).click();
+}
+async function signIn(page: Page, path = '/reports') {
+  await page.goto(path);
+  await expect(page).toHaveURL(/\/login/);
+  await submitLogin(page);
+  await expect(page).toHaveURL(new RegExp(`${path}$`));
+}
+async function navigate(page: Page, name: RegExp) {
+  const link = page.getByRole('navigation').getByRole('link', { name });
+  const href = await link.getAttribute('href');
+  const pageTitleByPath: Record<string, string> = {
+    '/reports': 'Overview',
+    '/reports/financial-accounts': 'Financial Accounts',
+    '/customers': 'Customers',
+    '/expenses': 'Expenses',
+    '/sales/pos': 'New sale',
+    '/medicines': 'Medicines',
+    '/purchases': 'Receive purchase',
+    '/inventory': 'Inventory',
+    '/suppliers': 'Suppliers',
+    '/sales': 'Sales history',
+    '/owner': 'Application Owner Admin Panel',
+    '/users': 'Application Owner Admin Panel',
+  };
+  await link.click();
+  if (href && pageTitleByPath[href]) {
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(pageTitleByPath[href]);
+  }
+}
+
+test('protected deep links, session restore and 401 redirect', async ({ page }) => {
+  const state = await mockApi(page);
+  await signIn(page, '/inventory');
+  await expect(page.getByRole('row').filter({ hasText: 'Paracetamol 500mg' })).toContainText('Available');
+  await page.reload();
+  await expect(page).toHaveURL(/\/inventory$/);
+  await expect(page.getByRole('row').filter({ hasText: 'Paracetamol 500mg' })).toContainText('Available');
+  state.unauthorizedInventory = true;
+  await navigate(page, /Dashboard/); await navigate(page, /Inventory/);
+  await expect(page).toHaveURL(/\/login/);
+  expect(await page.evaluate(() => sessionStorage.getItem('medical-token'))).toBeNull();
+});
+
+test('dashboard shows the subscription countdown when five days remain', async ({ page }) => {
+  const state = await mockApi(page);
+  await signIn(page, '/reports');
+  await expect(page.getByRole('status').filter({ hasText: 'Subscription expires' })).toHaveCount(0);
+  state.subscriptionDaysRemaining = 5;
+  state.subscriptionExpiresAt = '2026-10-01T00:00:00Z';
+  await page.reload();
+  await expect(page.getByRole('status').filter({ hasText: 'Subscription expires in 5 days' })).toBeVisible();
+});
+
+test('expired store users can access only the dashboard', async ({ page }) => {
+  const state = await mockApi(page);
+  state.subscriptionExpired = true;
+  state.subscriptionExpiresAt = '2026-09-20T23:59:59Z';
+  await page.goto('/reports');
+  await expect(page).toHaveURL(/\/login/);
+  await page.getByLabel('Email', { exact: true }).fill('storeadmin@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('ExamplePassword123!');
+  await page.getByRole('button', { name: /Sign in/ }).click();
+  await expect(page).toHaveURL(/\/reports$/);
+  await expect(page.getByRole('status').filter({ hasText: 'Subscription expired' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Medicines' })).toHaveCount(0);
+  await page.goto('/medicines');
+  await expect(page).toHaveURL(/\/reports$/);
+  const status = await page.evaluate(async () => fetch('/api/medicines', {
+    headers: { Authorization: 'Bearer test-token' },
+  }).then(response => response.status));
+  expect(status).toBe(403);
+});
+
+test('switching stores persists the active store and reloads the workspace', async ({ page }) => {
+  await mockApi(page);
+  await signIn(page, '/reports');
+  await expect(page.getByLabel('Active store')).toHaveValue('1');
+  const reload = page.waitForNavigation({ waitUntil: 'load' });
+  await page.getByLabel('Active store').selectOption('2');
+  await reload;
+  await expect(page.getByLabel('Active store')).toHaveValue('2');
+});
+
+test('inventory movement report filters dates and purchase or sale sources with 20 rows per page', async ({ page }) => {
+  const state = await mockApi(page);
+  state.movements = Array.from({ length: 25 }, (_, index) => ({
+    id: index + 1, batchId: 1, medicine: 'Paracetamol 500mg', batch: 'LOT-01',
+    type: index % 2 === 0 ? 'Purchase' : 'Sale', quantityChange: index % 2 === 0 ? 10 : -1,
+    balanceAfter: 20, reason: '', createdAt: `2026-09-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
+  }));
+  await signIn(page, '/inventory');
+  const report = page.locator('.movement-report');
+  await expect(report.locator('tbody tr')).toHaveCount(20);
+  await report.getByRole('button', { name: 'Next' }).click();
+  await expect(report.locator('tbody tr')).toHaveCount(5);
+  await expect(report.getByText('Page 2 of 2')).toBeVisible();
+
+  await report.getByLabel('Movement type').selectOption('Purchase');
+  await expect(report.locator('tbody tr')).toHaveCount(13);
+  await expect(report.getByText('Page 1 of 1')).toBeVisible();
+  await report.getByLabel('Movement type').selectOption('Sale');
+  await expect(report.locator('tbody tr')).toHaveCount(12);
+  await report.getByLabel('Movement type').selectOption('Purchase');
+  await report.getByLabel('From date').fill('2026-09-10');
+  await report.getByLabel('To date').fill('2026-09-20');
+  await expect(report.locator('tbody tr')).toHaveCount(5);
+});
+
+test('inventory lists one row per medicine and expands complete batch purchase details', async ({ page }) => {
+  const state = await mockApi(page);
+  state.batches.push(...Array.from({ length: 20 }, (_, index) => ({ id: index + 2, medicineId: 1,
+    medicine: 'Paracetamol 500mg', number: `LOT-${String(index + 2).padStart(2, '0')}`,
+    expiryDate: '2051-12-31', costPrice: index === 0 ? 3 : 1, salePrice: index === 0 ? 6 : 2,
+    quantity: index === 0 ? 8 : 1 })));
+  await signIn(page, '/inventory');
+  const table = page.locator('.inventory-product-table');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table.locator('tbody tr').first()).toContainText('47');
+  await expect(table.locator('tbody tr').first()).toContainText('21');
+  await page.getByRole('button', { name: 'View details for Paracetamol 500mg' }).click();
+  const details = page.getByRole('dialog', { name: 'Paracetamol 500mg' });
+  await expect(details).toContainText('SUP-1');
+  await expect(details).toContainText('SUP-2');
+  await expect(details).toContainText('Demo Pharma');
+  await expect(details).toContainText('LOT-01');
+  await expect(details).toContainText('LOT-02');
+  await expect(details.getByRole('article')).toHaveCount(20);
+  await details.getByRole('button', { name: 'Next' }).click();
+  await expect(details).toContainText('SUP-21');
+  await details.getByLabel('Search purchases').fill('SUP-21');
   await expect(details).toContainText('Showing 1–1 of 1');
   await expect(details).toContainText('Supplier credit Rs 4.00');
   await details.getByRole('tab', { name: /Payments/ }).click();
   await expect(details).toContainText('No payments recorded');
   await details.getByRole('button', { name: 'Close medicine details' }).click();
   await expect(details).toHaveCount(0);
+});
+
+test('inventory combines case-only duplicates but keeps different strengths separate', async ({ page }) => {
+  const state = await mockApi(page);
+  state.medicines[0].name = 'Panadol';
+  Object.assign(state.medicines[0], { strength: '500mg', dosageForm: 'Tablet' });
+  state.batches[0].medicine = 'Panadol';
+  state.medicines.push({ id: 2, name: 'panadol', genericName: 'Paracetamol', barcode: '', stock: 1,
+    minimumStock: 0, requiresPrescription: false, isActive: true });
+  Object.assign(state.medicines[1], { strength: '500mg', dosageForm: 'Tablet' });
+  state.batches.push({ id: 2, medicineId: 2, medicine: 'panadol', number: 'PAN-LOWER', expiryDate: '2050-12-31',
+    costPrice: 2, salePrice: 5, quantity: 1 });
+  state.medicines.push({ id: 3, name: 'Panadol', genericName: 'Paracetamol', barcode: '', stock: 7,
+    minimumStock: 0, requiresPrescription: false, isActive: true });
+  Object.assign(state.medicines[2], { strength: '250mg', dosageForm: 'Tablet' });
+  state.batches.push({ id: 3, medicineId: 3, medicine: 'Panadol', number: 'PAN-250', expiryDate: '2050-12-31',
+    costPrice: 2, salePrice: 5, quantity: 7 });
+  state.medicines.push({ id: 4, name: 'Panadol', genericName: 'Different ingredient', barcode: '', stock: 3,
+    minimumStock: 0, requiresPrescription: false, isActive: true });
+  Object.assign(state.medicines[3], { strength: '500mg', dosageForm: 'Tablet' });
+  state.batches.push({ id: 4, medicineId: 4, medicine: 'Panadol', number: 'PAN-OTHER', expiryDate: '2050-12-31',
+    costPrice: 2, salePrice: 5, quantity: 3 });
+
+  await signIn(page, '/inventory');
+  const table = page.locator('.inventory-product-table');
+  await expect(table.locator('tbody tr')).toHaveCount(3);
+  const row500Mg = table.locator('tbody tr').filter({ hasText: 'Paracetamol' }).filter({ hasText: '500mg' });
+  await expect(row500Mg.locator('td').nth(1)).toHaveText('21');
+  await expect(row500Mg.locator('td').nth(2)).toHaveText('2');
+  const row250Mg = table.locator('tbody tr').filter({ hasText: '250mg' });
+  await expect(row250Mg.locator('td').nth(1)).toHaveText('7');
+  await expect(row250Mg.locator('td').nth(2)).toHaveText('1');
+  const rowOtherGeneric = table.locator('tbody tr').filter({ hasText: 'Different ingredient' });
+  await expect(rowOtherGeneric.locator('td').nth(1)).toHaveText('3');
+  await expect(rowOtherGeneric.locator('td').nth(2)).toHaveText('1');
+  await page.getByRole('button', { name: 'View details for Panadol · Paracetamol · 500mg · Tablet' }).click();
+  const details = page.getByRole('dialog', { name: 'Panadol · Paracetamol · 500mg · Tablet' });
+  await expect(details).toContainText('LOT-01');
+  await expect(details).toContainText('PAN-LOWER');
 });
 
 test('expiry tracking shows purchase details and filters upcoming and expired batches', async ({ page }) => {
@@ -454,6 +644,7 @@ test('inventory purchase dialog adds and selects supplier and medicine inline', 
   await dialog.getByLabel('Amoxicillin 500mg quantity').fill('30');
   await dialog.getByLabel('Amoxicillin 500mg unit cost').fill('12');
   await dialog.getByLabel('Amoxicillin 500mg sale price').fill('18');
+  await expect(dialog.locator('.purchase-total')).toContainText('Rs 360.00');
   await dialog.getByLabel('Purchase supplier invoice').fill('NEW-INV-1');
   await dialog.getByRole('button', { name: 'Receive purchase' }).click();
 

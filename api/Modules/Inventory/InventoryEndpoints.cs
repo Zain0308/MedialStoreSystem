@@ -12,6 +12,7 @@ public static class InventoryEndpoints
     {
         api.MapGet("/inventory", async (StoreDb db) => Results.Ok(await db.Batches
             .OrderBy(x => x.ExpiryDate).Select(x => new { x.Id, medicineId = x.MedicineId, medicine = x.Medicine.Name,
+                genericName = x.Medicine.GenericName, strength = x.Medicine.Strength, dosageForm = x.Medicine.DosageForm,
                 x.Number, x.ExpiryDate, x.CostPrice, x.SalePrice, x.Quantity }).ToListAsync()))
             .RequireAuthorization(StorePermissions.InventoryRead);
 

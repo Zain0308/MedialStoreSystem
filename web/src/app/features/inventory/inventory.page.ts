@@ -14,6 +14,7 @@ import { PurchaseCreateDialogComponent, PurchaseResult } from '../purchases/publ
 
 type InventoryProductGroup = {
   medicineId: number;
+  medicineIds: number[];
   medicine: string;
   batches: Batch[];
   totalQuantity: number;
@@ -30,8 +31,8 @@ export class InventoryPage extends PageFeedback implements OnInit {
   private readonly api = inject(InventoryApi);
   readonly batches = signal<Batch[]>([]);
   readonly batchOptions = computed<SearchPickerOption[]>(() => this.batches().map(batch => ({
-    value: batch.id, label: batch.medicine,
-    detail: `${batch.number} · ${batch.expiryDate} · ${batch.quantity} units`, searchText: batch.number,
+    value: batch.id, label: this.medicineLabel(batch),
+    detail: `${batch.number} · ${batch.expiryDate} · ${batch.quantity} units`, searchText: `${batch.number} ${batch.genericName ?? ''} ${batch.strength ?? ''} ${batch.dosageForm ?? ''}`,
   })));
   readonly batchSearch = signal('');
   readonly batchStatus = signal('all');
@@ -44,20 +45,34 @@ export class InventoryPage extends PageFeedback implements OnInit {
     const from = this.expiryFrom(); const to = this.expiryTo();
     return this.batches().filter(batch => {
       const batchStatus = this.status(batch);
-      return (!term || [batch.medicine, batch.number].some(value => value.toLocaleLowerCase().includes(term))) &&
+      return (!term || [batch.medicine, batch.genericName ?? '', batch.strength ?? '', batch.dosageForm ?? '', batch.number]
+        .some(value => value.toLocaleLowerCase().includes(term))) &&
         (status === 'all' || status === batchStatus) && (!from || batch.expiryDate >= from) && (!to || batch.expiryDate <= to);
     });
   });
   readonly products = computed<InventoryProductGroup[]>(() => {
-    const groups = new Map<number, Batch[]>();
-    for (const batch of this.batches()) groups.set(batch.medicineId, [...(groups.get(batch.medicineId) ?? []), batch]);
-    return [...groups.entries()].map(([medicineId, batches]) => ({
-      medicineId, medicine: batches[0]?.medicine ?? '', batches,
-      totalQuantity: batches.reduce((sum, batch) => sum + batch.quantity, 0),
-      statusCounts: batches.reduce<Record<string, number>>((counts, batch) => {
-        const key = this.status(batch); counts[key] = (counts[key] ?? 0) + 1; return counts;
-      }, {}),
-    })).sort((a, b) => a.medicine.localeCompare(b.medicine));
+    const groups = new Map<string, Batch[]>();
+    for (const batch of this.batches()) {
+      const key = [batch.medicine, batch.genericName ?? '', batch.strength ?? '', batch.dosageForm ?? '']
+        .map(value => value.trim().toLocaleLowerCase()).join('\u0000');
+      groups.set(key, [...(groups.get(key) ?? []), batch]);
+    }
+    return [...groups.values()].map(batches => {
+      const medicineIds = [...new Set(batches.map(batch => batch.medicineId))];
+      const medicine = batches.map(batch => batch.medicine.trim())
+        .find(name => name && name[0] !== name[0].toLocaleLowerCase()) ?? batches[0]?.medicine ?? '';
+      const representative = batches[0];
+      return {
+        medicineId: medicineIds[0], medicineIds,
+        medicine: this.medicineLabel({ medicine, genericName: representative?.genericName,
+          strength: representative?.strength, dosageForm: representative?.dosageForm }),
+        batches,
+        totalQuantity: batches.reduce((sum, batch) => sum + batch.quantity, 0),
+        statusCounts: batches.reduce<Record<string, number>>((counts, batch) => {
+          const key = this.status(batch); counts[key] = (counts[key] ?? 0) + 1; return counts;
+        }, {}),
+      };
+    }).sort((a, b) => a.medicine.localeCompare(b.medicine));
   });
   readonly filteredProducts = computed(() => {
     const matchingBatchIds = new Set(this.filteredBatches().map(batch => batch.id));
@@ -150,7 +165,16 @@ export class InventoryPage extends PageFeedback implements OnInit {
     this.expandedMedicineId.set(product.medicineId); this.selectedProductName.set(product.medicine);
     this.productDetails.set(null); this.detailsLoading.set(true);
     await this.perform(async () => {
-      const details = await this.api.medicineDetails(product.medicineId);
+      const allDetails = await Promise.all(product.medicineIds.map(id => this.api.medicineDetails(id)));
+      const first = allDetails[0];
+      const details: InventoryMedicineDetails = {
+        medicine: first.medicine,
+        batches: allDetails.flatMap(item => item.batches),
+        purchases: allDetails.flatMap(item => item.purchases).sort((a, b) => b.purchasedAt.localeCompare(a.purchasedAt)),
+        payments: allDetails.flatMap(item => item.payments).sort((a, b) => b.paidAt.localeCompare(a.paidAt)),
+        returns: allDetails.flatMap(item => item.returns).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        corrections: allDetails.flatMap(item => item.corrections).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      };
       if (this.detailsRequest === request) this.productDetails.set(details);
     });
     if (this.detailsRequest === request) this.detailsLoading.set(false);
@@ -174,6 +198,10 @@ export class InventoryPage extends PageFeedback implements OnInit {
     if (batch.expiryDate < today) return 'Expired';
     if (batch.quantity === 0) return 'Out of stock';
     return batch.expiryDate <= cutoff.toISOString().slice(0, 10) ? 'Near expiry' : 'Available';
+  }
+  private medicineLabel(batch: Pick<Batch, 'medicine' | 'genericName' | 'strength' | 'dosageForm'>): string {
+    const details = [batch.genericName?.trim(), batch.strength?.trim(), batch.dosageForm?.trim()].filter(Boolean);
+    return details.length ? `${batch.medicine} · ${details.join(' · ')}` : batch.medicine;
   }
   private localDateKey(value: string): string {
     const date = new Date(value);
