@@ -19,6 +19,7 @@ public static class StorePermissions
     public const string InventoryRead = "inventory.read";
     public const string InventoryManage = "inventory.manage";
     public const string PurchasesRead = "purchases.read";
+    public const string PurchasesCreate = "purchases.create";
     public const string PurchasesManage = "purchases.manage";
     public const string SalesRead = "sales.read";
     public const string SalesCreate = "sales.create";
@@ -40,6 +41,7 @@ public static class StorePermissions
         [InventoryRead] = "View inventory",
         [InventoryManage] = "Adjust inventory",
         [PurchasesRead] = "View purchases",
+        [PurchasesCreate] = "Create purchases from Inventory",
         [PurchasesManage] = "Receive purchases, process returns and supplier payments",
         [SalesRead] = "View sales and receipts",
         [SalesCreate] = "Create sales at POS",
@@ -58,6 +60,6 @@ public static class StorePermissions
         [StoreRoles.Administrator] = All.Keys.ToArray(),
         [StoreRoles.Pharmacist] = [MedicinesRead, InventoryRead, PurchasesRead, SalesRead, SalesCreate, SalesManage, SuppliersRead, ReportsRead],
         [StoreRoles.Cashier] = [MedicinesRead, InventoryRead, SalesRead, SalesCreate],
-        [StoreRoles.InventoryManager] = [MedicinesRead, MedicinesManage, InventoryRead, InventoryManage, PurchasesRead, PurchasesManage, SalesRead, SuppliersRead, ReportsRead]
+        [StoreRoles.InventoryManager] = [MedicinesRead, MedicinesManage, InventoryRead, InventoryManage, PurchasesRead, PurchasesCreate, PurchasesManage, SalesRead, SuppliersRead, ReportsRead]
     };
 }

@@ -82,12 +82,15 @@ public static class DatabaseInitializer
 
             // The Administrator role is the fixed recovery role; other built-in role permissions
             // can be adjusted by a store administrator after initialization.
-            if (name != StoreRoles.Administrator && !createdNewRole) continue;
+            if (name != StoreRoles.Administrator && !createdNewRole && name != StoreRoles.InventoryManager) continue;
             var existing = (await roles.GetClaimsAsync(role))
                 .Where(claim => claim.Type == "permission")
                 .Select(claim => claim.Value)
                 .ToHashSet(StringComparer.Ordinal);
-            foreach (var permission in permissions.Where(permission => !existing.Contains(permission)))
+            IEnumerable<string> permissionsToSeed = name == StoreRoles.InventoryManager && !createdNewRole
+                ? new[] { StorePermissions.PurchasesCreate }
+                : permissions;
+            foreach (var permission in permissionsToSeed.Where(permission => !existing.Contains(permission)))
             {
                 var added = await roles.AddClaimAsync(role, new Claim("permission", permission));
                 if (!added.Succeeded) throw new InvalidOperationException(string.Join("; ", added.Errors.Select(e => e.Description)));

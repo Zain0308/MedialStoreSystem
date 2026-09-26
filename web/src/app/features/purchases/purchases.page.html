@@ -5,7 +5,7 @@
       <a routerLink="/suppliers" routerLinkActive="selected" [routerLinkActiveOptions]="{ exact: true }">Supplier directory</a>
     }
     <a routerLink="/suppliers/purchases" routerLinkActive="selected">Purchases &amp; payments</a>
-    @if (session.hasPermission('purchases.manage') && session.hasPermission('inventory.read') &&
+    @if (session.hasPermission('purchases.create') && session.hasPermission('inventory.read') &&
       session.hasPermission('medicines.read') && session.hasPermission('suppliers.read')) {
       <a class="tab-action" routerLink="/inventory">＋ Create purchase in Inventory</a>
     }

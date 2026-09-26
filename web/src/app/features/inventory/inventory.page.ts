@@ -122,7 +122,7 @@ export class InventoryPage extends PageFeedback implements OnInit {
     void this.perform(async () => this.refresh());
   }
   canCreatePurchase(): boolean {
-    return this.session.hasPermission('purchases.manage') && this.session.hasPermission('medicines.read') &&
+    return this.session.hasPermission('purchases.create') && this.session.hasPermission('medicines.read') &&
       this.session.hasPermission('suppliers.read');
   }
   openPurchase(medicineId = 0): void {

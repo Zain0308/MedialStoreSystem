@@ -177,7 +177,7 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
   }
 
   canSubmit(): boolean {
-    return !this.busy() && !!this.supplierId() && !!this.supplierInvoice.trim() && this.lines().length > 0 &&
+    return this.session.hasPermission('purchases.create') && !this.busy() && !!this.supplierId() && !!this.supplierInvoice.trim() && this.lines().length > 0 &&
       this.paymentAmount >= 0 && (this.paymentAmount === 0 || (!!this.paymentMethod && this.paymentMethod !== 'Credit')) &&
       this.lines().every(line => line.batchNumber.trim() && line.expiryDate > this.today && line.quantity > 0 && line.costPrice >= 0 && line.salePrice >= 0);
   }

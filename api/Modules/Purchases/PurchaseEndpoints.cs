@@ -66,7 +66,7 @@ public static class PurchaseEndpoints
             await tx.CommitAsync();
             return Results.Created($"/api/purchases/{purchase.Id}", new { purchase.Id, purchase.Total,
                 paymentAmount, paymentMethod = normalizedPaymentMethod, supplierCreditApplied });
-        }).RequireAuthorization(StorePermissions.PurchasesManage);
+        }).RequireAuthorization(StorePermissions.PurchasesCreate);
 
         api.MapGet("/purchases", async (StoreDb db) => Results.Ok(await db.Purchases.AsNoTracking()
             .OrderByDescending(x => x.Id).Take(100).Select(x => new
