@@ -32,8 +32,7 @@ public static class PurchaseEndpoints
                 .ToListAsync();
             var supplierCredit = Math.Max(0m, previousPayments
                 .Where(x => !string.Equals(x.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase)).Sum(x => x.Amount)
-                - previousPurchases + previousReturns
-                - previousPayments.Where(x => string.Equals(x.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase)).Sum(x => x.Amount));
+                - previousPurchases + previousReturns);
             var purchase = new Purchase { SupplierId = input.SupplierId, SupplierInvoice = invoice,
                 Total = decimal.Round(input.Lines.Sum(x => x.Quantity * x.CostPrice), 2) };
             foreach (var line in input.Lines)
@@ -90,9 +89,9 @@ public static class PurchaseEndpoints
             {
                 var purchaseTotal = purchaseTotals.GetValueOrDefault(supplier.Id);
                 var returnedTotal = returnTotals.GetValueOrDefault(supplier.Id);
-                var paidTotal = paidTotals.GetValueOrDefault(supplier.Id);
+                var externalPaid = paidTotals.GetValueOrDefault(supplier.Id);
                 return new SupplierAccountSummary(supplier.Id, supplier.Name, invoiceCounts.GetValueOrDefault(supplier.Id),
-                    purchaseTotal, returnedTotal, paidTotal, purchaseTotal - returnedTotal - paidTotal);
+                    purchaseTotal, returnedTotal, externalPaid, purchaseTotal - returnedTotal - externalPaid);
             }));
         }).RequireAuthorization(StorePermissions.PurchasesRead);
 
@@ -114,7 +113,91 @@ public static class PurchaseEndpoints
                     payments = x.Payments.OrderByDescending(p => p.PaidAt)
                         .Select(p => new { p.Id, p.Amount, p.Method, p.Reference, p.PaidAt })
                 }).ToListAsync();
-            return Results.Ok(new { supplierId = supplier.Id, supplier = supplier.Name, invoices });
+            var invoiceIds = invoices.Select(x => x.Id).ToArray();
+            var corrections = await db.PurchaseCorrections.AsNoTracking().Where(x => invoiceIds.Contains(x.PurchaseId))
+                .Include(x => x.Lines).ThenInclude(x => x.PurchaseLine).ThenInclude(x => x.Batch).ThenInclude(x => x.Medicine)
+                .OrderByDescending(x => x.CreatedAt).ToListAsync();
+            return Results.Ok(new
+            {
+                supplierId = supplier.Id, supplier = supplier.Name,
+                invoices = invoices.Select(invoice => new
+                {
+                    invoice.Id, invoice.supplier, invoice.SupplierInvoice, invoice.CreatedAt, invoice.Total,
+                    invoice.returnedTotal, invoice.paidTotal, invoice.lines, invoice.returns, invoice.payments,
+                    corrections = corrections.Where(correction => correction.PurchaseId == invoice.Id).Select(correction => new
+                    {
+                        correction.Id, correction.Reason, correction.ActorId, correction.CreatedAt,
+                        correction.PreviousTotal, correction.CorrectedTotal,
+                        lines = correction.Lines.Select(line => new { line.PurchaseLineId,
+                            medicine = line.PurchaseLine.Batch.Medicine.Name, batch = line.PurchaseLine.Batch.Number,
+                            line.PreviousQuantity, line.CorrectedQuantity, line.QuantityChange })
+                    })
+                })
+            });
+        }).RequireAuthorization(StorePermissions.PurchasesRead);
+
+        api.MapPost("/purchases/{id:long}/corrections", async (long id, PurchaseCorrectionRequest input, StoreDb db, ClaimsPrincipal principal) =>
+        {
+            var reason = input.Reason?.Trim();
+            if (string.IsNullOrWhiteSpace(reason) || reason.Length > 300 || input.Lines is null || input.Lines.Count == 0 ||
+                input.Lines.Any(x => x.CorrectedQuantity <= 0) || input.Lines.Select(x => x.PurchaseLineId).Distinct().Count() != input.Lines.Count)
+                return Results.BadRequest("Enter a reason and a positive corrected quantity for each selected purchase line.");
+
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var purchase = await db.Purchases.Include(x => x.Lines).ThenInclude(x => x.Batch).ThenInclude(x => x.Medicine)
+                .SingleOrDefaultAsync(x => x.Id == id);
+            if (purchase is null) return Results.NotFound();
+
+            var byId = purchase.Lines.ToDictionary(x => x.Id);
+            var changes = new List<(PurchaseLine Line, int CorrectedQuantity, int Delta)>();
+            foreach (var requested in input.Lines)
+            {
+                if (!byId.TryGetValue(requested.PurchaseLineId, out var line))
+                    return Results.BadRequest("A purchase line does not belong to this invoice.");
+                if (requested.CorrectedQuantity < line.ReturnedQuantity)
+                    return Results.Conflict("Corrected quantity cannot be less than the quantity already returned to the supplier.");
+                var delta = requested.CorrectedQuantity - line.Quantity;
+                if (delta < 0 && line.Batch.Quantity < -delta)
+                    return Results.Conflict($"Cannot reduce {line.Batch.Medicine.Name} by {-delta}; only {line.Batch.Quantity} units remain in this batch. Some units may already have been sold or adjusted.");
+                if (delta != 0) changes.Add((line, requested.CorrectedQuantity, delta));
+            }
+            if (changes.Count == 0) return Results.BadRequest("No purchase quantities have changed.");
+
+            var previousTotal = purchase.Total;
+            var correctedQuantities = changes.ToDictionary(x => x.Line.Id, x => x.CorrectedQuantity);
+            var correctedTotal = decimal.Round(purchase.Lines.Sum(x => (decimal)correctedQuantities.GetValueOrDefault(x.Id, x.Quantity) * x.UnitCost), 2);
+            var correction = new PurchaseCorrection { PurchaseId = id, Reason = reason, PreviousTotal = previousTotal,
+                CorrectedTotal = correctedTotal, ActorId = principal.FindFirstValue(ClaimTypes.NameIdentifier) };
+            foreach (var (line, correctedQuantity, delta) in changes)
+            {
+                var previousQuantity = line.Quantity;
+                line.Quantity = correctedQuantity;
+                line.Batch.Quantity += delta;
+                correction.Lines.Add(new PurchaseCorrectionLine { PurchaseLineId = line.Id,
+                    PreviousQuantity = previousQuantity, CorrectedQuantity = correctedQuantity, QuantityChange = delta });
+                db.StockMovements.Add(new StockMovement { BatchId = line.BatchId, Type = "PurchaseCorrection", ReferenceId = id,
+                    QuantityChange = delta, BalanceAfter = line.Batch.Quantity, Reason = reason,
+                    ActorId = principal.FindFirstValue(ClaimTypes.NameIdentifier) });
+            }
+            purchase.Total = correctedTotal;
+            db.PurchaseCorrections.Add(correction);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return Results.Ok(new { correction.Id, previousTotal, correctedTotal, quantityChanges = correction.Lines.Count });
+        }).RequireAuthorization(StorePermissions.PurchasesManage);
+
+        api.MapGet("/purchases/{id:long}/corrections", async (long id, StoreDb db) =>
+        {
+            if (!await db.Purchases.AnyAsync(x => x.Id == id)) return Results.NotFound();
+            var corrections = await db.PurchaseCorrections.AsNoTracking().Where(x => x.PurchaseId == id)
+                .Include(x => x.Lines).ThenInclude(x => x.PurchaseLine).ThenInclude(x => x.Batch).ThenInclude(x => x.Medicine)
+                .OrderByDescending(x => x.CreatedAt).ToListAsync();
+            return Results.Ok(corrections.Select(x => new
+            {
+                x.Id, x.Reason, x.ActorId, x.CreatedAt, x.PreviousTotal, x.CorrectedTotal,
+                lines = x.Lines.Select(line => new { line.PurchaseLineId, medicine = line.PurchaseLine.Batch.Medicine.Name,
+                    batch = line.PurchaseLine.Batch.Number, line.PreviousQuantity, line.CorrectedQuantity, line.QuantityChange })
+            }));
         }).RequireAuthorization(StorePermissions.PurchasesRead);
 
         api.MapPost("/purchases/{id:long}/returns", async (long id, PurchaseReturnRequest input, StoreDb db, ClaimsPrincipal principal) =>
@@ -169,7 +252,8 @@ public static class PurchaseEndpoints
             db.SupplierPayments.Add(payment);
             await db.SaveChangesAsync();
             await tx.CommitAsync();
-            return Results.Created($"/api/purchases/{id}/payments/{payment.Id}", new { payment.Id, payment.Amount, payment.Method, supplierCreditAdded = Math.Max(0m, amount - outstanding) });
+            return Results.Created($"/api/purchases/{id}/payments/{payment.Id}", new { payment.Id, payment.Amount, payment.Method,
+                supplierCreditAdded = Math.Max(0m, amount - outstanding) });
         }).RequireAuthorization(StorePermissions.PurchasesManage);
     }
 }

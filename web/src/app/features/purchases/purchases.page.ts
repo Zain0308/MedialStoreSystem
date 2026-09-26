@@ -8,7 +8,7 @@ import { RouterLink } from '@angular/router';
 import { Medicine, MedicinesApi } from '../medicines/public-api';
 import { Supplier, SuppliersApi } from '../suppliers/public-api';
 import { PurchasesApi } from './purchases.api';
-import { PurchaseHistory, SupplierAccountSummary, SupplierStatement } from './purchases.models';
+import { PurchaseCorrectionHistory, PurchaseHistory, SupplierAccountSummary, SupplierStatement } from './purchases.models';
 import { AuthSession } from '../authentication/public-api';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
@@ -46,6 +46,8 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   readonly supplierAccounts = signal<SupplierAccountSummary[]>([]);
   readonly selectedSupplierStatement = signal<SupplierStatement | null>(null);
   readonly selectedPurchase = signal<PurchaseHistory | null>(null);
+  readonly purchaseCorrections = signal<PurchaseCorrectionHistory[]>([]);
+  correctionForm = { reason: '', quantities: {} as Record<number, number> };
   readonly returnLineOptions = computed<SearchPickerOption[]>(() => (this.selectedPurchase()?.lines ?? [])
     .filter(line => line.quantity > line.returnedQuantity && line.onHand > 0)
     .map(line => ({ value: line.id, label: line.medicine, detail: `${line.batch} · ${line.onHand} units on hand`, searchText: line.batch })));
@@ -177,23 +179,47 @@ export class PurchasesPage extends PageFeedback implements OnInit {
         '', item.total, '', '', item.supplierReference, item.reason, '', '']);
       for (const payment of invoice.payments) rows.push(['Payment', invoice.supplierInvoice, payment.paidAt,
         '', '', payment.amount, '', payment.method, payment.reference, '', '']);
+      for (const correction of invoice.corrections ?? []) for (const line of correction.lines) {
+        rows.push(['Correction', invoice.supplierInvoice, correction.createdAt,
+          correction.correctedTotal - correction.previousTotal, '', '', '', line.medicine,
+          `${line.batch} · ${correction.reason}`, `${line.previousQuantity} → ${line.correctedQuantity}`, '']);
+      }
     }
     downloadCsv(`supplier-ledger-${safeFilename(account.supplier)}.csv`,
       ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance',
         'Item / method / reference', 'Batch / reason', 'Quantity', 'Unit cost'], rows);
   }
-  openStatementInvoice(purchase: PurchaseHistory): void {
+  openStatementInvoice(purchase: PurchaseHistory): Promise<void> {
     this.overpaymentDialog.set(false);
     this.selectedPurchase.set(purchase);
+    this.correctionForm = { reason: '', quantities: Object.fromEntries(purchase.lines.map(line => [line.id, line.quantity])) };
     this.transactionSearch.set(''); this.transactionType.set('all'); this.transactionPage.set(1);
     const eligible = purchase.lines.find(line => line.quantity > line.returnedQuantity && line.onHand > 0);
     this.returnForm = { lineId: eligible?.id ?? 0, quantity: 1, supplierReference: '', reason: '' };
     this.paymentForm = { amount: 0, method: 'Cash', reference: '' };
+    return this.perform(async () => this.purchaseCorrections.set(await this.api.corrections(purchase.id)));
   }
-  openReturn(purchase: PurchaseHistory): void {
-    this.openStatementInvoice(purchase);
+  openReturn(purchase: PurchaseHistory): Promise<void> {
+    return this.openStatementInvoice(purchase);
   }
-  openPayment(purchase: PurchaseHistory): void { this.openReturn(purchase); this.paymentForm.amount = this.balance(purchase); }
+  openPayment(purchase: PurchaseHistory): void { void this.openReturn(purchase); this.paymentForm.amount = this.balance(purchase); }
+  submitCorrection(): Promise<void> {
+    const purchase = this.selectedPurchase(); if (!purchase) return Promise.resolve();
+    const lines = purchase.lines.filter(line => +this.correctionForm.quantities[line.id] !== line.quantity)
+      .map(line => ({ purchaseLineId: line.id, correctedQuantity: +this.correctionForm.quantities[line.id] }));
+    if (!lines.length) return Promise.resolve();
+    return this.perform(async () => {
+      const result = await this.api.correct(purchase.id, { reason: this.correctionForm.reason, lines });
+      this.selectedPurchase.set(null); await this.refreshFinancials();
+      this.message.set(`Purchase corrected. Total changed from Rs ${result.previousTotal.toFixed(2)} to Rs ${result.correctedTotal.toFixed(2)}; stock and supplier balance were updated.`);
+    });
+  }
+  formatCorrectionLines(correction: PurchaseCorrectionHistory): string {
+    return correction.lines.map(line => `${line.medicine} (${line.previousQuantity} → ${line.correctedQuantity})`).join(', ');
+  }
+  hasCorrectionChanges(purchase: PurchaseHistory): boolean {
+    return purchase.lines.some(line => +this.correctionForm.quantities[line.id] !== line.quantity);
+  }
   balance(purchase: PurchaseHistory): number { return Math.max(0, purchase.total - purchase.returnedTotal - purchase.paidTotal); }
   get paymentExcess(): number {
     const purchase = this.selectedPurchase();

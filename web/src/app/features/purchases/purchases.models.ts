@@ -22,6 +22,7 @@ export interface PurchaseHistory {
   lines: { id: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitCost: number; onHand: number }[];
   returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[];
   payments: { id: number; amount: number; method: string; reference?: string; paidAt: string }[];
+  corrections?: PurchaseCorrectionHistory[];
 }
 export interface SupplierAccountSummary {
   supplierId: number;
@@ -36,4 +37,8 @@ export interface SupplierStatement {
   supplierId: number;
   supplier: string;
   invoices: PurchaseHistory[];
+}
+export interface PurchaseCorrectionHistory {
+  id: number; reason: string; actorId?: string; createdAt: string; previousTotal: number; correctedTotal: number;
+  lines: { purchaseLineId: number; medicine: string; batch: string; previousQuantity: number; correctedQuantity: number; quantityChange: number }[];
 }

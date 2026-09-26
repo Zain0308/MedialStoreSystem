@@ -25,6 +25,8 @@ public sealed class StoreDb(DbContextOptions<StoreDb> options, CurrentStoreConte
     public DbSet<PurchaseLine> PurchaseLines => Set<PurchaseLine>();
     public DbSet<PurchaseReturn> PurchaseReturns => Set<PurchaseReturn>();
     public DbSet<PurchaseReturnLine> PurchaseReturnLines => Set<PurchaseReturnLine>();
+    public DbSet<PurchaseCorrection> PurchaseCorrections => Set<PurchaseCorrection>();
+    public DbSet<PurchaseCorrectionLine> PurchaseCorrectionLines => Set<PurchaseCorrectionLine>();
     public DbSet<SupplierPayment> SupplierPayments => Set<SupplierPayment>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleLine> SaleLines => Set<SaleLine>();
