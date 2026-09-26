@@ -6,6 +6,12 @@
     (confirmed)="confirmStatusChange()" (cancelled)="pendingStatusChange.set(null)" />
 }
 <div class="page-content">
+  @if (session.hasPermission('purchases.read')) {
+    <nav class="supplier-workspace-tabs" aria-label="Supplier workspace">
+      <a routerLink="/suppliers" routerLinkActive="selected" [routerLinkActiveOptions]="{ exact: true }">Suppliers</a>
+      <a routerLink="/suppliers/purchases" routerLinkActive="selected">Purchases &amp; payments</a>
+    </nav>
+  }
   @if (session.hasPermission('suppliers.manage')) {
     <section class="panel form-panel">
       <div class="panel-head"><div><h3>{{ editingId() === null ? 'Add supplier' : 'Edit supplier' }}</h3>

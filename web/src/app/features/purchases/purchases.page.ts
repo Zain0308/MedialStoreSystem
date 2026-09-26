@@ -4,9 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { PageFeedback } from '../../shared/ui/page-feedback';
 import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
 
-import { RouterLink } from '@angular/router';
-import { Medicine, MedicinesApi } from '../medicines/public-api';
-import { Supplier, SuppliersApi } from '../suppliers/public-api';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { PurchasesApi } from './purchases.api';
 import { PurchaseCorrectionHistory, PurchaseHistory, SupplierAccountSummary, SupplierStatement } from './purchases.models';
 import { AuthSession } from '../authentication/public-api';
@@ -16,32 +14,13 @@ import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/searc
 
 @Component({
   selector: 'app-purchases-page',
-  imports: [CommonModule, FormsModule, RouterLink, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent],
+  imports: [CommonModule, FormsModule, RouterLink, RouterLinkActive, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent],
   styleUrl: './purchases.page.css',
   templateUrl: './purchases.page.html',
 })
 export class PurchasesPage extends PageFeedback implements OnInit {
   private readonly api = inject(PurchasesApi);
   readonly session = inject(AuthSession);
-  private readonly medicinesApi = inject(MedicinesApi);
-  private readonly suppliersApi = inject(SuppliersApi);
-  readonly medicines = signal<Medicine[]>([]);
-  readonly medicineOptions = computed<SearchPickerOption[]>(() => this.medicines().map(medicine => ({
-    value: medicine.id, label: medicine.name,
-    detail: [medicine.genericName, medicine.strength, medicine.dosageForm].filter(Boolean).join(' · '),
-    searchText: medicine.barcode ?? '',
-  })));
-  readonly suppliers = signal<Supplier[]>([]);
-  readonly supplierPickerSearch = signal('');
-  readonly matchingSuppliers = computed(() => {
-    const term = this.supplierPickerSearch().trim().toLocaleLowerCase();
-    if (!term) return [];
-    const selected = this.suppliers().find(supplier => supplier.id === this.purchase.supplierId);
-    if (selected?.name.toLocaleLowerCase() === term) return [];
-    return this.suppliers().filter(supplier => supplier.isActive &&
-      [supplier.name, supplier.contactPerson ?? '', supplier.phone ?? ''].some(value => value.toLocaleLowerCase().includes(term)))
-      .slice(0, 10);
-  });
   readonly purchases = signal<PurchaseHistory[]>([]);
   readonly supplierAccounts = signal<SupplierAccountSummary[]>([]);
   readonly selectedSupplierStatement = signal<SupplierStatement | null>(null);
@@ -113,48 +92,14 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   returnForm = { lineId: 0, quantity: 1, supplierReference: '', reason: '' };
   paymentForm = { amount: 0, method: 'Cash', reference: '' };
   readonly overpaymentDialog = signal(false);
-  readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
-  readonly minimumExpiryDate = this.dateOffset(1);
-  purchase = this.emptyForm(0);
+  readonly paymentMethods = ['Cash', 'Bank Transfer'];
   ngOnInit(): void {
     void this.perform(async () => {
-      const [medicines, suppliers, purchases, supplierAccounts] = await Promise.all([
-        this.medicinesApi.list(),
-        this.suppliersApi.list(), this.api.list(), this.api.supplierAccounts(),
-      ]);
-      this.medicines.set(medicines);
-      this.suppliers.set(suppliers);
+      const [purchases, supplierAccounts] = await Promise.all([this.api.list(), this.api.supplierAccounts()]);
       this.purchases.set(purchases);
       this.supplierAccounts.set(supplierAccounts);
     });
   }
-  receivePurchase(): Promise<void> {
-    if (!this.purchase.supplierId || !this.purchase.medicineId) return Promise.resolve();
-    return this.perform(async () => {
-      const p = this.purchase;
-      const result = await this.api.receive({
-        supplierId: +p.supplierId,
-        supplierInvoice: p.supplierInvoice,
-        lines: [
-          {
-            medicineId: +p.medicineId,
-            batchNumber: p.batchNumber,
-            expiryDate: p.expiryDate,
-            quantity: +p.quantity,
-            costPrice: +p.costPrice,
-            salePrice: +p.salePrice,
-          },
-        ],
-      });
-      this.purchase = this.emptyForm(p.supplierId);
-      this.supplierPickerSearch.set(this.suppliers().find(supplier => supplier.id === p.supplierId)?.name ?? '');
-      await this.refreshFinancials();
-      this.message.set(result.supplierCreditApplied
-        ? `Purchase received; batch stock updated. Rs ${result.supplierCreditApplied.toFixed(2)} supplier credit was applied.`
-        : 'Purchase received; batch stock updated.');
-    });
-  }
-  private async refreshPurchases(): Promise<void> { this.purchases.set(await this.api.list()); }
   private async refreshFinancials(): Promise<void> {
     const [purchases, accounts] = await Promise.all([this.api.list(), this.api.supplierAccounts()]);
     this.purchases.set(purchases);
@@ -259,34 +204,5 @@ export class PurchasesPage extends PageFeedback implements OnInit {
         ? `Supplier payment recorded. Rs ${result.supplierCreditAdded.toFixed(2)} added to supplier credit for the next purchase.`
         : 'Supplier payment recorded.');
     });
-  }
-  private emptyForm(supplierId: number) {
-    return {
-      supplierId,
-      supplierInvoice: '',
-      medicineId: 0,
-      batchNumber: '',
-      expiryDate: '',
-      quantity: 1,
-      costPrice: 0,
-      salePrice: 0,
-    };
-  }
-  private dateOffset(days: number): string {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-  }
-  searchSuppliers(value: string): void {
-    this.supplierPickerSearch.set(value);
-    this.purchase.supplierId = 0;
-  }
-  selectSupplier(supplier: Supplier): void {
-    this.purchase.supplierId = supplier.id;
-    this.supplierPickerSearch.set(supplier.name);
-  }
-  clearSupplier(): void {
-    this.purchase.supplierId = 0;
-    this.supplierPickerSearch.set('');
   }
 }

@@ -126,6 +126,7 @@ export class InventoryPage extends PageFeedback implements OnInit {
       this.session.hasPermission('suppliers.read');
   }
   openPurchase(medicineId = 0): void {
+    if (!this.canCreatePurchase()) return;
     this.purchaseMedicineId.set(medicineId);
     this.purchaseDialogOpen.set(true);
   }

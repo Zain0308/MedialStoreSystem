@@ -40,7 +40,7 @@ public static class StorePermissions
         [InventoryRead] = "View inventory",
         [InventoryManage] = "Adjust inventory",
         [PurchasesRead] = "View purchases",
-        [PurchasesManage] = "Receive purchases",
+        [PurchasesManage] = "Receive purchases, process returns and supplier payments",
         [SalesRead] = "View sales and receipts",
         [SalesCreate] = "Create sales at POS",
         [SalesManage] = "Process sales returns and discounts",

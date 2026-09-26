@@ -39,13 +39,7 @@ export const APP_ROUTES: Routes = [
         loadChildren: () =>
           import('./features/inventory/inventory.routes').then((m) => m.INVENTORY_ROUTES),
       },
-      {
-        path: 'purchases',
-        canActivate: [permissionGuard],
-        data: { permissions: ['purchases.read', 'medicines.read', 'suppliers.read'] },
-        loadChildren: () =>
-          import('./features/purchases/purchases.routes').then((m) => m.PURCHASES_ROUTES),
-      },
+      { path: 'purchases', redirectTo: 'suppliers/purchases', pathMatch: 'full' },
       {
         path: 'sales',
         loadChildren: () => import('./features/sales/sales.routes').then((m) => m.SALES_ROUTES),

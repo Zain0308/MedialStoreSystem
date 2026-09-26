@@ -1,84 +1,17 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 <div class="page-content">
-  @if (session.hasPermission('purchases.manage')) { <section class="panel form-panel">
-    <h3>Receive stock</h3>
-    <p><a routerLink="/suppliers">Manage suppliers →</a></p>
-    <p>Each received line creates a traceable batch. Quantities are individual sale units.</p>
-    <form (ngSubmit)="receivePurchase()">
-      <div class="form-grid">
-        <label class="supplier-picker">Supplier
-          <input name="p-supplier" aria-label="Search supplier" [ngModel]="supplierPickerSearch()" (ngModelChange)="searchSuppliers($event)" placeholder="Type supplier name, contact or phone" autocomplete="off" required />
-          @if (purchase.supplierId) { <small>Selected: {{ supplierPickerSearch() }} · <button type="button" class="text-button" (click)="clearSupplier()">Change</button></small> }
-          @if (matchingSuppliers().length) {
-            <div class="supplier-picker-results">
-              @for (supplier of matchingSuppliers(); track supplier.id) { <button type="button" (click)="selectSupplier(supplier)"><strong>{{ supplier.name }}</strong>@if (supplier.phone) { <small>{{ supplier.phone }}</small> }</button> }
-            </div>
-          } @else if (supplierPickerSearch().trim() && !purchase.supplierId) { <small>No matching active suppliers.</small> }
-        </label>
-        <label
-          >Supplier invoice
-          <input
-            name="p-invoice"
-            [(ngModel)]="purchase.supplierInvoice"
-            required
-            placeholder="e.g. SUP-0042"
-        /></label>
-        <label>Medicine<app-search-picker ariaLabel="Purchase medicine" placeholder="Type medicine name, generic or barcode"
-          [options]="medicineOptions()" [value]="purchase.medicineId || null"
-          (valueChange)="purchase.medicineId = $event ?? 0" /></label>
-        <label
-          >Batch number
-          <input
-            name="p-batch"
-            [(ngModel)]="purchase.batchNumber"
-            required
-            placeholder="e.g. LOT-123"
-        /></label>
-        <label
-          >Expiry date
-          <input
-            name="p-expiry"
-            type="date"
-            [min]="minimumExpiryDate"
-            [(ngModel)]="purchase.expiryDate"
-            required
-        /></label>
-        <label
-          >Quantity (units)
-          <input name="p-qty" type="number" min="1" [(ngModel)]="purchase.quantity" required
-        /></label>
-        <label
-          >Unit cost (Rs)
-          <input
-            name="p-cost"
-            type="number"
-            step="0.01"
-            min="0"
-            [(ngModel)]="purchase.costPrice"
-            required
-        /></label>
-        <label
-          >Sale price (Rs)
-          <input
-            name="p-price"
-            type="number"
-            step="0.01"
-            min="0"
-            [(ngModel)]="purchase.salePrice"
-            required
-        /></label>
-      </div>
-      <div class="form-total">
-        <span>Purchase total</span
-        ><strong>Rs {{ purchase.quantity * purchase.costPrice | number: '1.2-2' }}</strong>
-      </div>
-      <button class="primary" [disabled]="busy() || !purchase.supplierId || !purchase.medicineId">
-        Receive batch →
-      </button>
-    </form>
-  </section> }
+  <nav class="supplier-workspace-tabs" aria-label="Supplier workspace">
+    @if (session.hasPermission('suppliers.read')) {
+      <a routerLink="/suppliers" routerLinkActive="selected" [routerLinkActiveOptions]="{ exact: true }">Supplier directory</a>
+    }
+    <a routerLink="/suppliers/purchases" routerLinkActive="selected">Purchases &amp; payments</a>
+    @if (session.hasPermission('purchases.manage') && session.hasPermission('inventory.read') &&
+      session.hasPermission('medicines.read') && session.hasPermission('suppliers.read')) {
+      <a class="tab-action" routerLink="/inventory">＋ Create purchase in Inventory</a>
+    }
+  </nav>
   <section class="panel supplier-account-panel">
-    <div class="panel-head"><div><h3>Supplier accounts</h3><p>Supplier credits carry forward and are automatically applied to that supplier’s next purchase.</p></div>
+    <div class="panel-head"><div><h3>Supplier accounts</h3><p>See each supplier’s purchases, returns, payments and remaining balance.</p></div>
       <span class="count">{{ filteredSupplierAccounts().length }} of {{ supplierAccounts().length }} suppliers</span>
     </div>
     <div class="purchase-filters"><label>Search suppliers<input aria-label="Filter supplier accounts" [ngModel]="supplierSearch()" (ngModelChange)="supplierSearch.set($event); supplierPage.set(1)" placeholder="Supplier name" /></label><label>Balance<select aria-label="Supplier account balance filter" [ngModel]="supplierBalanceFilter()" (ngModelChange)="supplierBalanceFilter.set($event); supplierPage.set(1)"><option value="all">All balances</option><option value="due">Amount due</option><option value="credit">Supplier credit</option><option value="settled">Settled</option></select></label></div>

@@ -1,6 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { PageFeedback } from '../../shared/ui/page-feedback';
 import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
 
@@ -14,7 +15,7 @@ import { ConfirmDialogComponent } from '../../shared/ui/confirm-dialog.component
 
 @Component({
   selector: 'app-suppliers-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, ConfirmDialogComponent],
+  imports: [CommonModule, FormsModule, RouterLink, RouterLinkActive, PageNoticeComponent, TablePaginationComponent, ConfirmDialogComponent],
   styleUrl: './suppliers.page.css',
   templateUrl: './suppliers.page.html',
 })
@@ -102,6 +103,11 @@ export class SuppliersPage extends PageFeedback implements OnInit {
         '', item.total, '', '', item.supplierReference, item.reason, '', '']);
       for (const payment of invoice.payments) rows.push(['Payment', invoice.supplierInvoice, payment.paidAt,
         '', '', payment.amount, '', payment.method, payment.reference, '', '']);
+      for (const correction of invoice.corrections ?? []) for (const line of correction.lines) {
+        rows.push(['Correction', invoice.supplierInvoice, correction.createdAt,
+          correction.correctedTotal - correction.previousTotal, '', '', '', line.medicine,
+          `${line.batch} · ${correction.reason}`, `${line.previousQuantity} → ${line.correctedQuantity}`, '']);
+      }
     }
     downloadCsv(`supplier-ledger-${safeFilename(account.supplier)}.csv`,
       ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance',

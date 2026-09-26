@@ -29,7 +29,7 @@ async function mockApi(page: Page) {
       ['users.manage', 'Manage users and roles'], ['roles.manage', 'Create roles and change permissions'], ['medicines.read', 'View medicines'],
       ['medicines.manage', 'Create medicines'], ['inventory.read', 'View inventory'],
       ['inventory.manage', 'Adjust inventory'], ['purchases.read', 'View purchases'],
-      ['purchases.manage', 'Receive purchases'], ['sales.read', 'View sales and receipts'],
+      ['purchases.manage', 'Receive purchases, process returns and supplier payments'], ['sales.read', 'View sales and receipts'],
       ['sales.create', 'Create sales at POS'], ['sales.manage', 'Process sales returns and discounts'], ['suppliers.read', 'View suppliers'],
       ['suppliers.manage', 'Manage suppliers'], ['customers.read', 'View customers and balances'], ['customers.manage', 'Manage customers and record payments'],
       ['expenses.read', 'View expenses'], ['expenses.manage', 'Manage expense categories and entries'], ['reports.read', 'View reports and dashboard'],
@@ -430,7 +430,7 @@ async function navigate(page: Page, name: RegExp) {
     '/expenses': 'Expenses',
     '/sales/pos': 'New sale',
     '/medicines': 'Medicines',
-    '/purchases': 'Receive purchase',
+    '/suppliers/purchases': 'Supplier purchases',
     '/inventory': 'Inventory',
     '/suppliers': 'Suppliers',
     '/sales': 'Sales history',
@@ -701,7 +701,7 @@ test('financial reports filter profit and loss by month and show supplier and cu
   await expect(accounts.getByText('RCPT-01')).toBeVisible();
 });
 
-test('medicine, supplier and purchase pages keep their own forms and update inventory', async ({ page }) => {
+test('supplier purchases stay under the supplier workspace and update inventory', async ({ page }) => {
   await mockApi(page); await signIn(page);
   await navigate(page, /Medicines/);
   await page.getByLabel('Medicine name').fill('Vitamin C');
@@ -725,19 +725,22 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await page.getByLabel('Filter suppliers').fill('no matching supplier');
   await expect(page.getByText('No suppliers match this filter.')).toBeVisible();
   await page.getByRole('button', { name: 'Clear filter' }).click();
-  await navigate(page, /Purchases/);
-  await page.getByLabel('Search supplier').fill('City');
-  await page.getByRole('button', { name: /City Pharma/ }).click();
-  await page.getByLabel('Supplier invoice').fill('SUP-002');
-  await page.getByLabel('Purchase medicine').fill('Vitamin C');
-  await page.getByRole('option').filter({ hasText: 'Vitamin C' }).click();
-  await page.getByLabel('Batch number').fill('VC-02');
-  await page.getByLabel('Expiry date').fill('2050-12-31');
-  await page.getByLabel('Quantity (units)').fill('10');
-  await page.getByLabel('Unit cost (Rs)').fill('3');
-  await page.getByLabel('Sale price (Rs)').fill('5');
-  await page.getByRole('button', { name: /Receive batch/ }).click();
+  await page.goto('/inventory');
+  await page.getByRole('button', { name: /Create purchase/ }).click();
+  const purchaseDialog = page.getByRole('dialog', { name: 'Create purchase' });
+  await purchaseDialog.getByLabel('Search purchase supplier').fill('City');
+  await purchaseDialog.getByRole('option').filter({ hasText: 'City Pharma' }).click();
+  await purchaseDialog.getByLabel('Search purchase medicine').fill('Vitamin C');
+  await purchaseDialog.getByRole('option').filter({ hasText: 'Vitamin C' }).click();
+  await purchaseDialog.getByLabel('Vitamin C batch number').fill('VC-02');
+  await purchaseDialog.getByLabel('Vitamin C expiry date').fill('2050-12-31');
+  await purchaseDialog.getByLabel('Vitamin C quantity').fill('10');
+  await purchaseDialog.getByLabel('Vitamin C unit cost').fill('3');
+  await purchaseDialog.getByLabel('Vitamin C sale price').fill('5');
+  await purchaseDialog.getByLabel('Purchase supplier invoice').fill('SUP-002');
+  await purchaseDialog.getByRole('button', { name: 'Receive purchase' }).click();
   await expect(page.getByText('Purchase received; batch stock updated.')).toBeVisible();
+  await page.goto('/suppliers/purchases');
   await page.getByRole('button', { name: 'Invoice details' }).click();
   await expect(page.getByLabel('Supplier return reference')).toHaveCount(0);
   await expect(page.getByLabel('Amount (Rs)')).toHaveCount(0);
@@ -888,19 +891,22 @@ test('POS can add a customer without losing the current sale or payment details'
 test('supplier overpayment requires confirmation and carries forward to that supplier', async ({ page }) => {
   const state = await mockApi(page);
   state.suppliers.push({ id: 2, name: 'City Pharma', phone: '03000000000', contactPerson: '', email: '', address: '', isActive: true });
-  await signIn(page); await navigate(page, /Purchases/);
-  await page.getByLabel('Search supplier').fill('City');
-  await page.getByRole('button', { name: /City Pharma/ }).click();
-  await page.getByLabel('Supplier invoice').fill('SUP-ADV-01');
-  await page.getByRole('textbox', { name: 'Purchase medicine' }).fill('Paracetamol');
-  await page.getByRole('option').filter({ hasText: 'Paracetamol 500mg' }).click();
-  await page.getByLabel('Batch number').fill('ADV-01');
-  await page.getByLabel('Expiry date').fill('2050-12-31');
-  await page.getByLabel('Quantity (units)').fill('2');
-  await page.getByLabel('Unit cost (Rs)').fill('5');
-  await page.getByLabel('Sale price (Rs)').fill('8');
-  await page.getByRole('button', { name: /Receive batch/ }).click();
+  await signIn(page); await page.goto('/inventory');
+  await page.getByRole('button', { name: /Create purchase/ }).click();
+  let dialog = page.getByRole('dialog', { name: 'Create purchase' });
+  await dialog.getByLabel('Search purchase supplier').fill('City');
+  await dialog.getByRole('option').filter({ hasText: 'City Pharma' }).click();
+  await dialog.getByLabel('Search purchase medicine').fill('Paracetamol');
+  await dialog.getByRole('option').filter({ hasText: 'Paracetamol 500mg' }).click();
+  await dialog.getByLabel('Paracetamol 500mg batch number').fill('ADV-01');
+  await dialog.getByLabel('Paracetamol 500mg expiry date').fill('2050-12-31');
+  await dialog.getByLabel('Paracetamol 500mg quantity').fill('2');
+  await dialog.getByLabel('Paracetamol 500mg unit cost').fill('5');
+  await dialog.getByLabel('Paracetamol 500mg sale price').fill('8');
+  await dialog.getByLabel('Purchase supplier invoice').fill('SUP-ADV-01');
+  await dialog.getByRole('button', { name: 'Receive purchase' }).click();
   await expect(page.getByText('Purchase received; batch stock updated.')).toBeVisible();
+  await page.goto('/suppliers/purchases');
 
   const firstInvoice = page.getByRole('row').filter({ hasText: 'SUP-ADV-01' });
   await firstInvoice.getByRole('button', { name: 'Record payment' }).click();
@@ -913,15 +919,22 @@ test('supplier overpayment requires confirmation and carries forward to that sup
   const accountRow = page.locator('.supplier-account-panel tbody tr').filter({ hasText: 'City Pharma' });
   await expect(accountRow).toContainText('Credit Rs 10.00');
 
-  await page.getByLabel('Supplier invoice').fill('SUP-ADV-02');
-  await page.getByRole('textbox', { name: 'Purchase medicine' }).fill('Paracetamol');
-  await page.getByRole('option').filter({ hasText: 'Paracetamol 500mg' }).click();
-  await page.getByLabel('Batch number').fill('ADV-02');
-  await page.getByLabel('Quantity (units)').fill('1');
-  await page.getByLabel('Unit cost (Rs)').fill('6');
-  await page.getByLabel('Sale price (Rs)').fill('9');
-  await page.getByRole('button', { name: /Receive batch/ }).click();
+  await page.goto('/inventory');
+  await page.getByRole('button', { name: /Create purchase/ }).click();
+  dialog = page.getByRole('dialog', { name: 'Create purchase' });
+  await dialog.getByLabel('Search purchase supplier').fill('City');
+  await dialog.getByRole('option').filter({ hasText: 'City Pharma' }).click();
+  await dialog.getByLabel('Search purchase medicine').fill('Paracetamol');
+  await dialog.getByRole('option').filter({ hasText: 'Paracetamol 500mg' }).click();
+  await dialog.getByLabel('Paracetamol 500mg batch number').fill('ADV-02');
+  await dialog.getByLabel('Paracetamol 500mg expiry date').fill('2050-12-31');
+  await dialog.getByLabel('Paracetamol 500mg quantity').fill('1');
+  await dialog.getByLabel('Paracetamol 500mg unit cost').fill('6');
+  await dialog.getByLabel('Paracetamol 500mg sale price').fill('9');
+  await dialog.getByLabel('Purchase supplier invoice').fill('SUP-ADV-02');
+  await dialog.getByRole('button', { name: 'Receive purchase' }).click();
   await expect(page.getByText('Purchase received; batch stock updated. Rs 6.00 supplier credit was applied.')).toBeVisible();
+  await page.goto('/suppliers/purchases');
   await expect(accountRow).toContainText('Credit Rs 4.00');
   expect(state.purchases[1].payments[0]).toMatchObject({ amount: 6, method: 'Supplier Credit' });
 });
@@ -1074,6 +1087,11 @@ test('cashier permissions limit navigation and hide medicine management', async 
   await expect(page.getByRole('button', { name: 'Add medicine', exact: true })).toHaveCount(0);
   await navigate(page, /New sale/);
   await expect(page.getByRole('button', { name: /Complete sale/ })).toBeVisible();
+  await page.goto('/inventory');
+  await expect(page.getByRole('button', { name: /Create purchase/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Purchase$/ })).toHaveCount(0);
+  await page.goto('/suppliers/purchases');
+  await expect(page).toHaveURL(/\/forbidden$/);
   await page.goto('/purchases');
   await expect(page).toHaveURL(/\/forbidden$/);
 });

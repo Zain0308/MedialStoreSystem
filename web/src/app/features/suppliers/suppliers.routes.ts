@@ -8,4 +8,10 @@ export const SUPPLIERS_ROUTES: Routes = [
     data: { title: 'Suppliers', permissions: ['suppliers.read'] },
     loadComponent: () => import('./suppliers.page').then((m) => m.SuppliersPage),
   },
+  {
+    path: 'purchases',
+    canActivate: [permissionGuard],
+    data: { title: 'Supplier purchases', permissions: ['purchases.read'] },
+    loadComponent: () => import('../purchases/purchases.page').then((m) => m.PurchasesPage),
+  },
 ];

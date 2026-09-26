@@ -1,3 +1,36 @@
+.supplier-workspace-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 5px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--border, #dfe4ec);
+  border-radius: 10px;
+  background: var(--surface, #fff);
+}
+
+.supplier-workspace-tabs a {
+  padding: 9px 14px;
+  border-radius: 7px;
+  color: var(--muted, #687386);
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.supplier-workspace-tabs a.selected {
+  color: var(--primary, #3659a5);
+  background: var(--primary-soft, #edf2ff);
+}
+
+.supplier-workspace-tabs .tab-action {
+  margin-left: 8px;
+  color: var(--primary, #3659a5);
+}
+
 .supplier-overpayment-backdrop {
   position: fixed;
   inset: 0;
