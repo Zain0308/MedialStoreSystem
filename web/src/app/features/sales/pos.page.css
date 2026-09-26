@@ -129,3 +129,12 @@
     grid-template-columns: 1fr;
   }
 }
+
+.customer-label-row { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.customer-label-row .customer-picker { margin:12px 0 0; }
+.customer-modal-backdrop { position:fixed; inset:0; z-index:1000; display:grid; place-items:center; padding:20px; background:rgba(17,38,29,.48); }
+.customer-modal { width:min(100%, 480px); max-height:calc(100vh - 40px); overflow:auto; box-shadow:0 22px 70px rgba(20,40,30,.24); }
+.customer-modal .panel-head { margin-bottom:18px; }
+.customer-modal .panel-head p { margin:5px 0 0; color:#829790; font-size:12px; }
+.customer-modal form { display:grid; gap:14px; }
+.customer-modal .form-actions { display:flex; align-items:center; gap:12px; margin-top:4px; }

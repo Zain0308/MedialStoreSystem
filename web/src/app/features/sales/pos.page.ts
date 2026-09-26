@@ -11,6 +11,7 @@ import { Receipt } from './sales.models';
 import { PosCartStore } from './pos-cart.store';
 import { ReceiptComponent } from './receipt.component';
 import { CustomersApi } from '../customers/public-api';
+import { AuthSession } from '../authentication/public-api';
 
 @Component({
   selector: 'app-pos-page',
@@ -23,6 +24,7 @@ export class PosPage extends PageFeedback implements OnInit {
   private readonly medicinesApi = inject(MedicinesApi);
   private readonly inventoryApi = inject(InventoryApi);
   private readonly customersApi = inject(CustomersApi);
+  readonly session = inject(AuthSession);
   readonly cart = inject(PosCartStore);
   readonly medicines = signal<Medicine[]>([]);
   readonly batches = signal<Batch[]>([]);
@@ -39,6 +41,8 @@ export class PosPage extends PageFeedback implements OnInit {
   discountAmount = 0;
   amountPaid: number | null = null;
   paymentMethod = 'Cash';
+  readonly addCustomerOpen = signal(false);
+  newCustomer = { name: '', phone: '', email: '' };
   readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet', 'Not Received'];
   ngOnInit(): void {
     void this.perform(() => this.refreshInventory());
@@ -79,6 +83,28 @@ export class PosPage extends PageFeedback implements OnInit {
   clearCustomer(): void {
     this.customerId = null;
     this.customerSearch.set('');
+  }
+  openAddCustomer(): void {
+    this.newCustomer = { name: '', phone: '', email: '' };
+    this.addCustomerOpen.set(true);
+  }
+  closeAddCustomer(): void { this.addCustomerOpen.set(false); }
+  addCustomer(): Promise<void> {
+    const input = {
+      name: this.newCustomer.name.trim(),
+      phone: this.newCustomer.phone.trim(),
+      email: this.newCustomer.email.trim(),
+    };
+    if (!input.name) return Promise.resolve();
+    return this.perform(async () => {
+      const { id } = await this.customersApi.create(input);
+      const customer = { id, name: input.name };
+      this.customers.update(customers => [...customers, customer]);
+      this.selectCustomer(customer);
+      this.addCustomerOpen.set(false);
+      this.newCustomer = { name: '', phone: '', email: '' };
+      this.message.set(`${customer.name} added and selected for this sale.`);
+    });
   }
   price(medicine: Medicine): number {
     const today = new Date().toISOString().slice(0, 10);

@@ -32,8 +32,11 @@
     </section>
     <section class="panel cart">
       <h3>Current sale</h3>
-      <label class="customer-picker">Customer (optional)
-        <input aria-label="Customer search" [ngModel]="customerSearch()" (ngModelChange)="searchCustomers($event)" placeholder="Search customer or leave blank for walk-in" autocomplete="off" />
+      <div class="customer-label-row"><label class="customer-picker" for="pos-customer-search">Customer (optional)</label>
+        @if (session.hasPermission('customers.manage')) { <button type="button" class="text-button" (click)="openAddCustomer()">＋ Add customer</button> }
+      </div>
+      <label class="customer-picker">
+        <input id="pos-customer-search" aria-label="Customer search" [ngModel]="customerSearch()" (ngModelChange)="searchCustomers($event)" placeholder="Search customer or leave blank for walk-in" autocomplete="off" />
       </label>
       @if (customerId) {
         <div class="selected-customer"><span>Selected: {{ customerSearch() }}</span><button type="button" class="text-button" (click)="clearCustomer()">Clear</button></div>
@@ -108,4 +111,18 @@
 </div>
 @if (receipt(); as savedReceipt) {
   <app-receipt [receipt]="savedReceipt" (closed)="receipt.set(null)" />
+}
+
+@if (addCustomerOpen()) {
+  <div class="customer-modal-backdrop" (click)="closeAddCustomer()">
+    <section class="customer-modal panel" role="dialog" aria-modal="true" aria-labelledby="add-customer-title" (click)="$event.stopPropagation()">
+      <div class="panel-head"><div><h3 id="add-customer-title">Add customer</h3><p>New customer will be selected for this sale.</p></div><button type="button" class="text-button" aria-label="Close add customer" (click)="closeAddCustomer()">Close</button></div>
+      <form (ngSubmit)="addCustomer()">
+        <label>Customer name<input name="newCustomerName" aria-label="New customer name" [(ngModel)]="newCustomer.name" required maxlength="160" autofocus /></label>
+        <label>Phone (optional)<input name="newCustomerPhone" aria-label="Customer phone" [(ngModel)]="newCustomer.phone" maxlength="40" /></label>
+        <label>Email (optional)<input name="newCustomerEmail" aria-label="Customer email" type="email" [(ngModel)]="newCustomer.email" maxlength="200" /></label>
+        <div class="form-actions"><button class="primary" [disabled]="busy() || !newCustomer.name.trim()">Add and select</button><button type="button" class="text-button" [disabled]="busy()" (click)="closeAddCustomer()">Cancel</button></div>
+      </form>
+    </section>
+  </div>
 }

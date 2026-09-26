@@ -613,6 +613,29 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await expect(page.locator('.receipt')).toContainText('Rs 2.50');
 });
 
+test('POS can add a customer without losing the current sale or payment details', async ({ page }) => {
+  const state = await mockApi(page); await signIn(page, '/sales/pos');
+  await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
+  await page.getByLabel('Discount').fill('1');
+  await page.getByLabel('Payment method').selectOption('Not Received');
+  await expect(page.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
+  await page.getByRole('button', { name: /Add customer/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Add customer' });
+  await dialog.getByLabel('New customer name').fill('Sara Ahmed');
+  await dialog.getByLabel('Customer phone').fill('03001234567');
+  await dialog.getByLabel('Customer email').fill('sara@example.com');
+  await dialog.getByRole('button', { name: 'Add and select' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.cart-row')).toContainText('Paracetamol 500mg');
+  await expect(page.getByLabel('Discount')).toHaveValue('1');
+  await expect(page.getByText('Selected: Sara Ahmed')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Complete sale/ })).toBeEnabled();
+  await page.getByRole('button', { name: /Complete sale/ }).click();
+  expect(state.customers).toHaveLength(1);
+  expect(state.customers[0]).toMatchObject({ name: 'Sara Ahmed', phone: '03001234567', email: 'sara@example.com' });
+  expect(state.sales[0]).toMatchObject({ customerId: state.customers[0].id, total: 4, paymentMethod: 'Not Received' });
+});
+
 test('store users can create expense categories, record expenses and filter the ledger by date', async ({ page }) => {
   await mockApi(page); await signIn(page);
   await navigate(page, /Expenses/);
