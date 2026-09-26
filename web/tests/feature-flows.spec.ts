@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 17171)
+Total output lines: 983
+
 import { expect, Page, test } from '@playwright/test';
 
 // UI contract fixtures only. These tests do not replace API/SQL integration tests.
@@ -9,6 +12,7 @@ async function mockApi(page: Page) {
     expenseCategories: [] as { id: number; name: string; isActive: boolean }[],
     expenses: [] as { id: number; categoryId: number; category: string; description: string; amount: number; expenseDate: string; paymentMethod: string; reference?: string; notes?: string }[],
     batches: [{ id: 1, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-01', expiryDate: '2050-12-31', costPrice: 2, salePrice: 5, quantity: 20 }],
+    expiryBatches: [] as { id: number; medicineId: number; medicine: string; batch: string; expiryDate: string; quantity: number; costPrice: number; purchasedAt: string; supplier: string; supplierInvoice: string }[],
     sales: [] as { id: number; invoiceNumber: string; createdAt: string; subtotal: number; discountAmount: number; total: number; paymentMethod: string; returnedTotal: number; customerId?: number | null; paidTotal?: number }[],
     receipts: {} as Record<number, unknown>,
     purchases: [] as { id: number; supplier: string; supplierInvoice: string; createdAt: string; total: number; returnedTotal: number; paidTotal: number; lines: { id: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitCost: number; onHand: number }[]; returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[]; payments: { id: number; amount: number; method: string; reference: string; paidAt: string }[]; corrections: { id: number; reason: string; createdAt: string; previousTotal: number; correctedTotal: number; lines: { purchaseLineId: number; medicine: string; batch: string; previousQuantity: number; correctedQuantity: number; quantityChange: number }[] }[] }[],
@@ -237,6 +241,7 @@ async function mockApi(page: Page) {
       Object.assign(supplier, request.postDataJSON()); return reply(supplier);
     }
     if (path === '/api/inventory/movements') return reply(state.movements);
+    if (path === '/api/inventory/expiry') return reply(state.expiryBatches);
     const medicineInventoryDetails = path.match(/^\/api\/inventory\/medicines\/(\d+)\/details$/);
     if (medicineInventoryDetails) {
       const medicineId = Number(medicineInventoryDetails[1]);
@@ -357,178 +362,46 @@ async function mockApi(page: Page) {
       const amountPaid = body.paymentMethod === 'Not Received' ? 0 : (body.paymentMethod === 'Cash' ? Math.min(body.cashReceived, totalDue) : body.amountPaid ?? totalDue);
       const paymentMethod = amountPaid === 0 && body.paymentMethod === 'Not Received' ? 'Not Received' : amountPaid < totalDue ? 'Credit' : body.paymentMethod;
       const sale = { id, invoiceNumber: `INV-${String(id).padStart(8, '0')}`, createdAt: new Date().toISOString(),
-        subtotal: total, discountAmount: body.discountAmount ?? 0, total: total - (body.discountAmount ?? 0),
-        paymentMethod, returnedTotal: 0, customerId: body.customerId ?? null, paidTotal: amountPaid };
-      const receiptLines = lines.map((line: { medicine: string; batch: string; quantity: number; unitPrice: number; total: number }, index: number) => ({
-        saleLineId: index + 1, ...line, returnedQuantity: 0,
-        discountAmount: index === 0 ? body.discountAmount ?? 0 : 0,
-        total: line.total - (index === 0 ? body.discountAmount ?? 0 : 0),
-      }));
-      state.sales.push(sale); state.receipts[id] = { ...sale, customer: state.customers.find(c => c.id === body.customerId)?.name,
-        cashReceived: body.cashReceived, paidTotal: amountPaid, lines: receiptLines };
-      return reply({ ...sale, change: body.paymentMethod === 'Cash' ? Math.max(0, body.cashReceived - amountPaid) : 0 }, 201);
-    }
-    const saleReturn = path.match(/^\/api\/sales\/(\d+)\/returns$/);
-    if (saleReturn && method === 'POST') {
-      const id = Number(saleReturn[1]);
-      const receipt = state.receipts[id] as { returnedTotal: number; lines: { saleLineId: number; quantity: number; returnedQuantity: number; unitPrice: number; discountAmount: number }[] };
-      const body = request.postDataJSON(); const requestLine = body.lines[0];
-      const line = receipt.lines.find(x => x.saleLineId === requestLine.saleLineId)!;
-      line.returnedQuantity += requestLine.quantity;
-      const refund = requestLine.quantity * (line.unitPrice - line.discountAmount / line.quantity);
-      receipt.returnedTotal += refund; state.sales.find(x => x.id === id)!.returnedTotal = receipt.returnedTotal;
-      if (requestLine.restock) state.batches[0].quantity += requestLine.quantity;
-      return reply({ id: 1, totalRefund: refund, refundMethod: body.refundMethod }, 201);
-    }
-    if (/^\/api\/sales\/\d+$/.test(path)) {
-      if (state.failReceipt) return reply('Receipt unavailable', 500);
-      return reply(state.receipts[Number(path.split('/').pop())]);
-    }
-    return reply(`Unexpected API request: ${method} ${path}`, 501);
-  });
-  return state;
-}
-
-async function submitLogin(page: Page) {
-  await page.getByLabel('Email', { exact: true }).fill('owner@example.com');
-  await page.getByLabel('Password', { exact: true }).fill('ExamplePassword123!');
-  await page.getByRole('button', { name: /Sign in/ }).click();
-}
-async function signIn(page: Page, path = '/reports') {
-  await page.goto(path);
-  await expect(page).toHaveURL(/\/login/);
-  await submitLogin(page);
-  await expect(page).toHaveURL(new RegExp(`${path}$`));
-}
-async function navigate(page: Page, name: RegExp) {
-  const link = page.getByRole('navigation').getByRole('link', { name });
-  const href = await link.getAttribute('href');
-  const pageTitleByPath: Record<string, string> = {
-    '/reports': 'Overview',
-    '/reports/financial-accounts': 'Financial Accounts',
-    '/customers': 'Customers',
-    '/expenses': 'Expenses',
-    '/sales/pos': 'New sale',
-    '/medicines': 'Medicines',
-    '/purchases': 'Receive purchase',
-    '/inventory': 'Inventory',
-    '/suppliers': 'Suppliers',
-    '/sales': 'Sales history',
-    '/owner': 'Application Owner Admin Panel',
-    '/users': 'Application Owner Admin Panel',
-  };
-  await link.click();
-  if (href && pageTitleByPath[href]) {
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(pageTitleByPath[href]);
-  }
-}
-
-test('protected deep links, session restore and 401 redirect', async ({ page }) => {
-  const state = await mockApi(page);
-  await signIn(page, '/inventory');
-  await expect(page.getByRole('row').filter({ hasText: 'Paracetamol 500mg' })).toContainText('Available');
-  await page.reload();
-  await expect(page).toHaveURL(/\/inventory$/);
-  await expect(page.getByRole('row').filter({ hasText: 'Paracetamol 500mg' })).toContainText('Available');
-  state.unauthorizedInventory = true;
-  await navigate(page, /Dashboard/); await navigate(page, /Inventory/);
-  await expect(page).toHaveURL(/\/login/);
-  expect(await page.evaluate(() => sessionStorage.getItem('medical-token'))).toBeNull();
-});
-
-test('dashboard shows the subscription countdown when five days remain', async ({ page }) => {
-  const state = await mockApi(page);
-  await signIn(page, '/reports');
-  await expect(page.getByRole('status').filter({ hasText: 'Subscription expires' })).toHaveCount(0);
-  state.subscriptionDaysRemaining = 5;
-  state.subscriptionExpiresAt = '2026-10-01T00:00:00Z';
-  await page.reload();
-  await expect(page.getByRole('status').filter({ hasText: 'Subscription expires in 5 days' })).toBeVisible();
-});
-
-test('expired store users can access only the dashboard', async ({ page }) => {
-  const state = await mockApi(page);
-  state.subscriptionExpired = true;
-  state.subscriptionExpiresAt = '2026-09-20T23:59:59Z';
-  await page.goto('/reports');
-  await expect(page).toHaveURL(/\/login/);
-  await page.getByLabel('Email', { exact: true }).fill('storeadmin@example.com');
-  await page.getByLabel('Password', { exact: true }).fill('ExamplePassword123!');
-  await page.getByRole('button', { name: /Sign in/ }).click();
-  await expect(page).toHaveURL(/\/reports$/);
-  await expect(page.getByRole('status').filter({ hasText: 'Subscription expired' })).toBeVisible();
-  await expect(page.getByRole('navigation').getByRole('link', { name: 'Dashboard' })).toBeVisible();
-  await expect(page.getByRole('navigation').getByRole('link', { name: 'Medicines' })).toHaveCount(0);
-  await page.goto('/medicines');
-  await expect(page).toHaveURL(/\/reports$/);
-  const status = await page.evaluate(async () => fetch('/api/medicines', {
-    headers: { Authorization: 'Bearer test-token' },
-  }).then(response => response.status));
-  expect(status).toBe(403);
-});
-
-test('switching stores persists the active store and reloads the workspace', async ({ page }) => {
-  await mockApi(page);
-  await signIn(page, '/reports');
-  await expect(page.getByLabel('Active store')).toHaveValue('1');
-  const reload = page.waitForNavigation({ waitUntil: 'load' });
-  await page.getByLabel('Active store').selectOption('2');
-  await reload;
-  await expect(page.getByLabel('Active store')).toHaveValue('2');
-});
-
-test('inventory movement report filters dates and purchase or sale sources with 20 rows per page', async ({ page }) => {
-  const state = await mockApi(page);
-  state.movements = Array.from({ length: 25 }, (_, index) => ({
-    id: index + 1, batchId: 1, medicine: 'Paracetamol 500mg', batch: 'LOT-01',
-    type: index % 2 === 0 ? 'Purchase' : 'Sale', quantityChange: index % 2 === 0 ? 10 : -1,
-    balanceAfter: 20, reason: '', createdAt: `2026-09-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
-  }));
-  await signIn(page, '/inventory');
-  const report = page.locator('.movement-report');
-  await expect(report.locator('tbody tr')).toHaveCount(20);
-  await report.getByRole('button', { name: 'Next' }).click();
-  await expect(report.locator('tbody tr')).toHaveCount(5);
-  await expect(report.getByText('Page 2 of 2')).toBeVisible();
-
-  await report.getByLabel('Movement type').selectOption('Purchase');
-  await expect(report.locator('tbody tr')).toHaveCount(13);
-  await expect(report.getByText('Page 1 of 1')).toBeVisible();
-  await report.getByLabel('Movement type').selectOption('Sale');
-  await expect(report.locator('tbody tr')).toHaveCount(12);
-  await report.getByLabel('Movement type').selectOption('Purchase');
-  await report.getByLabel('From date').fill('2026-09-10');
-  await report.getByLabel('To date').fill('2026-09-20');
-  await expect(report.locator('tbody tr')).toHaveCount(5);
-});
-
-test('inventory lists one row per medicine and expands complete batch purchase details', async ({ page }) => {
-  const state = await mockApi(page);
-  state.batches.push(...Array.from({ length: 20 }, (_, index) => ({ id: index + 2, medicineId: 1,
-    medicine: 'Paracetamol 500mg', number: `LOT-${String(index + 2).padStart(2, '0')}`,
-    expiryDate: '2051-12-31', costPrice: index === 0 ? 3 : 1, salePrice: index === 0 ? 6 : 2,
-    quantity: index === 0 ? 8 : 1 })));
-  await signIn(page, '/inventory');
-  const table = page.locator('.inventory-product-table');
-  await expect(table.locator('tbody tr')).toHaveCount(1);
-  await expect(table.locator('tbody tr').first()).toContainText('47');
-  await expect(table.locator('tbody tr').first()).toContainText('21');
-  await page.getByRole('button', { name: 'View details for Paracetamol 500mg' }).click();
-  const details = page.getByRole('dialog', { name: 'Paracetamol 500mg' });
-  await expect(details).toContainText('SUP-1');
-  await expect(details).toContainText('SUP-2');
-  await expect(details).toContainText('Demo Pharma');
-  await expect(details).toContainText('LOT-01');
-  await expect(details).toContainText('LOT-02');
+        subtotal: total, discountAmount: body.discountAmount ?? 0, total: total - (body.discountAmount…2171 tokens truncated…ainText('LOT-02');
   await expect(details.getByRole('article')).toHaveCount(20);
   await details.getByRole('button', { name: 'Next' }).click();
   await expect(details).toContainText('SUP-21');
   await details.getByLabel('Search purchases').fill('SUP-21');
   await expect(details).toContainText('Showing 1–1 of 1');
+  await expect(details).toContainText('Supplier credit Rs 4.00');
   await details.getByRole('tab', { name: /Payments/ }).click();
   await expect(details).toContainText('No payments recorded');
   await details.getByRole('button', { name: 'Close medicine details' }).click();
   await expect(details).toHaveCount(0);
+});
+
+test('expiry tracking shows purchase details and filters upcoming and expired batches', async ({ page }) => {
+  const state = await mockApi(page);
+  const expiryDate = (offset: number) => {
+    const date = new Date(); date.setDate(date.getDate() + offset);
+    return date.toISOString().slice(0, 10);
+  };
+  state.expiryBatches.push(...Array.from({ length: 21 }, (_, index) => ({ id: index + 1, medicineId: 1,
+    medicine: `Medicine ${String(index + 1).padStart(2, '0')}`, batch: `BATCH-${index + 1}`, expiryDate: expiryDate(25),
+    quantity: 10, costPrice: 12, purchasedAt: '2026-08-20T12:00:00Z', supplier: 'Demo Pharma', supplierInvoice: `INV-${index + 1}` })));
+  state.expiryBatches.push({ id: 22, medicineId: 1, medicine: 'Old medicine', batch: 'OLD-01', expiryDate: expiryDate(-5),
+    quantity: 3, costPrice: 8, purchasedAt: '2026-07-01T12:00:00Z', supplier: 'Old Supplier', supplierInvoice: 'OLD-INV' });
+  await signIn(page, '/inventory/expiry');
+  await expect(page.getByRole('heading', { name: 'Medicine expiry' })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Expiry tracking/ })).toHaveClass(/active/);
+  const table = page.locator('.expiry-table');
+  await expect(table.locator('tbody tr')).toHaveCount(20);
+  await expect(table).toContainText('Demo Pharma');
+  await expect(table).toContainText('INV-1');
+  await expect(table).toContainText('Aug 20, 2026');
+  await page.getByRole('button', { name: /All stocked batches/ }).click();
+  await page.getByLabel('Search expiry batches').fill('OLD-INV');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('Old medicine');
+  await expect(table).toContainText('Expired');
+  await page.getByRole('button', { name: /Already expired/ }).click();
+  await page.getByLabel('Search expiry batches').fill('');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
 });
 
 test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {

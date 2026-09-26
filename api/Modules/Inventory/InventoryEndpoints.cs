@@ -15,6 +15,25 @@ public static class InventoryEndpoints
                 x.Number, x.ExpiryDate, x.CostPrice, x.SalePrice, x.Quantity }).ToListAsync()))
             .RequireAuthorization(StorePermissions.InventoryRead);
 
+        api.MapGet("/inventory/expiry", async (StoreDb db) =>
+        {
+            var batches = await (
+                from batch in db.Batches.AsNoTracking()
+                join line in db.PurchaseLines.AsNoTracking() on batch.Id equals line.BatchId
+                join purchase in db.Purchases.AsNoTracking() on line.PurchaseId equals purchase.Id
+                join supplier in db.Suppliers.AsNoTracking() on purchase.SupplierId equals supplier.Id
+                where batch.Quantity > 0
+                orderby batch.ExpiryDate, batch.Medicine.Name, batch.Number
+                select new
+                {
+                    batch.Id, medicineId = batch.MedicineId, medicine = batch.Medicine.Name,
+                    batch = batch.Number, batch.ExpiryDate, batch.Quantity, batch.CostPrice,
+                    purchasedAt = purchase.CreatedAt, supplier = supplier.Name, purchase.SupplierInvoice
+                }).ToListAsync();
+
+            return Results.Ok(batches);
+        }).RequireAuthorization(StorePermissions.InventoryRead);
+
         api.MapGet("/inventory/medicines/{medicineId:long}/details", async (long medicineId, StoreDb db) =>
         {
             var medicine = await db.Medicines.AsNoTracking().Where(x => x.Id == medicineId)

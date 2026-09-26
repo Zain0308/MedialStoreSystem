@@ -7,7 +7,7 @@ This is the user-approved architecture for Medical Store. The system has one API
 | Stores | `api/Modules/Stores` | Store selector and owner panel in `authentication` | Multiple isolated stores in one database, memberships, subscriptions, trials and store feature entitlements |
 | Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Login, owner-only tenant administration, user accounts, password resets, roles and permissions |
 | Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue metadata, editing and soft deactivation |
-| Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, audited adjustments, damaged stock and movement history |
+| Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, expiry tracking, audited adjustments, damaged stock and movement history |
 | Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receiving, history, audited quantity corrections, supplier returns and invoice payments |
 | Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, discounts, multiple tenders, partial and unpaid sales, receipts, returns and sales history |
 | Customers | `api/Modules/Customers` | `web/src/app/features/customers` | Store-scoped records, paid/due totals, unpaid invoice ledger and payment collection |

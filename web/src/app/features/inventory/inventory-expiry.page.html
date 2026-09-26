@@ -1,0 +1,47 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content expiry-page">
+  <section class="panel">
+    <div class="panel-head">
+      <div><h3>Medicine expiry</h3><p>Track stocked batches expiring soon or already past expiry, with their purchase details.</p></div>
+      <span class="count">{{ filteredBatches().length }} matching batches</span>
+    </div>
+    <div class="expiry-summary">
+      <button type="button" [class.selected]="filter() === 'soon'" (click)="filter.set('soon'); page.set(1)">
+        <span>Expiring within 60 days</span><strong>{{ upcomingCount() }}</strong>
+      </button>
+      <button type="button" [class.selected]="filter() === 'expired'" (click)="filter.set('expired'); page.set(1)">
+        <span>Already expired</span><strong>{{ expiredCount() }}</strong>
+      </button>
+      <button type="button" [class.selected]="filter() === 'all'" (click)="filter.set('all'); page.set(1)">
+        <span>All stocked batches</span><strong>{{ batches().length }}</strong>
+      </button>
+    </div>
+    <div class="expiry-filters">
+      <label>Search medicine, batch or supplier<input aria-label="Search expiry batches" [ngModel]="search()" (ngModelChange)="search.set($event); page.set(1)" placeholder="Medicine, batch, invoice or supplier" /></label>
+      <label>Expiry from<input type="date" aria-label="Expiry from date" [ngModel]="expiryFrom()" (ngModelChange)="expiryFrom.set($event); page.set(1)" /></label>
+      <label>Expiry to<input type="date" aria-label="Expiry to date" [ngModel]="expiryTo()" (ngModelChange)="expiryTo.set($event); page.set(1)" /></label>
+      <button type="button" class="text-button" (click)="clearFilters()">Clear filters</button>
+    </div>
+    <div class="table-wrap">
+      <table class="expiry-table">
+        <thead><tr><th>Medicine / batch</th><th>Expiry</th><th>On hand</th><th>Purchased</th><th>Supplier / invoice</th><th>Unit cost</th></tr></thead>
+        <tbody>
+          @for (batch of visibleBatches(); track batch.id) {
+            <tr>
+              <td><strong>{{ batch.medicine }}</strong><small>Batch {{ batch.batch }}</small></td>
+              <td><span class="expiry-status" [class.expired]="status(batch) === 'Expired'">{{ status(batch) }}</span><small>{{ batch.expiryDate | date:'mediumDate' }} · {{ daysRemaining(batch) < 0 ? -daysRemaining(batch) + ' days ago' : daysRemaining(batch) + ' days left' }}</small></td>
+              <td>{{ batch.quantity }} units</td>
+              <td>{{ batch.purchasedAt | date:'mediumDate' }}</td>
+              <td><strong>{{ batch.supplier }}</strong><small>Invoice {{ batch.supplierInvoice }}</small></td>
+              <td>Rs {{ batch.costPrice | number:'1.2-2' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    @if (!filteredBatches().length) {
+      <p class="empty">{{ batches().length ? 'No stocked batches match these filters.' : 'No stocked batches have purchase details.' }}</p>
+    }
+    <app-table-pagination [page]="page()" [total]="filteredBatches().length" [pageSize]="pageSize" (pageChange)="page.set($event)" />
+  </section>
+</div>

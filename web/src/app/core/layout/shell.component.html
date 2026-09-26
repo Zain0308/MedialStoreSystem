@@ -23,6 +23,7 @@
         <a routerLink="/purchases" routerLinkActive="active"><span>↘</span> Purchases</a>
       }
       @if (!session.subscriptionExpired() && session.hasPermission('inventory.read')) { <a routerLink="/inventory" routerLinkActive="active"><span>▦</span> Inventory</a> }
+      @if (!session.subscriptionExpired() && session.hasPermission('inventory.read')) { <a routerLink="/inventory/expiry" routerLinkActive="active"><span>◷</span> Expiry tracking</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('suppliers.read')) { <a routerLink="/suppliers" routerLinkActive="active"><span>↙</span> Suppliers</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('customers.read')) { <a routerLink="/customers" routerLinkActive="active"><span>♙</span> Customers</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('expenses.read')) { <a routerLink="/expenses" routerLinkActive="active"><span>−</span> Expenses</a> }
