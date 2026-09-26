@@ -18,8 +18,8 @@
         <p>Save contact details so your store can find the supplier quickly.</p></div></div>
       <form class="supplier-form" (ngSubmit)="saveSupplier()">
         <label>Supplier name<input name="s-name" [(ngModel)]="supplierForm.name" required maxlength="200" placeholder="e.g. ABC Pharma" /></label>
-        <label>Contact person<input name="s-contact" [(ngModel)]="supplierForm.contactPerson" maxlength="120" placeholder="Optional" /></label>
-        <label>Phone<input name="s-phone" [(ngModel)]="supplierForm.phone" maxlength="40" placeholder="Optional" /></label>
+        <label>Contact person (optional)<input name="s-contact" [(ngModel)]="supplierForm.contactPerson" maxlength="120" placeholder="Contact name" /></label>
+        <label>Phone (optional)<input name="s-phone" [(ngModel)]="supplierForm.phone" maxlength="40" placeholder="Supplier phone number" /></label>
         <label>Email<input name="s-email" type="email" [(ngModel)]="supplierForm.email" maxlength="254" placeholder="Optional" /></label>
         <label class="address-field">Address<textarea name="s-address" [(ngModel)]="supplierForm.address" maxlength="300" rows="2" placeholder="Optional supplier address"></textarea></label>
         <div class="supplier-form-actions">

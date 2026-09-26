@@ -9,7 +9,7 @@ export interface Supplier {
 }
 export interface CreateSupplier {
   name: string;
-  phone: string;
+  phone?: string;
   contactPerson?: string;
   email?: string;
   address?: string;

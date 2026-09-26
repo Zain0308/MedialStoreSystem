@@ -28,8 +28,8 @@
             <h4>Add new supplier</h4>
             <div class="purchase-form-grid">
               <label>Supplier name<input aria-label="New supplier name" [(ngModel)]="newSupplier.name" [ngModelOptions]="{standalone:true}" required maxlength="200" /></label>
-              <label>Contact person<input aria-label="New supplier contact" [(ngModel)]="newSupplier.contactPerson" [ngModelOptions]="{standalone:true}" maxlength="120" /></label>
-              <label>Phone<input aria-label="New supplier phone" [(ngModel)]="newSupplier.phone" [ngModelOptions]="{standalone:true}" maxlength="40" /></label>
+              <label>Contact person (optional)<input aria-label="New supplier contact" [(ngModel)]="newSupplier.contactPerson" [ngModelOptions]="{standalone:true}" maxlength="120" /></label>
+              <label>Phone (optional)<input aria-label="New supplier phone" [(ngModel)]="newSupplier.phone" [ngModelOptions]="{standalone:true}" maxlength="40" /></label>
               <label>Email<input aria-label="New supplier email" type="email" [(ngModel)]="newSupplier.email" [ngModelOptions]="{standalone:true}" maxlength="254" /></label>
               <label class="wide-field">Address<input aria-label="New supplier address" [(ngModel)]="newSupplier.address" [ngModelOptions]="{standalone:true}" maxlength="300" /></label>
             </div>

@@ -1,4 +1,4 @@
-Warning: truncated output (original token count: 19586)
+Warning: truncated output (original token count: 19582)
 Total output lines: 1117
 
 import { expect, Page, test } from '@playwright/test';
@@ -299,7 +299,164 @@ async function mockApi(page: Page) {
     }
     const purchaseReturn = path.match(/^\/api\/purchases\/(\d+)\/returns$/);
     if (purchaseReturn && method === 'POST') {
-      const purchase = state.purchases.find(x =…7586 tokens truncated…le('button', { name: 'Save purchase correction' }).click();
+      const purchase = state.purchases.find(x => x.id === Number(purchaseReturn[1]))!;
+      const body = request.postDataJSON(); const line = purchase.lines.find(x => x.id === body.lines[0].purchaseLineId)!;
+      line.returnedQuantity += body.lines[0].quantity; line.onHand -= body.lines[0].quantity;
+      const batch = state.batches.find(x => x.number === line.batch); if (batch) batch.quantity -= body.lines[0].quantity;
+      const total = body.lines[0].quantity * line.unitCost; purchase.returnedTotal += total;
+      purchase.returns.push({ id: purchase.returns.length + 1, supplierReference: body.supplierReference, reason: body.reason, createdAt: new Date().toISOString(), total });
+      return reply({ id: purchase.returns.length, total }, 201);
+    }
+    const purchaseCorrections = path.match(/^\/api\/purchases\/(\d+)\/corrections$/);
+    if (purchaseCorrections && method === 'GET') {
+      const purchase = state.purchases.find(x => x.id === Number(purchaseCorrections[1]));
+      return reply(purchase?.corrections ?? [], purchase ? 200 : 404);
+    }
+    if (purchaseCorrections && method === 'POST') {
+      const purchase = state.purchases.find(x => x.id === Number(purchaseCorrections[1]))!;
+      const body = request.postDataJSON(); const previousTotal = purchase.total;
+      const lines = body.lines.map((change: { purchaseLineId: number; correctedQuantity: number }) => {
+        const line = purchase.lines.find(x => x.id === change.purchaseLineId)!;
+        const previousQuantity = line.quantity; const delta = change.correctedQuantity - previousQuantity;
+        line.quantity = change.correctedQuantity; line.onHand += delta;
+        const batch = state.batches.find(x => x.number === line.batch); if (batch) batch.quantity += delta;
+        return { purchaseLineId: line.id, medicine: line.medicine, batch: line.batch, previousQuantity,
+          correctedQuantity: change.correctedQuantity, quantityChange: delta };
+      });
+      purchase.total = purchase.lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0);
+      const correction = { id: purchase.corrections.length + 1, reason: body.reason, createdAt: new Date().toISOString(),
+        previousTotal, correctedTotal: purchase.total, lines };
+      purchase.corrections.push(correction); return reply(correction, 200);
+    }
+    const purchasePayment = path.match(/^\/api\/purchases\/(\d+)\/payments$/);
+    if (purchasePayment && method === 'POST') {
+      const purchase = state.purchases.find(x => x.id === Number(purchasePayment[1]))!; const body = request.postDataJSON();
+      const outstanding = Math.max(0, purchase.total - purchase.returnedTotal - purchase.paidTotal);
+      purchase.paidTotal += body.amount; purchase.payments.push({ id: purchase.payments.length + 1, ...body, paidAt: new Date().toISOString() });
+      return reply({ id: purchase.payments.length, amount: body.amount, method: body.method,
+        supplierCreditAdded: Math.max(0, body.amount - outstanding) }, 201);
+    }
+    if (path === '/api/purchases' && method === 'POST') {
+      const body = request.postDataJSON();
+      expect(body.supplierInvoice).toBeTruthy(); expect(body.supplierId).toBe(2);
+      for (const line of body.lines) {
+        const medicine = state.medicines.find(m => m.id === line.medicineId)!;
+        medicine.stock += line.quantity;
+        state.batches.push({ id: state.batches.length + 1, medicineId: medicine.id, medicine: medicine.name, number: line.batchNumber,
+          expiryDate: line.expiryDate, costPrice: line.costPrice, salePrice: line.salePrice, quantity: line.quantity });
+      }
+      const supplier = state.suppliers.find(x => x.id === body.supplierId)!;
+      const previousPurchases = state.purchases.filter(x => x.supplier === supplier.name);
+      const externalPaid = previousPurchases.flatMap(x => x.payments)
+        .filter(payment => payment.method !== 'Supplier Credit').reduce((sum, payment) => sum + payment.amount, 0);
+      const netPreviousPurchases = previousPurchases.reduce((sum, x) => sum + x.total - x.returnedTotal, 0);
+      const availableCredit = Math.max(0, externalPaid - netPreviousPurchases);
+      const total = body.lines.reduce((sum: number, x: { quantity: number; costPrice: number }) => sum + x.quantity * x.costPrice, 0);
+      const supplierCreditApplied = Math.min(total, availableCredit);
+      const paymentAmount = body.paymentAmount ?? 0;
+      const purchase = { id: state.purchases.length + 1, supplier: state.suppliers.find(x => x.id === body.supplierId)!.name,
+        supplierInvoice: body.supplierInvoice, createdAt: new Date().toISOString(),
+        total, returnedTotal: 0, paidTotal: supplierCreditApplied + paymentAmount,
+        lines: body.lines.map((line: { medicineId: number; batchNumber: string; quantity: number; costPrice: number }) => ({ id: state.purchases.length + 1, medicine: state.medicines.find(x => x.id === line.medicineId)!.name, batch: line.batchNumber, quantity: line.quantity, returnedQuantity: 0, unitCost: line.costPrice, onHand: line.quantity })),
+        returns: [], corrections: [], payments: supplierCreditApplied > 0 ? [{ id: 1, amount: supplierCreditApplied,
+          method: 'Supplier Credit', reference: 'Automatically applied from supplier credit', paidAt: new Date().toISOString() }] : [] };
+      if (paymentAmount > 0) purchase.payments.push({ id: purchase.payments.length + 1, amount: paymentAmount,
+        method: body.paymentMethod, reference: body.paymentReference, paidAt: new Date().toISOString() });
+      state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total, supplierCreditApplied }, 201);
+    }
+    if (path === '/api/dashboard') return reply({ todaySales: state.subscriptionExpired ? 0 : state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.subscriptionExpired ? 0 : state.sales.length, medicineCount: state.subscriptionExpired ? 0 : state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionExpired ? null : state.subscr…4582 tokens truncated…Supplier payment amount')).toBeDisabled();
+  await expect(dialog.getByText('No payment is recorded now; the invoice remains payable.')).toBeVisible();
+  await dialog.getByLabel('Supplier payment method').selectOption('Bank Transfer');
+  await expect(dialog.getByLabel('Supplier payment amount')).toBeEnabled();
+  await dialog.getByLabel('Supplier payment amount').fill('120');
+  await dialog.getByLabel('Supplier payment method').selectOption('Bank Transfer');
+  await dialog.getByLabel('Supplier payment reference').fill('TXN-120');
+  await dialog.getByLabel('Purchase supplier invoice').fill('NEW-INV-1');
+  await dialog.getByRole('button', { name: 'Receive purchase' }).click();
+
+  await expect(dialog).toHaveCount(0);
+  expect(state.purchases[0].paidTotal).toBe(120);
+  expect(state.purchases[0].payments[0]).toMatchObject({ amount: 120, method: 'Bank Transfer', reference: 'TXN-120' });
+  await expect(page.locator('.inventory-product-table')).toContainText('Amoxicillin 500mg');
+  await expect(page.locator('.inventory-product-table')).toContainText('30');
+});
+
+test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {
+  const state = await mockApi(page);
+  await signIn(page, '/reports');
+  const dashboard = page.locator('.financial-shortcuts');
+  await expect(dashboard).toBeVisible();
+  await expect(page.locator('.financial-accounts')).toHaveCount(0);
+  await dashboard.getByRole('link', { name: /View customer accounts/ }).click();
+  await expect(page).toHaveURL(/\/reports\/financial-accounts\?tab=receivables$/);
+  const accounts = page.locator('.financial-accounts');
+
+  await accounts.getByRole('tab', { name: 'Profit & Loss' }).click();
+  await accounts.getByLabel('Profit and loss month').fill('2026-02');
+  await accounts.getByRole('button', { name: 'Apply month' }).click();
+  await expect.poll(() => state.reportQueries.at(-1)).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+
+  await accounts.getByRole('tab', { name: 'Payables' }).click();
+  await expect(accounts.getByText('Demo Pharma')).toBeVisible();
+  await expect(accounts.getByText('Rs 70.00').first()).toBeVisible();
+  await accounts.locator('summary', { hasText: 'Invoices' }).first().click();
+  await expect(accounts.getByText('SUP-101')).toBeVisible();
+  await expect(accounts.getByText('Payment Cash')).toBeVisible();
+
+  await accounts.getByRole('tab', { name: 'Receivables' }).click();
+  await expect(accounts.getByText('Ayesha Khan')).toBeVisible();
+  await expect(accounts.getByText('Rs 55.00').first()).toBeVisible();
+  await accounts.locator('summary', { hasText: 'Invoices' }).click();
+  await expect(accounts.getByText('INV-202')).toBeVisible();
+  await expect(accounts.getByText('RCPT-01')).toBeVisible();
+});
+
+test('supplier purchases stay under the supplier workspace and update inventory', async ({ page }) => {
+  await mockApi(page); await signIn(page);
+  await navigate(page, /Medicines/);
+  await page.getByLabel('Medicine name').fill('Vitamin C');
+  await page.getByRole('button', { name: 'Add medicine', exact: true }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Vitamin C' })).toBeVisible();
+  await navigate(page, /Suppliers/);
+  await page.getByLabel('Supplier name').fill('City Pharma');
+  await page.getByRole('button', { name: 'Add supplier', exact: true }).click();
+  await expect(page.getByText('City Pharma', { exact: true })).toBeVisible();
+  const supplierCard = page.locator('.supplier-card').filter({ hasText: 'City Pharma' });
+  await supplierCard.getByRole('button', { name: 'Edit' }).click();
+  await page.getByLabel('Contact person').fill('Ali Khan');
+  await page.getByLabel('Phone').fill('03001234567');
+  await page.getByLabel('Email').fill('ali@citypharma.example');
+  await page.getByLabel('Address').fill('Main Market');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByText('Supplier details updated.')).toBeVisible();
+  await expect(page.locator('.supplier-card').filter({ hasText: 'City Pharma' })).toContainText('Ali Khan');
+  await page.getByLabel('Filter suppliers').fill('Main Market');
+  await expect(page.locator('.supplier-card')).toHaveCount(1);
+  await page.getByLabel('Filter suppliers').fill('no matching supplier');
+  await expect(page.getByText('No suppliers match this filter.')).toBeVisible();
+  await page.getByRole('button', { name: 'Clear filter' }).click();
+  await page.goto('/inventory');
+  await page.getByRole('button', { name: /Create purchase/ }).click();
+  const purchaseDialog = page.getByRole('dialog', { name: 'Create purchase' });
+  await purchaseDialog.getByLabel('Search purchase supplier').fill('City');
+  await purchaseDialog.getByRole('option').filter({ hasText: 'City Pharma' }).click();
+  await purchaseDialog.getByLabel('Search purchase medicine').fill('Vitamin C');
+  await purchaseDialog.getByRole('option').filter({ hasText: 'Vitamin C' }).click();
+  await purchaseDialog.getByLabel('Vitamin C batch number').fill('VC-02');
+  await purchaseDialog.getByLabel('Vitamin C expiry date').fill('2050-12-31');
+  await purchaseDialog.getByLabel('Vitamin C quantity').fill('10');
+  await purchaseDialog.getByLabel('Vitamin C unit cost').fill('3');
+  await purchaseDialog.getByLabel('Vitamin C sale price').fill('5');
+  await purchaseDialog.getByLabel('Purchase supplier invoice').fill('SUP-002');
+  await purchaseDialog.getByRole('button', { name: 'Receive purchase' }).click();
+  await expect(page.getByText('Purchase received; batch stock updated.')).toBeVisible();
+  await page.goto('/suppliers/purchases');
+  await page.getByRole('button', { name: 'Invoice details' }).click();
+  await expect(page.getByLabel('Supplier return reference')).toHaveCount(0);
+  await expect(page.getByLabel('Amount (Rs)')).toHaveCount(0);
+  await page.getByLabel('Correct quantity for Vitamin C batch VC-02').fill('9');
+  await page.getByLabel('Correction reason').fill('Quantity was entered incorrectly');
+  await page.getByRole('button', { name: 'Save purchase correction' }).click();
   await expect(page.getByText(/Purchase corrected\. Total changed from Rs 30\.00 to Rs 27\.00/)).toBeVisible();
   await page.getByRole('button', { name: 'Return stock' }).click();
   await expect(page.getByLabel('Supplier return reference')).toBeVisible();
