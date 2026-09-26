@@ -46,6 +46,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   readonly supplierAccounts = signal<SupplierAccountSummary[]>([]);
   readonly selectedSupplierStatement = signal<SupplierStatement | null>(null);
   readonly selectedPurchase = signal<PurchaseHistory | null>(null);
+  readonly purchasePanelMode = signal<'details' | 'return' | 'payment'>('details');
   readonly purchaseCorrections = signal<PurchaseCorrectionHistory[]>([]);
   correctionForm = { reason: '', quantities: {} as Record<number, number> };
   readonly returnLineOptions = computed<SearchPickerOption[]>(() => (this.selectedPurchase()?.lines ?? [])
@@ -189,9 +190,10 @@ export class PurchasesPage extends PageFeedback implements OnInit {
       ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance',
         'Item / method / reference', 'Batch / reason', 'Quantity', 'Unit cost'], rows);
   }
-  openStatementInvoice(purchase: PurchaseHistory): Promise<void> {
+  openStatementInvoice(purchase: PurchaseHistory, mode: 'details' | 'return' | 'payment' = 'details'): Promise<void> {
     this.overpaymentDialog.set(false);
     this.selectedPurchase.set(purchase);
+    this.purchasePanelMode.set(mode);
     this.correctionForm = { reason: '', quantities: Object.fromEntries(purchase.lines.map(line => [line.id, line.quantity])) };
     this.transactionSearch.set(''); this.transactionType.set('all'); this.transactionPage.set(1);
     const eligible = purchase.lines.find(line => line.quantity > line.returnedQuantity && line.onHand > 0);
@@ -200,9 +202,12 @@ export class PurchasesPage extends PageFeedback implements OnInit {
     return this.perform(async () => this.purchaseCorrections.set(await this.api.corrections(purchase.id)));
   }
   openReturn(purchase: PurchaseHistory): Promise<void> {
-    return this.openStatementInvoice(purchase);
+    return this.openStatementInvoice(purchase, 'return');
   }
-  openPayment(purchase: PurchaseHistory): void { void this.openReturn(purchase); this.paymentForm.amount = this.balance(purchase); }
+  openPayment(purchase: PurchaseHistory): void {
+    void this.openStatementInvoice(purchase, 'payment');
+    this.paymentForm.amount = this.balance(purchase);
+  }
   submitCorrection(): Promise<void> {
     const purchase = this.selectedPurchase(); if (!purchase) return Promise.resolve();
     const lines = purchase.lines.filter(line => +this.correctionForm.quantities[line.id] !== line.quantity)

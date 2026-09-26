@@ -127,7 +127,7 @@
   @if (selectedPurchase(); as selected) {
     <section class="panel form-panel">
       <div class="panel-head"><div><h3>Invoice {{ selected.supplierInvoice }}</h3><p>{{ selected.supplier }} · Current balance Rs {{ balance(selected) | number:'1.2-2' }}</p></div><button class="text-button" (click)="selectedPurchase.set(null)">Close</button></div>
-      @if (session.hasPermission('purchases.manage')) {
+      @if (session.hasPermission('purchases.manage') && purchasePanelMode() === 'details') {
         <div class="list-row"><div><strong>Correct purchase entry</strong><small>Fix a quantity entered incorrectly. Stock and invoice total will update; reductions are allowed only for units still on hand.</small></div></div>
         <form (ngSubmit)="submitCorrection()">
           <div class="table-wrap"><table><thead><tr><th>Medicine / batch</th><th>Returned</th><th>On hand</th><th>Correct quantity</th></tr></thead><tbody>
@@ -140,7 +140,7 @@
           <button class="secondary" [disabled]="busy() || !correctionForm.reason.trim() || !hasCorrectionChanges(selected)">Save purchase correction</button>
         </form>
       }
-      @if (purchaseCorrections().length) {
+      @if (purchasePanelMode() === 'details' && purchaseCorrections().length) {
         <div class="list-row"><div><strong>Purchase correction history</strong><small>All saved quantity and invoice total changes</small></div></div>
         <div class="table-wrap"><table><thead><tr><th>Date</th><th>Reason</th><th>Quantity changes</th><th>Invoice total</th></tr></thead><tbody>
           @for (change of purchaseCorrections(); track change.id) {
@@ -150,7 +150,7 @@
           }
         </tbody></table></div>
       }
-      @if (session.hasPermission('purchases.manage')) { <div class="list-row"><div><strong>Record supplier return</strong><small>Only unreturned units still on hand can be returned.</small></div></div>
+      @if (session.hasPermission('purchases.manage') && purchasePanelMode() === 'return') { <div class="list-row"><div><strong>Record supplier return</strong><small>Only unreturned units still on hand can be returned.</small></div></div>
       <form (ngSubmit)="submitReturn()">
         <div class="form-grid"><label>Purchase line<app-search-picker ariaLabel="Purchase return medicine" placeholder="Type medicine or batch"
           [options]="returnLineOptions()" [value]="returnForm.lineId || null"
@@ -160,7 +160,7 @@
         <label>Reason<input name="return-reason" [(ngModel)]="returnForm.reason" maxlength="300" required /></label></div>
         <button class="secondary" [disabled]="busy() || !returnForm.lineId">Save return</button>
       </form> }
-      @if (session.hasPermission('purchases.manage')) {
+      @if (session.hasPermission('purchases.manage') && purchasePanelMode() === 'payment') {
       <div class="list-row"><div><strong>Record supplier payment</strong><small>Overpayments can be kept as supplier credit for the next purchase.</small></div></div>
       <form (ngSubmit)="submitPayment()">
         <div class="form-grid"><label>Amount (Rs)<input name="payment-amount" type="number" min="0.01" step="0.01" [(ngModel)]="paymentForm.amount" required /></label>

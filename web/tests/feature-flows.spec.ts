@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 15302)
-Total output lines: 878
+Warning: truncated output (original token count: 15415)
+Total output lines: 884
 
 import { expect, Page, test } from '@playwright/test';
 
@@ -300,7 +300,114 @@ async function mockApi(page: Page) {
     const purchasePayment = path.match(/^\/api\/purchases\/(\d+)\/payments$/);
     if (purchasePayment && method === 'POST') {
       const purchase = state.purchases.find(x => x.id === Number(purchasePayment[1]))!; const body = request.postDataJSON();
-      const outstanding = Math.max(0, purchase.total - purchase.returnedTo…3302 tokens truncated…it accounts.locator('summary', { hasText: 'Invoices' }).first().click();
+      const outstanding = Math.max(0, purchase.total - purchase.returnedTotal - purchase.paidTotal);
+      purchase.paidTotal += body.amount; purchase.payments.push({ id: purchase.payments.length + 1, ...body, paidAt: new Date().toISOString() });
+      return reply({ id: purchase.payments.length, amount: body.amount, method: body.method,
+        supplierCreditAdded: Math.max(0, body.amount - outstanding) }, 201);
+    }
+    if (path === '/api/purchases' && method === 'POST') {
+      const body = request.postDataJSON();
+      expect(body.supplierInvoice).toBeTruthy(); expect(body.supplierId).toBe(2);
+      for (const line of body.lines) {
+        const medicine = state.medicines.find(m => m.id === line.medicineId)!;
+        medicine.stock += line.quantity;
+        state.batches.push({ id: state.batches.length + 1, medicineId: medicine.id, medicine: medicine.name, number: line.batchNumber,
+          expiryDate: line.expiryDate, costPrice: line.costPrice, salePrice: line.salePrice, quantity: line.quantity });
+      }
+      const supplier = state.suppliers.find(x => x.id === body.supplierId)!;
+      const previousPurchases = state.purchases.filter(x => x.supplier === supplier.name);
+      const externalPaid = previousPurchases.flatMap(x => x.payments)
+        .filter(payment => payment.method !== 'Supplier Credit').reduce((sum, payment) => sum + payment.amount, 0);
+      const netPreviousPurchases = previousPurchases.reduce((sum, x) => sum + x.total - x.returnedTotal, 0);
+      const availableCredit = Math.max(0, externalPaid - netPreviousPurchases);
+      const total = body.lines.reduce((sum: number, x: { quantity: number; costPrice: number }) => sum + x.quantity * x.costPrice, 0);
+      const supplierCreditApplied = Math.min(total, availableCredit);
+      const purchase = { id: state.purchases.length + 1, supplier: state.suppliers.find(x => x.id === body.supplierId)!.name,
+        supplierInvoice: body.supplierInvoice, createdAt: new Date().toISOString(),
+        total, returnedTotal: 0, paidTotal: supplierCreditApplied,
+        lines: body.lines.map((line: { medicineId: number; batchNumber: string; quantity: number; costPrice: number }) => ({ id: state.purchases.length + 1, medicine: state.medicines.find(x => x.id === line.medicineId)!.name, batch: line.batchNumber, quantity: line.quantity, returnedQuantity: 0, unitCost: line.costPrice, onHand: line.quantity })),
+        returns: [], corrections: [], payments: supplierCreditApplied > 0 ? [{ id: 1, amount: supplierCreditApplied,
+          method: 'Supplier Credit', reference: 'Automatically applied from supplier credit', paidAt: new Date().toISOString() }] : [] };
+      state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total, supplierCreditApplied }, 201);
+    }
+    if (path === '/api/dashboard') return reply({ todaySales: state.subscriptionExpired ? 0 : state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.subscriptionExpired ? 0 : state.sales.length, medicineCount: state.subscriptionExpired ? 0 : state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionExpired ? null : state.subscriptionDaysRemaining, subscriptionExpiresAt: state.subscriptionExpiresAt, subscriptionExpired: state.subscriptionExpired });
+    if (path === '/api/sales' && method === 'GET') return reply(state.sales);
+    if (path === '/api/sales' && method === 'POST') {
+      state.salePosts++;
+      const body = request.postDataJSON();
+      const id = state.sales.length + 1;
+      const lines = body.lines.map((line: { medicineId: number; quantity: number }) => {
+        const medicine = state.medicines.find(m => m.id === line.medicineId)!;
+        expect(line.quantity).toBeGreaterThan(0);
+        medicine.stock -= line.quantity; state.batches[0].quantity -= line.quantity;
+        return { medicine: medicine.name, batch: 'LOT-01', quantity: line.quantity, unitPrice: 5, total: line.quantity * 5 };
+      });
+      const total = lines.reduce((sum: number, line: { total: number }) => sum + line.tota…1415 tokens truncated…).toHaveURL(/\/reports$/);
+  await expect(page.getByRole('status').filter({ hasText: 'Subscription expired' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.getByRole('navigation').getByRole('link', { name: 'Medicines' })).toHaveCount(0);
+  await page.goto('/medicines');
+  await expect(page).toHaveURL(/\/reports$/);
+  const status = await page.evaluate(async () => fetch('/api/medicines', {
+    headers: { Authorization: 'Bearer test-token' },
+  }).then(response => response.status));
+  expect(status).toBe(403);
+});
+
+test('switching stores persists the active store and reloads the workspace', async ({ page }) => {
+  await mockApi(page);
+  await signIn(page, '/reports');
+  await expect(page.getByLabel('Active store')).toHaveValue('1');
+  const reload = page.waitForNavigation({ waitUntil: 'load' });
+  await page.getByLabel('Active store').selectOption('2');
+  await reload;
+  await expect(page.getByLabel('Active store')).toHaveValue('2');
+});
+
+test('inventory movement report filters dates and purchase or sale sources with 20 rows per page', async ({ page }) => {
+  const state = await mockApi(page);
+  state.movements = Array.from({ length: 25 }, (_, index) => ({
+    id: index + 1, batchId: 1, medicine: 'Paracetamol 500mg', batch: 'LOT-01',
+    type: index % 2 === 0 ? 'Purchase' : 'Sale', quantityChange: index % 2 === 0 ? 10 : -1,
+    balanceAfter: 20, reason: '', createdAt: `2026-09-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
+  }));
+  await signIn(page, '/inventory');
+  const report = page.locator('.movement-report');
+  await expect(report.locator('tbody tr')).toHaveCount(20);
+  await report.getByRole('button', { name: 'Next' }).click();
+  await expect(report.locator('tbody tr')).toHaveCount(5);
+  await expect(report.getByText('Page 2 of 2')).toBeVisible();
+
+  await report.getByLabel('Movement type').selectOption('Purchase');
+  await expect(report.locator('tbody tr')).toHaveCount(13);
+  await expect(report.getByText('Page 1 of 1')).toBeVisible();
+  await report.getByLabel('Movement type').selectOption('Sale');
+  await expect(report.locator('tbody tr')).toHaveCount(12);
+  await report.getByLabel('Movement type').selectOption('Purchase');
+  await report.getByLabel('From date').fill('2026-09-10');
+  await report.getByLabel('To date').fill('2026-09-20');
+  await expect(report.locator('tbody tr')).toHaveCount(5);
+});
+
+test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {
+  const state = await mockApi(page);
+  await signIn(page, '/reports');
+  const dashboard = page.locator('.financial-shortcuts');
+  await expect(dashboard).toBeVisible();
+  await expect(page.locator('.financial-accounts')).toHaveCount(0);
+  await dashboard.getByRole('link', { name: /View customer accounts/ }).click();
+  await expect(page).toHaveURL(/\/reports\/financial-accounts\?tab=receivables$/);
+  const accounts = page.locator('.financial-accounts');
+
+  await accounts.getByRole('tab', { name: 'Profit & Loss' }).click();
+  await accounts.getByLabel('Profit and loss month').fill('2026-02');
+  await accounts.getByRole('button', { name: 'Apply month' }).click();
+  await expect.poll(() => state.reportQueries.at(-1)).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+
+  await accounts.getByRole('tab', { name: 'Payables' }).click();
+  await expect(accounts.getByText('Demo Pharma')).toBeVisible();
+  await expect(accounts.getByText('Rs 70.00').first()).toBeVisible();
+  await accounts.locator('summary', { hasText: 'Invoices' }).first().click();
   await expect(accounts.getByText('SUP-101')).toBeVisible();
   await expect(accounts.getByText('Payment Cash')).toBeVisible();
 
@@ -350,16 +457,22 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await page.getByRole('button', { name: /Receive batch/ }).click();
   await expect(page.getByText('Purchase received; batch stock updated.')).toBeVisible();
   await page.getByRole('button', { name: 'Invoice details' }).click();
+  await expect(page.getByLabel('Supplier return reference')).toHaveCount(0);
+  await expect(page.getByLabel('Amount (Rs)')).toHaveCount(0);
   await page.getByLabel('Correct quantity for Vitamin C batch VC-02').fill('9');
   await page.getByLabel('Correction reason').fill('Quantity was entered incorrectly');
   await page.getByRole('button', { name: 'Save purchase correction' }).click();
   await expect(page.getByText(/Purchase corrected\. Total changed from Rs 30\.00 to Rs 27\.00/)).toBeVisible();
   await page.getByRole('button', { name: 'Return stock' }).click();
+  await expect(page.getByLabel('Supplier return reference')).toBeVisible();
+  await expect(page.getByLabel('Amount (Rs)')).toHaveCount(0);
+  await expect(page.getByLabel('Correct quantity for Vitamin C batch VC-02')).toHaveCount(0);
   await page.getByLabel('Supplier return reference').fill('RET-002');
   await page.getByLabel('Reason', { exact: true }).fill('Damaged packaging');
   await page.getByRole('button', { name: 'Save return' }).click();
   await expect(page.getByText('Supplier return recorded and stock reduced.')).toBeVisible();
   await page.getByRole('button', { name: 'Record payment' }).click();
+  await expect(page.getByLabel('Supplier return reference')).toHaveCount(0);
   await expect(page.getByLabel('Amount (Rs)')).toHaveValue('24');
   await page.getByRole('button', { name: 'Save payment' }).click();
   await expect(page.getByText('Supplier payment recorded.')).toBeVisible();
