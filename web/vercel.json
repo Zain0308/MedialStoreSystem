@@ -1,4 +1,7 @@
 {
+  "framework": "angular",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/web/browser",
   "rewrites": [
     {
       "source": "/api/(.*)",
