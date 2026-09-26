@@ -283,6 +283,14 @@ select:focus {
   border-color: #6aa782;
   box-shadow: 0 0 0 3px #d7f2dc;
 }
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role='tab']:focus-visible {
+  outline: 3px solid #70aa81;
+  outline-offset: 3px;
+  border-radius: 5px;
+}
 input::placeholder {
   color: #a6b3ac;
 }

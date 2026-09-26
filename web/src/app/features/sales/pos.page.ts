@@ -63,9 +63,16 @@ export class PosPage extends PageFeedback implements OnInit {
       .filter(
         (m) =>
           m.isActive &&
-          (m.name.toLowerCase().includes(query) || (m.barcode ?? '').toLowerCase().includes(query)),
+          [m.name, m.genericName, m.barcode, m.strength, m.dosageForm, m.manufacturer]
+            .some(value => (value ?? '').toLowerCase().includes(query)),
       )
       .slice(0, 12);
+  }
+  medicineDetails(medicine: Medicine): string {
+    return [medicine.genericName, medicine.strength, medicine.dosageForm]
+      .map(value => value?.trim())
+      .filter((value): value is string => !!value)
+      .join(' · ') || 'Medicine';
   }
   addToCart(medicine: Medicine): void {
     const error = this.cart.add(medicine);

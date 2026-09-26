@@ -7,7 +7,7 @@
         <span class="count">{{ medicines().length }} in catalogue</span>
       </div>
       <label class="search-field"
-        >⌕ <input [(ngModel)]="search" placeholder="Search name or scan barcode" autofocus
+        >⌕ <input [(ngModel)]="search" placeholder="Name, generic, strength or barcode" autofocus
       /></label>
       <div class="medicine-results">
         @for (m of filteredMedicines; track m.id) {
@@ -16,9 +16,9 @@
             <div>
               <strong>{{ m.name }}</strong
               ><small
-                >{{ m.stock }} units available ·
+                >{{ m.stock }} units available · {{ medicineDetails(m) }} ·
                 {{
-                  m.requiresPrescription ? 'Prescription required' : m.genericName || 'Medicine'
+                  m.requiresPrescription ? 'Prescription required' : 'Ready to sell'
                 }}</small
               >
             </div>
@@ -51,7 +51,7 @@
         <small class="walk-in-hint">No customer selected · Walk-in sale</small>
       }
       @for (row of cart.items(); track row.medicine.id) {
-        <div class="cart-row">
+          <div class="cart-row">
           <div>
             <strong>{{ row.medicine.name }}</strong
             ><small>Est. Rs {{ price(row.medicine) | number: '1.2-2' }} per unit</small>
