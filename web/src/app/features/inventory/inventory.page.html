@@ -65,21 +65,36 @@
     </section>
   }
   <section class="panel movement-report">
-    <div class="panel-head"><div><h3>Stock movement report</h3><p>Filter by date and movement source. Showing up to the latest 500 movements.</p></div>
-      <span class="count">{{ filteredMovements().length }} records</span>
+    <div class="panel-head"><div><h3>Stock activity</h3><p>See when stock came in, went out, was returned, or adjusted. Showing the latest 500 entries.</p></div>
+      <span class="count">{{ movementSummary().total }} matching records</span>
+    </div>
+    <div class="movement-summary" aria-label="Stock activity summary">
+      <div><span>Matching records</span><strong>{{ movementSummary().total }}</strong></div>
+      <div><span>Entries adding stock</span><strong>{{ movementSummary().added }}</strong></div>
+      <div><span>Entries reducing stock</span><strong>{{ movementSummary().reduced }}</strong></div>
     </div>
     <div class="movement-filters" aria-label="Stock movement filters">
-      <label>From date<input type="date" aria-label="From date" [ngModel]="movementFromDate()" (ngModelChange)="movementFromDate.set($event); resetMovementPage()" /></label>
-      <label>To date<input type="date" aria-label="To date" [ngModel]="movementToDate()" (ngModelChange)="movementToDate.set($event); resetMovementPage()" /></label>
-      <label>Movement type<select aria-label="Movement type" [ngModel]="movementType()" (ngModelChange)="movementType.set($event); resetMovementPage()">
-        <option value="All">All movements</option><option value="Purchase">Purchases</option><option value="Sale">Sales</option><option value="Adjustment">Adjustments / damage</option>
+      <label>From<input type="date" aria-label="From date" [ngModel]="movementFromDate()" (ngModelChange)="movementFromDate.set($event); resetMovementPage()" /></label>
+      <label>To<input type="date" aria-label="To date" [ngModel]="movementToDate()" (ngModelChange)="movementToDate.set($event); resetMovementPage()" /></label>
+      <label>Activity<select aria-label="Activity" [ngModel]="movementType()" (ngModelChange)="movementType.set($event); resetMovementPage()">
+        <option value="All">All activity</option><option value="Purchase">Purchases &amp; supplier returns</option><option value="Sale">Sales &amp; customer returns</option><option value="Adjustment">Adjustments &amp; damage</option>
       </select></label>
-      <label>Search movements<input aria-label="Search movements" [ngModel]="movementSearch()" (ngModelChange)="movementSearch.set($event); resetMovementPage()" placeholder="Medicine, batch or reason" /></label>
-      <button type="button" class="secondary" (click)="clearMovementFilters()">Clear filters</button>
+      <label>Search<input aria-label="Search stock activity" [ngModel]="movementSearch()" (ngModelChange)="movementSearch.set($event); resetMovementPage()" placeholder="Medicine, batch or note" /></label>
+      <button type="button" class="secondary" (click)="clearMovementFilters()">Reset filters</button>
     </div>
     <p class="movement-range">Showing {{ movementStart() }}–{{ movementEnd() }} of {{ filteredMovements().length }} matching records</p>
-    <div class="table-wrap"><table><thead><tr><th>Date</th><th>Medicine / batch</th><th>Type</th><th>Change</th><th>Balance</th><th>Reason</th></tr></thead>
-      <tbody>@for (m of visibleMovements(); track m.id) { <tr><td>{{ m.createdAt | date:'short' }}</td><td>{{ m.medicine }} · {{ m.batch }}</td><td>{{ m.type }}</td><td>{{ m.quantityChange > 0 ? '+' : '' }}{{ m.quantityChange }}</td><td>{{ m.balanceAfter }}</td><td>{{ m.reason }}</td></tr> }</tbody>
+    <div class="table-wrap"><table><thead><tr><th>Date &amp; time</th><th>Medicine</th><th>Activity</th><th>Stock change</th><th>Stock after</th><th>Notes</th></tr></thead>
+      <tbody>@for (m of visibleMovements(); track m.id) { <tr>
+        <td>{{ m.createdAt | date:'medium' }}</td>
+        <td><strong>{{ m.medicine }}</strong><small class="movement-batch">Batch {{ m.batch }}</small></td>
+        <td>{{ movementActivityLabel(m.type) }}</td>
+        <td><span class="movement-quantity" [class.added]="m.quantityChange > 0" [class.reduced]="m.quantityChange < 0">
+          @if (m.quantityChange > 0) { +{{ m.quantityChange }} units }
+          @else if (m.quantityChange < 0) { {{ m.quantityChange }} units }
+          @else { No change }
+        </span></td>
+        <td>{{ m.balanceAfter }} units</td><td>{{ m.reason || 'No extra notes' }}</td>
+      </tr> }</tbody>
     </table></div>
     @if (filteredMovements().length === 0) { <p class="empty">No movements match these filters.</p> }
     @if (filteredMovements().length > 0) {

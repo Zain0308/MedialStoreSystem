@@ -104,13 +104,21 @@ export class InventoryPage extends PageFeedback implements OnInit {
       if (from && date < from) return false;
       if (to && date > to) return false;
       const term = this.movementSearch().trim().toLocaleLowerCase();
-      if (term && ![movement.medicine, movement.batch, movement.reason, movement.type]
+      if (term && ![movement.medicine, movement.batch, movement.reason, this.movementActivityLabel(movement.type)]
         .some(value => value.toLocaleLowerCase().includes(term))) return false;
-      if (type === 'Purchase') return movement.type === 'Purchase' || movement.type === 'PurchaseReturn';
+      if (type === 'Purchase') return movement.type === 'Purchase' || movement.type === 'PurchaseCorrection' || movement.type === 'PurchaseReturn';
       if (type === 'Sale') return movement.type === 'Sale' || movement.type === 'SaleReturn' || movement.type === 'DamagedReturn';
       if (type === 'Adjustment') return movement.type === 'Adjustment' || movement.type === 'Damage';
       return true;
     });
+  });
+  readonly movementSummary = computed(() => {
+    const records = this.filteredMovements();
+    return {
+      total: records.length,
+      added: records.filter(movement => movement.quantityChange > 0).length,
+      reduced: records.filter(movement => movement.quantityChange < 0).length,
+    };
   });
   readonly totalMovementPages = computed(() => Math.max(1, Math.ceil(this.filteredMovements().length / this.pageSize)));
   readonly visibleMovements = computed(() => {
@@ -152,6 +160,14 @@ export class InventoryPage extends PageFeedback implements OnInit {
   clearMovementFilters(): void {
     this.movementType.set('All'); this.movementFromDate.set(''); this.movementToDate.set(''); this.movementSearch.set('');
     this.movementPage.set(1);
+  }
+  movementActivityLabel(type: string): string {
+    const labels: Record<string, string> = {
+      Purchase: 'Purchase received', PurchaseCorrection: 'Purchase correction', PurchaseReturn: 'Returned to supplier',
+      Sale: 'Sale completed', SaleReturn: 'Customer return', DamagedReturn: 'Damaged customer return',
+      Adjustment: 'Stock count correction', Damage: 'Damaged / written off',
+    };
+    return labels[type] ?? 'Stock updated';
   }
   previousMovementPage(): void { this.movementPage.update(page => Math.max(1, page - 1)); }
   nextMovementPage(): void { this.movementPage.update(page => Math.min(this.totalMovementPages(), page + 1)); }
