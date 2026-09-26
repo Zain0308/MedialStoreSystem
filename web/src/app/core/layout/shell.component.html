@@ -21,8 +21,9 @@
       @if (!session.subscriptionExpired() && session.hasPermission('medicines.read')) { <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('inventory.read')) { <a routerLink="/inventory" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><span>▦</span> Inventory</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('inventory.read')) { <a routerLink="/inventory/expiry" routerLinkActive="active"><span>◷</span> Expiry tracking</a> }
-      @if (!session.subscriptionExpired() && session.hasPermission('suppliers.read')) { <a routerLink="/suppliers" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><span>↙</span> Suppliers</a> }
-      @if (!session.subscriptionExpired() && session.hasPermission('purchases.read')) { <a routerLink="/suppliers/purchases" routerLinkActive="active"><span>▣</span> Purchases</a> }
+      @if (!session.subscriptionExpired() && (session.hasPermission('suppliers.read') || session.hasPermission('purchases.read'))) {
+        <a [routerLink]="session.hasPermission('suppliers.read') ? '/suppliers' : '/suppliers/purchases'" routerLinkActive="active"><span>↙</span> Suppliers</a>
+      }
       @if (!session.subscriptionExpired() && session.hasPermission('customers.read')) { <a routerLink="/customers" routerLinkActive="active"><span>♙</span> Customers</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('expenses.read')) { <a routerLink="/expenses" routerLinkActive="active"><span>−</span> Expenses</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('sales.read')) {
