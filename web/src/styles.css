@@ -27,6 +27,13 @@ app-root {
   display: block;
   min-height: 100vh;
 }
+.supplier-credit-box { display: grid; gap: 5px; margin: 10px 0; padding: 12px; border: 1px solid #cfe4d4; border-radius: 9px; background: #f3faf4; }
+.supplier-credit-box label { display: flex; align-items: center; gap: 8px; color: #285a3b; font-size: 12px; font-weight: 700; }
+.supplier-credit-box input { width: 16px; height: 16px; accent-color: #31754a; }
+.supplier-credit-box p { margin: 0 0 0 24px; color: #66796d; font-size: 11px; }
+.credit-calculation { display: grid; gap: 5px; margin: -8px 0 12px; padding: 0 14px; color: #52685a; font-size: 12px; }
+.credit-calculation > div { display: flex; justify-content: space-between; gap: 12px; }
+.credit-calculation strong { color: #24633c; }
 h1,
 h2,
 h3,

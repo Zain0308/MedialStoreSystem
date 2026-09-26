@@ -6,6 +6,7 @@ import { Medicine, MedicinesApi, SaveMedicine } from '../medicines/public-api';
 import { CreateSupplier, Supplier, SuppliersApi } from '../suppliers/public-api';
 import { PageFeedback } from '../../shared/ui/page-feedback';
 import { PageNoticeComponent } from '../../shared/ui/page-notice.component';
+import { apiErrorMessage } from '../../core/api/api-errors';
 import { CreatePurchase, PurchaseResult } from './purchases.models';
 import { PurchasesApi } from './purchases.api';
 
@@ -46,6 +47,13 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
   readonly newMedicine: SaveMedicine = { name: '', genericName: '', barcode: '', strength: '', dosageForm: '',
     manufacturer: '', description: '', minimumStock: 0, requiresPrescription: false };
   readonly supplierId = signal<number | null>(null);
+  readonly supplierCredit = signal(0);
+  readonly supplierCreditLoading = signal(false);
+  readonly applySupplierCredit = signal(false);
+  readonly maxSupplierCreditToApply = computed(() => Math.min(this.purchaseTotal(), this.supplierCredit()));
+  readonly supplierCreditToApply = computed(() => this.applySupplierCredit()
+    ? this.maxSupplierCreditToApply() : 0);
+  readonly totalAfterSupplierCredit = computed(() => Math.max(0, this.purchaseTotal() - this.supplierCreditToApply()));
   readonly supplierResults = computed(() => {
     const term = this.supplierSearch().trim().toLocaleLowerCase();
     if (!term) return [];
@@ -74,6 +82,7 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
   readonly canAddSupplier = computed(() => this.session.hasPermission('suppliers.manage'));
   readonly canAddMedicine = computed(() => this.session.hasPermission('medicines.manage'));
   private nextLineKey = 1;
+  private supplierCreditRequest = 0;
 
   ngOnInit(): void {
     void this.perform(async () => {
@@ -88,8 +97,12 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
   }
 
   searchSupplier(value: string): void {
+    this.supplierCreditRequest++;
     this.supplierSearch.set(value);
     this.supplierId.set(null);
+    this.supplierCredit.set(0);
+    this.supplierCreditLoading.set(false);
+    this.applySupplierCredit.set(false);
     this.addSupplierForm.set(false);
   }
 
@@ -97,6 +110,26 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
     this.supplierId.set(supplier.id);
     this.supplierSearch.set(supplier.name);
     this.addSupplierForm.set(false);
+    this.applySupplierCredit.set(false);
+    void this.loadSupplierCredit(supplier.id);
+  }
+
+  private async loadSupplierCredit(supplierId: number): Promise<void> {
+    const request = ++this.supplierCreditRequest;
+    this.supplierCredit.set(0);
+    this.supplierCreditLoading.set(true);
+    try {
+      const result = await this.purchaseApi.supplierAvailableCredit(supplierId);
+      if (request === this.supplierCreditRequest && this.supplierId() === supplierId)
+        this.supplierCredit.set(Math.max(0, Number(result.availableCredit) || 0));
+    } catch (error) {
+      if (request === this.supplierCreditRequest) {
+        this.message.set(apiErrorMessage(error));
+        this.hasError.set(true);
+      }
+    } finally {
+      if (request === this.supplierCreditRequest) this.supplierCreditLoading.set(false);
+    }
   }
 
   supplierNotFound(): boolean {
@@ -177,7 +210,7 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
   }
 
   canSubmit(): boolean {
-    return this.session.hasPermission('purchases.create') && !this.busy() && !!this.supplierId() && !!this.supplierInvoice.trim() && this.lines().length > 0 &&
+    return this.session.hasPermission('purchases.create') && !this.busy() && !this.supplierCreditLoading() && !!this.supplierId() && !!this.supplierInvoice.trim() && this.lines().length > 0 &&
       this.paymentAmount >= 0 && (this.paymentAmount === 0 || (!!this.paymentMethod && this.paymentMethod !== 'Credit')) &&
       this.lines().every(line => line.batchNumber.trim() && line.expiryDate > this.today && line.quantity > 0 && line.costPrice >= 0 && line.salePrice >= 0);
   }
@@ -211,6 +244,7 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
         paymentAmount: Number(this.paymentAmount || 0),
         paymentMethod: this.paymentMethod,
         paymentReference: this.paymentReference.trim(),
+        applySupplierCredit: this.applySupplierCredit(),
         lines: this.lines().map(line => ({ medicineId: line.medicineId, batchNumber: line.batchNumber.trim(),
           expiryDate: line.expiryDate, quantity: Number(line.quantity), costPrice: Number(line.costPrice), salePrice: Number(line.salePrice) })),
       };

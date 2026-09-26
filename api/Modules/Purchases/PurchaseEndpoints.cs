@@ -33,15 +33,7 @@ public static class PurchaseEndpoints
                 return Results.Conflict("Supplier invoice already received.");
 
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-            var previousPurchases = await db.Purchases.Where(x => x.SupplierId == input.SupplierId)
-                .SumAsync(x => (decimal?)x.Total) ?? 0m;
-            var previousReturns = await db.PurchaseReturns.Where(x => x.Purchase.SupplierId == input.SupplierId)
-                .SumAsync(x => (decimal?)x.Total) ?? 0m;
-            var previousPayments = await db.SupplierPayments.Where(x => x.Purchase.SupplierId == input.SupplierId)
-                .ToListAsync();
-            var supplierCredit = Math.Max(0m, previousPayments
-                .Where(x => !string.Equals(x.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase)).Sum(x => x.Amount)
-                - previousPurchases + previousReturns);
+            var supplierCredit = await GetAvailableSupplierCreditAsync(input.SupplierId, db);
             var purchase = new Purchase { SupplierId = input.SupplierId, SupplierInvoice = invoice,
                 Total = decimal.Round(input.Lines.Sum(x => x.Quantity * x.CostPrice), 2) };
             foreach (var line in input.Lines)
@@ -52,13 +44,13 @@ public static class PurchaseEndpoints
             }
             db.Purchases.Add(purchase);
             await db.SaveChangesAsync();
-            var supplierCreditApplied = Math.Min(purchase.Total, supplierCredit);
+            var supplierCreditApplied = input.ApplySupplierCredit ? Math.Min(purchase.Total, supplierCredit) : 0m;
             if (paymentAmount > 0)
                 db.SupplierPayments.Add(new SupplierPayment { PurchaseId = purchase.Id, Amount = paymentAmount,
                     Method = normalizedPaymentMethod!, Reference = input.PaymentReference?.Trim() });
             if (supplierCreditApplied > 0)
                 db.SupplierPayments.Add(new SupplierPayment { PurchaseId = purchase.Id, Amount = supplierCreditApplied,
-                    Method = "Supplier Credit", Reference = "Automatically applied from supplier credit" });
+                    Method = "Supplier Credit", Reference = "Applied from supplier credit" });
             foreach (var line in purchase.Lines)
                 db.StockMovements.Add(new StockMovement { BatchId = line.BatchId, Type = "Purchase", ReferenceId = purchase.Id,
                     QuantityChange = line.Quantity, BalanceAfter = line.Quantity, Reason = $"Supplier invoice {purchase.SupplierInvoice}" });
@@ -66,6 +58,14 @@ public static class PurchaseEndpoints
             await tx.CommitAsync();
             return Results.Created($"/api/purchases/{purchase.Id}", new { purchase.Id, purchase.Total,
                 paymentAmount, paymentMethod = normalizedPaymentMethod, supplierCreditApplied });
+        }).RequireAuthorization(StorePermissions.PurchasesCreate);
+
+        api.MapGet("/purchases/suppliers/{supplierId:long}/available-credit", async (long supplierId, StoreDb db) =>
+        {
+            var supplierExists = await db.Suppliers.AnyAsync(x => x.Id == supplierId && x.IsActive);
+            if (!supplierExists) return Results.NotFound("Active supplier not found.");
+            var availableCredit = await GetAvailableSupplierCreditAsync(supplierId, db);
+            return Results.Ok(new { supplierId, availableCredit });
         }).RequireAuthorization(StorePermissions.PurchasesCreate);
 
         api.MapGet("/purchases", async (StoreDb db) => Results.Ok(await db.Purchases.AsNoTracking()
@@ -268,6 +268,19 @@ public static class PurchaseEndpoints
             return Results.Created($"/api/purchases/{id}/payments/{payment.Id}", new { payment.Id, payment.Amount, payment.Method,
                 supplierCreditAdded = Math.Max(0m, amount - outstanding) });
         }).RequireAuthorization(StorePermissions.PurchasesManage);
+    }
+
+    private static async Task<decimal> GetAvailableSupplierCreditAsync(long supplierId, StoreDb db)
+    {
+        var purchases = await db.Purchases.Where(x => x.SupplierId == supplierId)
+            .SumAsync(x => (decimal?)x.Total) ?? 0m;
+        var returns = await db.PurchaseReturns.Where(x => x.Purchase.SupplierId == supplierId)
+            .SumAsync(x => (decimal?)x.Total) ?? 0m;
+        var payments = await db.SupplierPayments.Where(x => x.Purchase.SupplierId == supplierId)
+            .Select(x => new { x.Amount, x.Method }).ToListAsync();
+        var paid = payments.Where(x => !string.Equals(x.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase))
+            .Sum(x => x.Amount);
+        return Math.Max(0m, paid - purchases + returns);
     }
 }
 

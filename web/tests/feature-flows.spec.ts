@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 19582)
-Total output lines: 1117
+Warning: truncated output (original token count: 20174)
+Total output lines: 1150
 
 import { expect, Page, test } from '@playwright/test';
 
@@ -352,19 +352,48 @@ async function mockApi(page: Page) {
       const netPreviousPurchases = previousPurchases.reduce((sum, x) => sum + x.total - x.returnedTotal, 0);
       const availableCredit = Math.max(0, externalPaid - netPreviousPurchases);
       const total = body.lines.reduce((sum: number, x: { quantity: number; costPrice: number }) => sum + x.quantity * x.costPrice, 0);
-      const supplierCreditApplied = Math.min(total, availableCredit);
+      const supplierCreditApplied = body.applySupplierCredit ? Math.min(total, availableCredit) : 0;
       const paymentAmount = body.paymentAmount ?? 0;
       const purchase = { id: state.purchases.length + 1, supplier: state.suppliers.find(x => x.id === body.supplierId)!.name,
         supplierInvoice: body.supplierInvoice, createdAt: new Date().toISOString(),
         total, returnedTotal: 0, paidTotal: supplierCreditApplied + paymentAmount,
         lines: body.lines.map((line: { medicineId: number; batchNumber: string; quantity: number; costPrice: number }) => ({ id: state.purchases.length + 1, medicine: state.medicines.find(x => x.id === line.medicineId)!.name, batch: line.batchNumber, quantity: line.quantity, returnedQuantity: 0, unitCost: line.costPrice, onHand: line.quantity })),
         returns: [], corrections: [], payments: supplierCreditApplied > 0 ? [{ id: 1, amount: supplierCreditApplied,
-          method: 'Supplier Credit', reference: 'Automatically applied from supplier credit', paidAt: new Date().toISOString() }] : [] };
+          method: 'Supplier Credit', reference: 'Applied from supplier credit', paidAt: new Date().toISOString() }] : [] };
       if (paymentAmount > 0) purchase.payments.push({ id: purchase.payments.length + 1, amount: paymentAmount,
         method: body.paymentMethod, reference: body.paymentReference, paidAt: new Date().toISOString() });
       state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total, supplierCreditApplied }, 201);
     }
-    if (path === '/api/dashboard') return reply({ todaySales: state.subscriptionExpired ? 0 : state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.subscriptionExpired ? 0 : state.sales.length, medicineCount: state.subscriptionExpired ? 0 : state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionExpired ? null : state.subscr…4582 tokens truncated…Supplier payment amount')).toBeDisabled();
+    const supplierCreditPath = path.match(/^\/api\/purchases\/suppliers\/(\d+)\/available-credit$/);
+    if (supplierCreditPath && method === 'GET') {
+      const supplier = state.suppliers.find(x => x.id === Number(supplierCreditPath[1]));
+      const supplierPurchases = state.purchases.filter(x => x.supplier === supplier?.name);
+      const externalPaid = supplierPurchases.flatMap(x => x.payments)
+        .filter(payment => payment.method !== 'Supplier Credit').reduce((sum, payment) => sum + payment.amount, 0);
+      const netPurchases = supplierPurchases.reduce((sum, x) => sum + x.total - x.returnedTotal, 0);
+      return reply({ supplierId: supplier?.id, availableCredit: Math.max(0, externalPaid - netPurchases) });
+    }
+    if (path === '/api/dashboard') return reply({ todaySales: state.subscriptionExpired ? 0 : state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.subscriptionExpired ? 0 : state.sales.length, medicineCount: state.subscriptionExpired ? 0 : state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionExpired ? null : state.subscriptionDaysRemaining, subscriptionExpiresAt: state.subscriptionExpiresAt, subscriptionExpired: state.subscriptionExpired });
+    if (path === '/api/sales' && method === 'GET') return reply(state.sales);
+    if (path === '/api/sales' && method === 'POST') {
+      state.salePosts++;
+      const body = request.postDataJSON();
+      const id = state.sales.length + 1;
+      const lines = body.lines.map((line: { medicineId: number; quantity: number }) => {
+        const medicine = state.medicines.find(m => m.id === line.medicineId)!;
+        expect(line.quantity).toBeGreaterThan(0);
+        medicine.stock -= line.quantity; state.batches[0].quantity -= line.quantity;
+        return { medicine: medicine.name, batch: 'LOT-01', quantity: line.quantity, unitPrice: 5, total: line.quantity * 5 };
+      });
+      const total = lines.reduce((sum: number, line: { total: number }) => sum + line.total, 0);
+      const totalDue = total - (body.discountAmount ?? 0);
+      const amountPaid = body.paymentMethod === 'Not Received' ? 0 : (body.paymentMethod === 'Cash' ? Math.min(body.cashReceived, totalDue) : body.amountPaid ?? totalDue);
+      const paymentMethod = amountPaid === 0 && body.paymentMethod === 'Not Received' ? 'Not Received' : amountPaid …4174 tokens truncated….getByLabel('Amoxicillin 500mg quantity').fill('30');
+  await dialog.getByLabel('Amoxicillin 500mg unit cost').fill('12');
+  await dialog.getByLabel('Amoxicillin 500mg sale price').fill('18');
+  await expect(dialog.locator('.purchase-total')).toContainText('Rs 360.00');
+  await dialog.getByLabel('Supplier payment method').selectOption('Credit');
+  await expect(dialog.getByLabel('Supplier payment amount')).toBeDisabled();
   await expect(dialog.getByText('No payment is recorded now; the invoice remains payable.')).toBeVisible();
   await dialog.getByLabel('Supplier payment method').selectOption('Bank Transfer');
   await expect(dialog.getByLabel('Supplier payment amount')).toBeEnabled();
@@ -642,11 +671,35 @@ test('supplier overpayment requires confirmation and carries forward to that sup
   await dialog.getByLabel('Paracetamol 500mg unit cost').fill('6');
   await dialog.getByLabel('Paracetamol 500mg sale price').fill('9');
   await dialog.getByLabel('Purchase supplier invoice').fill('SUP-ADV-02');
+  const creditToggle = dialog.getByLabel('Apply supplier credit');
+  await expect(creditToggle).not.toBeChecked();
+  await expect(dialog.getByText(/Rs 10\.00 is available/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Receive purchase' }).click();
-  await expect(page.getByText('Purchase received; batch stock updated. Rs 6.00 supplier credit was applied.')).toBeVisible();
+  await expect(page.getByText('Purchase received; batch stock updated.')).toBeVisible();
   await page.goto('/suppliers/purchases');
   await expect(accountRow).toContainText('Credit Rs 4.00');
-  expect(state.purchases[1].payments[0]).toMatchObject({ amount: 6, method: 'Supplier Credit' });
+
+  await page.goto('/inventory');
+  await page.getByRole('button', { name: /Create purchase/ }).click();
+  dialog = page.getByRole('dialog', { name: 'Create purchase' });
+  await dialog.getByLabel('Search purchase supplier').fill('City');
+  await dialog.getByRole('option').filter({ hasText: 'City Pharma' }).click();
+  await dialog.getByLabel('Search purchase medicine').fill('Paracetamol');
+  await dialog.getByRole('option').filter({ hasText: 'Paracetamol 500mg' }).click();
+  await dialog.getByLabel('Paracetamol 500mg batch number').fill('ADV-03');
+  await dialog.getByLabel('Paracetamol 500mg expiry date').fill('2050-12-31');
+  await dialog.getByLabel('Paracetamol 500mg quantity').fill('1');
+  await dialog.getByLabel('Paracetamol 500mg unit cost').fill('6');
+  await dialog.getByLabel('Paracetamol 500mg sale price').fill('9');
+  await dialog.getByLabel('Purchase supplier invoice').fill('SUP-ADV-03');
+  await dialog.getByLabel('Apply supplier credit').check();
+  await expect(dialog.getByText('Total after supplier credit')).toBeVisible();
+  await expect(dialog.locator('.credit-calculation')).toContainText('Rs 4.00');
+  await expect(dialog.locator('.credit-calculation')).toContainText('Rs 2.00');
+  await dialog.getByRole('button', { name: 'Receive purchase' }).click();
+  await expect(page.getByText('Purchase received; batch stock updated. Rs 4.00 supplier credit was applied.')).toBeVisible();
+  expect(state.purchases[1].payments).toHaveLength(0);
+  expect(state.purchases[2].payments[0]).toMatchObject({ amount: 4, method: 'Supplier Credit' });
 });
 
 test('store users can create expense categories, record expenses and filter the ledger by date', async ({ page }) => {

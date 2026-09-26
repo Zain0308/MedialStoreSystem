@@ -1,4 +1,4 @@
 namespace MedicalStore.Api.Modules.Purchases;
 
 public sealed record PurchaseRequest(long SupplierId, string SupplierInvoice, List<PurchaseRequestLine> Lines,
-    decimal PaymentAmount = 0, string? PaymentMethod = null, string? PaymentReference = null);
+    decimal PaymentAmount = 0, string? PaymentMethod = null, string? PaymentReference = null, bool ApplySupplierCredit = false);

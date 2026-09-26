@@ -13,7 +13,9 @@ export interface CreatePurchase {
   paymentAmount?: number;
   paymentMethod?: string;
   paymentReference?: string;
+  applySupplierCredit?: boolean;
 }
+export interface SupplierCreditAvailability { supplierId: number; availableCredit: number; }
 export interface PurchaseResult {
   id: number;
   total: number;

@@ -107,8 +107,22 @@
           </select></label>
           <label class="wide-field">Payment reference (optional)<input aria-label="Supplier payment reference" [(ngModel)]="paymentReference" [ngModelOptions]="{standalone:true}" [disabled]="paymentAmount <= 0 || paymentMethod === 'Credit'" maxlength="120" placeholder="Receipt, transaction ID or note" /></label>
         </div>
+        @if (supplierCreditLoading()) { <p class="payment-hint">Checking this supplier’s available credit…</p> }
+        @if (!supplierCreditLoading() && supplierId() && supplierCredit() > 0) {
+          <div class="supplier-credit-box">
+            <label><input aria-label="Apply supplier credit" type="checkbox" [ngModel]="applySupplierCredit()" [ngModelOptions]="{standalone:true}" (ngModelChange)="applySupplierCredit.set($event)" />
+              Use existing supplier credit</label>
+            <p>Rs {{ supplierCredit() | number:'1.2-2' }} is available. @if (maxSupplierCreditToApply() > 0) { Tick the box to use up to Rs {{ maxSupplierCreditToApply() | number:'1.2-2' }} on this invoice. }</p>
+          </div>
+        }
         <p class="payment-hint">@if (paymentMethod === 'Credit') { No payment is recorded now; the invoice remains payable. } @else { Leave the amount at 0 to pay later. Any overpayment is kept as supplier credit. }</p>
         <div class="purchase-total"><span>Purchase total</span><strong>Rs {{ purchaseTotal() | number:'1.2-2' }}</strong></div>
+        @if (supplierCreditToApply() > 0) {
+          <div class="credit-calculation">
+            <div><span>Supplier credit used</span><strong>− Rs {{ supplierCreditToApply() | number:'1.2-2' }}</strong></div>
+            <div><span>Total after supplier credit</span><strong>Rs {{ totalAfterSupplierCredit() | number:'1.2-2' }}</strong></div>
+          </div>
+        }
         <div class="purchase-submit-actions"><button type="button" class="primary" [disabled]="!canSubmit()" (click)="submit()">Receive purchase</button><button type="button" class="secondary" (click)="closed.emit()">Cancel</button></div>
       </section>
     </div>
