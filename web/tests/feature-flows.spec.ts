@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 19504)
-Total output lines: 1110
+Warning: truncated output (original token count: 19586)
+Total output lines: 1117
 
 import { expect, Page, test } from '@playwright/test';
 
@@ -245,7 +245,117 @@ async function mockApi(page: Page) {
       supplier.isActive = request.postDataJSON().isActive; return reply(supplier);
     }
     const supplierPath = path.match(/^\/api\/suppliers\/(\d+)$/);
-    if (supplierPath && method ===…9504 tokens truncated…Payment method').selectOption('Not Received');
+    if (supplierPath && method === 'PUT') {
+      const supplier = state.suppliers.find(x => x.id === Number(supplierPath[1]))!;
+      Object.assign(supplier, request.postDataJSON()); return reply(supplier);
+    }
+    if (path === '/api/inventory/movements') return reply(state.movements);
+    if (path === '/api/inventory/expiry') return reply(state.expiryBatches);
+    const medicineInventoryDetails = path.match(/^\/api\/inventory\/medicines\/(\d+)\/details$/);
+    if (medicineInventoryDetails) {
+      const medicineId = Number(medicineInventoryDetails[1]);
+      const batches = state.batches.filter(batch => batch.medicineId === medicineId);
+      const medicine = state.medicines.find(item => item.id === medicineId)!;
+      const purchases = batches.map((batch, index) => ({ purchaseId: batch.id, purchaseLineId: batch.id,
+        batchId: batch.id, batch: batch.number, supplier: 'Demo Pharma', supplierInvoice: `SUP-${index + 1}`,
+        purchasedAt: `2026-08-${String(index + 1).padStart(2, '0')}T12:00:00Z`, expiryDate: batch.expiryDate,
+        quantity: batch.quantity + index, returnedQuantity: index, onHand: batch.quantity, unitCost: batch.costPrice,
+        salePrice: batch.salePrice, invoiceTotal: (batch.quantity + index) * batch.costPrice,
+        invoicePaid: batch.costPrice * 5, invoiceReturned: index * batch.costPrice }));
+      return reply({ medicine, batches, purchases, payments: [], returns: [], corrections: [] });
+    }
+    if (path === '/api/inventory/adjustments' && method === 'POST') {
+      const body = request.postDataJSON(); const batch = state.batches.find(x => x.id === body.batchId)!;
+      batch.quantity += body.quantityChange;
+      state.movements.push({ id: state.movements.length + 1, batchId: batch.id, medicine: batch.medicine, batch: batch.number, type: body.type, quantityChange: body.quantityChange, balanceAfter: batch.quantity, reason: body.reason, createdAt: new Date().toISOString() });
+      return reply({ id: batch.id, quantity: batch.quantity });
+    }
+    if (path === '/api/inventory') {
+      const inventory = state.batches.map(batch => {
+        const medicine = state.medicines.find(item => item.id === batch.medicineId);
+        return { ...batch, genericName: medicine?.genericName ?? null, strength: medicine?.strength ?? null,
+          dosageForm: medicine?.dosageForm ?? null };
+      });
+      return reply(state.unauthorizedInventory ? {} : inventory, state.unauthorizedInventory ? 401 : 200);
+    }
+    if (path === '/api/purchases' && method === 'GET') return reply(state.purchases);
+    if (path === '/api/purchases/supplier-accounts' && method === 'GET') {
+      return reply(state.suppliers.map(supplier => {
+        const invoices = state.purchases.filter(purchase => purchase.supplier === supplier.name);
+        const purchaseTotal = invoices.reduce((sum, purchase) => sum + purchase.total, 0);
+        const returnedTotal = invoices.reduce((sum, purchase) => sum + purchase.returnedTotal, 0);
+        const paidTotal = invoices.reduce((sum, purchase) => sum + purchase.payments
+          .filter(payment => payment.method !== 'Supplier Credit').reduce((paid, payment) => paid + payment.amount, 0), 0);
+        return { supplierId: supplier.id, supplier: supplier.name, invoiceCount: invoices.length,
+          purchaseTotal, returnedTotal, paidTotal, balance: purchaseTotal - returnedTotal - paidTotal };
+      }));
+    }
+    const supplierStatement = path.match(/^\/api\/purchases\/suppliers\/(\d+)\/statement$/);
+    if (supplierStatement && method === 'GET') {
+      const supplier = state.suppliers.find(item => item.id === Number(supplierStatement[1]));
+      if (!supplier) return reply({}, 404);
+      return reply({ supplierId: supplier.id, supplier: supplier.name,
+        invoices: state.purchases.filter(purchase => purchase.supplier === supplier.name) });
+    }
+    const purchaseReturn = path.match(/^\/api\/purchases\/(\d+)\/returns$/);
+    if (purchaseReturn && method === 'POST') {
+      const purchase = state.purchases.find(x =…7586 tokens truncated…le('button', { name: 'Save purchase correction' }).click();
+  await expect(page.getByText(/Purchase corrected\. Total changed from Rs 30\.00 to Rs 27\.00/)).toBeVisible();
+  await page.getByRole('button', { name: 'Return stock' }).click();
+  await expect(page.getByLabel('Supplier return reference')).toBeVisible();
+  await expect(page.getByLabel('Amount (Rs)')).toHaveCount(0);
+  await expect(page.getByLabel('Correct quantity for Vitamin C batch VC-02')).toHaveCount(0);
+  await page.getByLabel('Supplier return reference').fill('RET-002');
+  await page.getByLabel('Reason', { exact: true }).fill('Damaged packaging');
+  await page.getByRole('button', { name: 'Save return' }).click();
+  await expect(page.getByText('Supplier return recorded and stock reduced.')).toBeVisible();
+  await page.getByRole('button', { name: 'Record payment' }).click();
+  await expect(page.getByLabel('Supplier return reference')).toHaveCount(0);
+  await expect(page.getByLabel('Amount (Rs)')).toHaveValue('24');
+  await page.getByRole('button', { name: 'Save payment' }).click();
+  await expect(page.getByText('Supplier payment recorded.')).toBeVisible();
+  const accountRow = page.locator('.supplier-account-panel tbody tr').filter({ hasText: 'City Pharma' });
+  await expect(accountRow).toContainText('Rs 0.00');
+  await accountRow.getByRole('button', { name: 'View statement' }).click();
+  const statement = page.locator('.supplier-statement');
+  await expect(statement).toContainText('SUP-002');
+  const [supplierLedgerDownload] = await Promise.all([
+    page.waitForEvent('download'), statement.getByRole('button', { name: 'Download full ledger CSV' }).click(),
+  ]);
+  expect(supplierLedgerDownload.suggestedFilename()).toBe('supplier-ledger-City-Pharma.csv');
+  await statement.getByRole('button', { name: 'Invoice details' }).click();
+  const invoiceDetail = page.locator('.panel.form-panel').filter({ hasText: 'Invoice SUP-002' });
+  await expect(invoiceDetail).toContainText('RET-002');
+  await expect(invoiceDetail).toContainText('Purchase correction history');
+  await expect(invoiceDetail).toContainText('Quantity was entered incorrectly');
+  await expect(invoiceDetail).toContainText('Payment');
+  await navigate(page, /Inventory/);
+  await expect(page.getByRole('row').filter({ hasText: 'VC-02' })).toContainText('8');
+  await page.getByRole('textbox', { name: 'Batch to adjust' }).fill('VC-02');
+  await page.getByRole('option').filter({ hasText: 'Vitamin C' }).filter({ hasText: 'VC-02' }).click();
+  await page.getByLabel('Reason', { exact: true }).fill('Broken units');
+  await page.getByRole('button', { name: 'Record movement' }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Broken units' })).toContainText('-1');
+  await navigate(page, /Medicines/);
+  const medicineRow = page.getByRole('row').filter({ hasText: 'Vitamin C' });
+  await medicineRow.getByRole('button', { name: 'Edit' }).click();
+  await page.getByLabel('Medicine name').fill('Vitamin C 500mg');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toBeVisible();
+  await page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' }).getByRole('button', { name: 'Deactivate' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click();
+  await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toContainText('Inactive');
+});
+
+test('customers track paid and due amounts, and POS can record an unpaid sale', async ({ page }) => {
+  const state = await mockApi(page); await signIn(page);
+  await navigate(page, /Customers/);
+  await page.getByLabel('Customer name').fill('Ayesha Khan');
+  await page.getByRole('button', { name: 'Add customer' }).click();
+  await expect(page.getByText('Ayesha Khan', { exact: true })).toBeVisible();
+  await navigate(page, /New sale/);
+  await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
+  await page.getByLabel('Payment method').selectOption('Not Received');
   await expect(page.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
   await page.getByLabel('Customer search').fill('Ayesha');
   await page.getByRole('button', { name: 'Ayesha Khan', exact: true }).click();
