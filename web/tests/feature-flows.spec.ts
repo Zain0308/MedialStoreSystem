@@ -652,7 +652,7 @@ test('supplier overpayment requires confirmation and carries forward to that sup
   await page.getByLabel('Search supplier').fill('City');
   await page.getByRole('button', { name: /City Pharma/ }).click();
   await page.getByLabel('Supplier invoice').fill('SUP-ADV-01');
-  await page.getByLabel('Purchase medicine').fill('Paracetamol');
+  await page.getByRole('textbox', { name: 'Purchase medicine' }).fill('Paracetamol');
   await page.getByRole('option').filter({ hasText: 'Paracetamol 500mg' }).click();
   await page.getByLabel('Batch number').fill('ADV-01');
   await page.getByLabel('Expiry date').fill('2050-12-31');
@@ -674,7 +674,7 @@ test('supplier overpayment requires confirmation and carries forward to that sup
   await expect(accountRow).toContainText('Credit Rs 10.00');
 
   await page.getByLabel('Supplier invoice').fill('SUP-ADV-02');
-  await page.getByLabel('Purchase medicine').fill('Paracetamol');
+  await page.getByRole('textbox', { name: 'Purchase medicine' }).fill('Paracetamol');
   await page.getByRole('option').filter({ hasText: 'Paracetamol 500mg' }).click();
   await page.getByLabel('Batch number').fill('ADV-02');
   await page.getByLabel('Quantity (units)').fill('1');
