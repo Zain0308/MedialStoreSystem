@@ -1,58 +1,90 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 <div class="page-content">
   <section class="panel">
-    <div class="panel-head">
-      <div>
-        <h3>Batch inventory</h3>
-        <p>Expiry dates and quantities for each received lot</p>
+      <div class="panel-head">
+        <div>
+        <h3>Medicine inventory</h3>
+        <p>Each medicine appears once. Open its details to see every received batch and purchase.</p>
       </div>
-      <span class="count">{{ filteredBatches().length }} of {{ batches().length }} batches</span>
+      <span class="count">{{ filteredProducts().length }} medicines · {{ filteredBatches().length }} matching batches</span>
     </div>
-    <div class="movement-filters"><label>Search batches<input aria-label="Search batches" [ngModel]="batchSearch()" (ngModelChange)="batchSearch.set($event); batchPage.set(1)" placeholder="Medicine or batch number" /></label>
+    <div class="movement-filters"><label>Search inventory<input aria-label="Search batches" [ngModel]="batchSearch()" (ngModelChange)="batchSearch.set($event); batchPage.set(1)" placeholder="Medicine or batch number" /></label>
       <label>Status<select aria-label="Batch status filter" [ngModel]="batchStatus()" (ngModelChange)="batchStatus.set($event); batchPage.set(1)"><option value="all">All statuses</option><option value="Available">Available</option><option value="Near expiry">Near expiry</option><option value="Expired">Expired</option><option value="Out of stock">Out of stock</option></select></label>
       <label>Expiry from<input type="date" aria-label="Expiry from" [ngModel]="expiryFrom()" (ngModelChange)="expiryFrom.set($event); batchPage.set(1)" /></label><label>Expiry to<input type="date" aria-label="Expiry to" [ngModel]="expiryTo()" (ngModelChange)="expiryTo.set($event); batchPage.set(1)" /></label>
       <button type="button" class="text-button" (click)="batchSearch.set(''); batchStatus.set('all'); expiryFrom.set(''); expiryTo.set(''); batchPage.set(1)">Clear filters</button></div>
     <div class="table-wrap">
-      <table>
+      <table class="inventory-product-table">
         <thead>
-          <tr>
-            <th>Medicine / batch</th>
-            <th>Expiry</th>
-            <th>Cost</th>
-            <th>Sale price</th>
-            <th>Saleable units</th>
-            <th>Status</th>
-          </tr>
+          <tr><th>Medicine</th><th>Total saleable units</th><th>Batch lots</th><th>Batch status</th><th>Details</th></tr>
         </thead>
         <tbody>
-          @for (b of visibleBatches(); track b.id) {
+          @for (product of visibleProducts(); track product.medicineId) {
             <tr>
-              <td>
-                <strong>{{ b.medicine }}</strong
-                ><small>{{ b.number }}</small>
+              <td><strong>{{ product.medicine }}</strong></td>
+              <td>{{ product.totalQuantity }}</td>
+              <td>{{ product.batches.length }}</td>
+              <td class="batch-status-summary">
+                @for (statusName of ['Available', 'Near expiry', 'Expired', 'Out of stock']; track statusName) {
+                  @if (product.statusCounts[statusName]) {
+                    <span class="badge" [class.bad]="statusName === 'Expired' || statusName === 'Out of stock'"
+                      [class.amber]="statusName === 'Near expiry'">{{ product.statusCounts[statusName] }} {{ statusName }}</span>
+                  }
+                }
               </td>
-              <td>{{ b.expiryDate | date: 'mediumDate' }}</td>
-              <td>Rs {{ b.costPrice | number: '1.2-2' }}</td>
-              <td>Rs {{ b.salePrice | number: '1.2-2' }}</td>
-              <td>{{ b.quantity }}</td>
-              <td>
-                <span
-                  class="badge"
-                  [class.bad]="status(b) === 'Expired'"
-                  [class.amber]="status(b) === 'Near expiry'"
-                  >{{ status(b) }}</span
-                >
-              </td>
+              <td><button type="button" class="inventory-details-button" [disabled]="busy()"
+                [attr.aria-label]="(expandedMedicineId() === product.medicineId ? 'Hide' : 'View') + ' details for ' + product.medicine"
+                [attr.title]="expandedMedicineId() === product.medicineId ? 'Hide medicine details' : 'View complete medicine history'"
+                (click)="toggleProductDetails(product)">{{ expandedMedicineId() === product.medicineId ? '⌄' : 'ⓘ' }}</button></td>
             </tr>
+            @if (expandedMedicineId() === product.medicineId) {
+              <tr class="inventory-expanded-row"><td colspan="5">
+                @if (detailsLoading()) { <p class="empty">Loading complete medicine history…</p> }
+                @else if (productDetails(); as details) {
+                  <div class="inventory-detail-summary">
+                    <div><strong>Medicine details</strong><span>{{ details.medicine.genericName || 'Generic not set' }} · {{ details.medicine.strength || 'Strength not set' }} · {{ details.medicine.dosageForm || 'Form not set' }}</span></div>
+                    <div><strong>Manufacturer / barcode</strong><span>{{ details.medicine.manufacturer || '—' }} · {{ details.medicine.barcode || '—' }}</span></div>
+                    <div><strong>Minimum stock</strong><span>{{ details.medicine.minimumStock }} units</span></div>
+                    @if (details.medicine.description) { <div><strong>Description</strong><span>{{ details.medicine.description }}</span></div> }
+                  </div>
+                  <h4>Purchase and batch history</h4>
+                  @if (details.purchases.length) {
+                    <div class="table-wrap"><table><thead><tr><th>Batch</th><th>Supplier</th><th>Supplier invoice</th><th>Received</th><th>Expiry</th><th>Purchased</th><th>Returned</th><th>On hand</th><th>Unit cost</th><th>Sale price</th><th>Invoice total / paid / returned / due</th></tr></thead>
+                      <tbody>@for (purchase of details.purchases; track purchase.purchaseLineId) {
+                        <tr><td>{{ purchase.batch }}</td><td>{{ purchase.supplier }}</td><td>{{ purchase.supplierInvoice }}</td><td>{{ purchase.purchasedAt | date:'mediumDate' }}</td>
+                          <td>{{ purchase.expiryDate | date:'mediumDate' }}</td><td>{{ purchase.quantity }}</td><td>{{ purchase.returnedQuantity }}</td>
+                          <td>{{ purchase.onHand }}</td><td>Rs {{ purchase.unitCost | number:'1.2-2' }}</td>
+                          <td>Rs {{ purchase.salePrice | number:'1.2-2' }}</td>
+                          <td>Rs {{ purchase.invoiceTotal | number:'1.2-2' }} / Rs {{ purchase.invoicePaid | number:'1.2-2' }} / Rs {{ purchase.invoiceReturned | number:'1.2-2' }} / Rs {{ purchase.invoiceTotal - purchase.invoicePaid - purchase.invoiceReturned | number:'1.2-2' }}</td></tr>
+                      }</tbody>
+                    </table></div>
+                  } @else { <p class="empty">No purchase history is linked to this medicine.</p> }
+                  @if (details.payments.length) {
+                    <h4>Supplier payments</h4><div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoice</th><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th></tr></thead><tbody>
+                      @for (payment of details.payments; track payment.id) { <tr><td>{{ payment.supplier }}</td><td>{{ payment.supplierInvoice }}</td><td>{{ payment.paidAt | date:'mediumDate' }}</td><td>Rs {{ payment.amount | number:'1.2-2' }}</td><td>{{ payment.method }}</td><td>{{ payment.reference || '—' }}</td></tr> }
+                    </tbody></table></div>
+                  }
+                  @if (details.returns.length) {
+                    <h4>Supplier returns</h4><div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoice</th><th>Return reference</th><th>Date</th><th>Quantity</th><th>Amount</th><th>Reason</th></tr></thead><tbody>
+                      @for (item of details.returns; track item.id) { <tr><td>{{ item.supplier }}</td><td>{{ item.supplierInvoice }}</td><td>{{ item.supplierReference }}</td><td>{{ item.createdAt | date:'mediumDate' }}</td><td>{{ item.quantity }}</td><td>Rs {{ item.total | number:'1.2-2' }}</td><td>{{ item.reason }}</td></tr> }
+                    </tbody></table></div>
+                  }
+                  @if (details.corrections.length) {
+                    <h4>Purchase quantity corrections</h4><div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Batch</th><th>Date</th><th>Previous qty</th><th>Corrected qty</th><th>Change</th><th>Reason</th></tr></thead><tbody>
+                      @for (correction of details.corrections; track correction.id) { <tr><td>{{ correction.supplierInvoice }}</td><td>{{ correction.batch }}</td><td>{{ correction.createdAt | date:'mediumDate' }}</td><td>{{ correction.previousQuantity }}</td><td>{{ correction.correctedQuantity }}</td><td>{{ correction.quantityChange }}</td><td>{{ correction.reason }}</td></tr> }
+                    </tbody></table></div>
+                  }
+                }
+              </td></tr>
+            }
           }
         </tbody>
       </table>
       </div>
-      <app-table-pagination [page]="batchPage()" [total]="filteredBatches().length" [pageSize]="pageSize" (pageChange)="batchPage.set($event)" />
+      <app-table-pagination [page]="batchPage()" [total]="filteredProducts().length" [pageSize]="pageSize" (pageChange)="batchPage.set($event)" />
     @if (batches().length === 0) {
       <p class="empty">No batches received yet. Receive a purchase to create stock.</p>
     }
-    @if (batches().length && !filteredBatches().length) { <p class="empty">No batches match these filters.</p> }
+    @if (batches().length && !filteredProducts().length) { <p class="empty">No medicines match these filters.</p> }
   </section>
   @if (session.hasPermission('inventory.manage')) {
     <section class="panel form-panel">

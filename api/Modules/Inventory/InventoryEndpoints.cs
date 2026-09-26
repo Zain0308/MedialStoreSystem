@@ -1,5 +1,6 @@
 using MedicalStore.Api.Infrastructure.Persistence;
 using MedicalStore.Api.Modules.Authentication;
+using MedicalStore.Api.Modules.Purchases;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -13,6 +14,57 @@ public static class InventoryEndpoints
             .OrderBy(x => x.ExpiryDate).Select(x => new { x.Id, medicineId = x.MedicineId, medicine = x.Medicine.Name,
                 x.Number, x.ExpiryDate, x.CostPrice, x.SalePrice, x.Quantity }).ToListAsync()))
             .RequireAuthorization(StorePermissions.InventoryRead);
+
+        api.MapGet("/inventory/medicines/{medicineId:long}/details", async (long medicineId, StoreDb db) =>
+        {
+            var medicine = await db.Medicines.AsNoTracking().Where(x => x.Id == medicineId)
+                .Select(x => new { x.Id, x.Name, x.GenericName, x.Barcode, x.Strength, x.DosageForm,
+                    x.Manufacturer, x.Description, x.MinimumStock, x.IsActive }).SingleOrDefaultAsync();
+            if (medicine is null) return Results.NotFound("Medicine not found.");
+
+            var batches = await db.Batches.AsNoTracking().Where(x => x.MedicineId == medicineId)
+                .OrderBy(x => x.ExpiryDate).Select(x => new { x.Id, x.Number, x.ExpiryDate, x.CostPrice,
+                    x.SalePrice, x.Quantity }).ToListAsync();
+            var purchaseLines = await db.PurchaseLines.AsNoTracking().Where(x => x.Batch.MedicineId == medicineId)
+                .OrderByDescending(x => x.Purchase.CreatedAt).Select(x => new
+                {
+                    purchaseId = x.PurchaseId, purchaseLineId = x.Id, batchId = x.BatchId, batch = x.Batch.Number,
+                    expiryDate = x.Batch.ExpiryDate, onHand = x.Batch.Quantity, salePrice = x.Batch.SalePrice,
+                    supplier = x.Purchase.Supplier.Name, supplierInvoice = x.Purchase.SupplierInvoice,
+                    purchasedAt = x.Purchase.CreatedAt, x.Quantity, x.ReturnedQuantity, x.UnitCost,
+                    invoiceTotal = x.Purchase.Total,
+                    invoicePaid = x.Purchase.Payments.Where(p => p.Method != "Supplier Credit")
+                        .Sum(p => (decimal?)p.Amount) ?? 0m,
+                    invoiceReturned = x.Purchase.Returns.Sum(r => (decimal?)r.Total) ?? 0m
+                }).ToListAsync();
+            var purchaseIds = purchaseLines.Select(x => x.purchaseId).Distinct().ToArray();
+            var payments = await db.SupplierPayments.AsNoTracking()
+                .Where(x => purchaseIds.Contains(x.PurchaseId))
+                .OrderByDescending(x => x.PaidAt).Select(x => new
+                {
+                    x.Id, supplierInvoice = x.Purchase.SupplierInvoice, supplier = x.Purchase.Supplier.Name,
+                    x.Amount, x.Method, x.Reference, x.PaidAt
+                }).ToListAsync();
+            var returns = await db.PurchaseReturnLines.AsNoTracking()
+                .Where(x => x.PurchaseLine.Batch.MedicineId == medicineId)
+                .OrderByDescending(x => x.PurchaseReturn.CreatedAt).Select(x => new
+                {
+                    x.Id, supplierInvoice = x.PurchaseReturn.Purchase.SupplierInvoice,
+                    supplier = x.PurchaseReturn.Purchase.Supplier.Name,
+                    x.PurchaseReturn.SupplierReference, x.PurchaseReturn.Reason, x.PurchaseReturn.CreatedAt,
+                    x.Quantity, x.UnitCost, total = x.Quantity * x.UnitCost
+                }).ToListAsync();
+            var corrections = await db.PurchaseCorrectionLines.AsNoTracking()
+                .Where(x => x.PurchaseLine.Batch.MedicineId == medicineId)
+                .OrderByDescending(x => x.PurchaseCorrection.CreatedAt).Select(x => new
+                {
+                    x.Id, supplierInvoice = x.PurchaseCorrection.Purchase.SupplierInvoice,
+                    batch = x.PurchaseLine.Batch.Number, x.PurchaseCorrection.Reason,
+                    x.PurchaseCorrection.CreatedAt, x.PreviousQuantity, x.CorrectedQuantity, x.QuantityChange
+                }).ToListAsync();
+
+            return Results.Ok(new { medicine, batches, purchases = purchaseLines, payments, returns, corrections });
+        }).RequireAuthorization(StorePermissions.InventoryRead);
 
         api.MapPost("/inventory/adjustments", async (StockAdjustmentRequest input, StoreDb db, ClaimsPrincipal principal) =>
         {

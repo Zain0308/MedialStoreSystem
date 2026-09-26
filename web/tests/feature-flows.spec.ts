@@ -237,6 +237,19 @@ async function mockApi(page: Page) {
       Object.assign(supplier, request.postDataJSON()); return reply(supplier);
     }
     if (path === '/api/inventory/movements') return reply(state.movements);
+    const medicineInventoryDetails = path.match(/^\/api\/inventory\/medicines\/(\d+)\/details$/);
+    if (medicineInventoryDetails) {
+      const medicineId = Number(medicineInventoryDetails[1]);
+      const batches = state.batches.filter(batch => batch.medicineId === medicineId);
+      const medicine = state.medicines.find(item => item.id === medicineId)!;
+      const purchases = batches.map((batch, index) => ({ purchaseId: index + 1, purchaseLineId: index + 1,
+        batchId: batch.id, batch: batch.number, supplier: 'Demo Pharma', supplierInvoice: `SUP-${index + 1}`,
+        purchasedAt: `2026-08-${String(index + 1).padStart(2, '0')}T12:00:00Z`, expiryDate: batch.expiryDate,
+        quantity: batch.quantity + index, returnedQuantity: index, onHand: batch.quantity, unitCost: batch.costPrice,
+        salePrice: batch.salePrice, invoiceTotal: (batch.quantity + index) * batch.costPrice,
+        invoicePaid: batch.costPrice * 5, invoiceReturned: index * batch.costPrice }));
+      return reply({ medicine, batches, purchases, payments: [], returns: [], corrections: [] });
+    }
     if (path === '/api/inventory/adjustments' && method === 'POST') {
       const body = request.postDataJSON(); const batch = state.batches.find(x => x.id === body.batchId)!;
       batch.quantity += body.quantityChange;
@@ -413,10 +426,10 @@ async function navigate(page: Page, name: RegExp) {
 test('protected deep links, session restore and 401 redirect', async ({ page }) => {
   const state = await mockApi(page);
   await signIn(page, '/inventory');
-  await expect(page.getByRole('cell', { name: 'Available', exact: true })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Paracetamol 500mg' })).toContainText('Available');
   await page.reload();
   await expect(page).toHaveURL(/\/inventory$/);
-  await expect(page.getByRole('cell', { name: 'Available', exact: true })).toBeVisible();
+  await expect(page.getByRole('row').filter({ hasText: 'Paracetamol 500mg' })).toContainText('Available');
   state.unauthorizedInventory = true;
   await navigate(page, /Dashboard/); await navigate(page, /Inventory/);
   await expect(page).toHaveURL(/\/login/);
@@ -487,6 +500,24 @@ test('inventory movement report filters dates and purchase or sale sources with 
   await report.getByLabel('From date').fill('2026-09-10');
   await report.getByLabel('To date').fill('2026-09-20');
   await expect(report.locator('tbody tr')).toHaveCount(5);
+});
+
+test('inventory lists one row per medicine and expands complete batch purchase details', async ({ page }) => {
+  const state = await mockApi(page);
+  state.batches.push({ id: 2, medicineId: 1, medicine: 'Paracetamol 500mg', number: 'LOT-02',
+    expiryDate: '2051-12-31', costPrice: 3, salePrice: 6, quantity: 8 });
+  await signIn(page, '/inventory');
+  const table = page.locator('.inventory-product-table');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table.locator('tbody tr').first()).toContainText('28');
+  await expect(table.locator('tbody tr').first()).toContainText('2');
+  await page.getByRole('button', { name: 'View details for Paracetamol 500mg' }).click();
+  const details = page.locator('.inventory-expanded-row');
+  await expect(details).toContainText('SUP-1');
+  await expect(details).toContainText('SUP-2');
+  await expect(details).toContainText('Demo Pharma');
+  await expect(details).toContainText('LOT-01');
+  await expect(details).toContainText('LOT-02');
 });
 
 test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {

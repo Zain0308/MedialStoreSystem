@@ -8,7 +8,15 @@ import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shar
 import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/search-picker.component';
 
 import { InventoryApi } from './inventory.api';
-import { Batch, StockMovement } from './inventory.models';
+import { Batch, InventoryMedicineDetails, StockMovement } from './inventory.models';
+
+type InventoryProductGroup = {
+  medicineId: number;
+  medicine: string;
+  batches: Batch[];
+  totalQuantity: number;
+  statusCounts: Record<string, number>;
+};
 
 @Component({
   selector: 'app-inventory-page',
@@ -38,8 +46,27 @@ export class InventoryPage extends PageFeedback implements OnInit {
         (status === 'all' || status === batchStatus) && (!from || batch.expiryDate >= from) && (!to || batch.expiryDate <= to);
     });
   });
-  readonly visibleBatches = computed(() => pageSlice(this.filteredBatches(), this.batchPage()));
+  readonly products = computed<InventoryProductGroup[]>(() => {
+    const groups = new Map<number, Batch[]>();
+    for (const batch of this.batches()) groups.set(batch.medicineId, [...(groups.get(batch.medicineId) ?? []), batch]);
+    return [...groups.entries()].map(([medicineId, batches]) => ({
+      medicineId, medicine: batches[0]?.medicine ?? '', batches,
+      totalQuantity: batches.reduce((sum, batch) => sum + batch.quantity, 0),
+      statusCounts: batches.reduce<Record<string, number>>((counts, batch) => {
+        const key = this.status(batch); counts[key] = (counts[key] ?? 0) + 1; return counts;
+      }, {}),
+    })).sort((a, b) => a.medicine.localeCompare(b.medicine));
+  });
+  readonly filteredProducts = computed(() => {
+    const matchingBatchIds = new Set(this.filteredBatches().map(batch => batch.id));
+    return this.products().filter(product => product.batches.some(batch => matchingBatchIds.has(batch.id)));
+  });
+  readonly visibleProducts = computed(() => pageSlice(this.filteredProducts(), this.batchPage()));
   readonly pageSize = TABLE_PAGE_SIZE;
+  readonly expandedMedicineId = signal<number | null>(null);
+  readonly productDetails = signal<InventoryMedicineDetails | null>(null);
+  readonly detailsLoading = signal(false);
+  private detailsRequest = 0;
   readonly movements = signal<StockMovement[]>([]);
   readonly session = inject(AuthSession);
   readonly movementType = signal<'All' | 'Purchase' | 'Sale' | 'Adjustment'>('All');
@@ -79,6 +106,8 @@ export class InventoryPage extends PageFeedback implements OnInit {
     this.batchPage.set(1);
     this.movementPage.set(1);
     if (!this.adjustment.batchId && batches.length) this.adjustment.batchId = batches[0].id;
+    const expandedId = this.expandedMedicineId();
+    if (expandedId !== null) this.productDetails.set(await this.api.medicineDetails(expandedId));
   }
   resetMovementPage(): void { this.movementPage.set(1); }
   clearMovementFilters(): void {
@@ -89,6 +118,20 @@ export class InventoryPage extends PageFeedback implements OnInit {
   nextMovementPage(): void { this.movementPage.update(page => Math.min(this.totalMovementPages(), page + 1)); }
   movementStart(): number { return this.filteredMovements().length ? (this.movementPage() - 1) * this.pageSize + 1 : 0; }
   movementEnd(): number { return Math.min(this.movementPage() * this.pageSize, this.filteredMovements().length); }
+  async toggleProductDetails(product: InventoryProductGroup): Promise<void> {
+    if (this.expandedMedicineId() === product.medicineId) {
+      this.detailsRequest++; this.expandedMedicineId.set(null); this.productDetails.set(null); this.detailsLoading.set(false);
+      return;
+    }
+    this.detailsRequest++;
+    const request = this.detailsRequest;
+    this.expandedMedicineId.set(product.medicineId); this.productDetails.set(null); this.detailsLoading.set(true);
+    await this.perform(async () => {
+      const details = await this.api.medicineDetails(product.medicineId);
+      if (this.detailsRequest === request) this.productDetails.set(details);
+    });
+    if (this.detailsRequest === request) this.detailsLoading.set(false);
+  }
   submitAdjustment(): Promise<void> {
     return this.perform(async () => {
       const change = this.adjustment.type === 'Damage' ? -Math.abs(+this.adjustment.quantity) : +this.adjustment.quantity;
