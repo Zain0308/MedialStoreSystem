@@ -31,8 +31,8 @@ public static class ReportEndpoints
                 todaySales = await db.Sales.Where(x => x.CreatedAt >= start).SumAsync(x => (decimal?)x.Total) ?? 0,
                 todayInvoices = await db.Sales.CountAsync(x => x.CreatedAt >= start),
                 medicineCount = await db.Medicines.CountAsync(),
-                expiringBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate >= today && x.ExpiryDate <= today.AddDays(60)),
-                expiredBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate < today),
+                expiringBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate > today && x.ExpiryDate <= today.AddDays(60)),
+                expiredBatches = await db.Batches.CountAsync(x => x.Quantity > 0 && x.ExpiryDate <= today),
                 subscriptionExpiresAt = expiry,
                 subscriptionDaysRemaining,
                 subscriptionExpired = false

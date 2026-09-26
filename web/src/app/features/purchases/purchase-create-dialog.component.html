@@ -83,7 +83,7 @@
                 <header><strong>{{ line.medicineName }}</strong><button type="button" class="text-button remove-line" [attr.aria-label]="'Remove ' + line.medicineName" (click)="removeLine(line.key)">Remove</button></header>
                 <div class="purchase-form-grid line-fields">
                   <label>Batch number<input [attr.aria-label]="line.medicineName + ' batch number'" [ngModel]="line.batchNumber" [ngModelOptions]="{standalone:true}" (ngModelChange)="updateLine(line.key, {batchNumber:$event})" required maxlength="100" /></label>
-                  <label>Expiry date<input [attr.aria-label]="line.medicineName + ' expiry date'" type="date" [min]="today" [ngModel]="line.expiryDate" [ngModelOptions]="{standalone:true}" (ngModelChange)="updateLine(line.key, {expiryDate:$event})" required /></label>
+                  <label>Expiry date<input [attr.aria-label]="line.medicineName + ' expiry date'" type="date" [min]="minimumExpiryDate" [ngModel]="line.expiryDate" [ngModelOptions]="{standalone:true}" (ngModelChange)="updateLine(line.key, {expiryDate:$event})" required /></label>
                   <label>Quantity (units)<input [attr.aria-label]="line.medicineName + ' quantity'" type="number" min="1" [ngModel]="line.quantity" [ngModelOptions]="{standalone:true}" (ngModelChange)="updateLine(line.key, {quantity:+$event})" required /></label>
                   <label>Unit cost (Rs)<input [attr.aria-label]="line.medicineName + ' unit cost'" type="number" min="0" step="0.01" [ngModel]="line.costPrice" [ngModelOptions]="{standalone:true}" (ngModelChange)="updateLine(line.key, {costPrice:+$event})" required /></label>
                   <label>Sale price (Rs)<input [attr.aria-label]="line.medicineName + ' sale price'" type="number" min="0" step="0.01" [ngModel]="line.salePrice" [ngModelOptions]="{standalone:true}" (ngModelChange)="updateLine(line.key, {salePrice:+$event})" required /></label>
@@ -100,6 +100,14 @@
         <label class="purchase-search-label">Supplier invoice
           <input aria-label="Purchase supplier invoice" [(ngModel)]="supplierInvoice" [ngModelOptions]="{standalone:true}" maxlength="100" placeholder="e.g. INV-0042" required />
         </label>
+        <div class="purchase-form-grid payment-fields">
+          <label>Payment to supplier now (Rs)<input aria-label="Supplier payment amount" type="number" min="0" step="0.01" [(ngModel)]="paymentAmount" [ngModelOptions]="{standalone:true}" [disabled]="paymentMethod === 'Credit'" placeholder="0.00" /></label>
+          <label>Payment method<select aria-label="Supplier payment method" [ngModel]="paymentMethod" [ngModelOptions]="{standalone:true}" (ngModelChange)="changePaymentMethod($event)">
+            <option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option><option value="Credit">Credit</option>
+          </select></label>
+          <label class="wide-field">Payment reference (optional)<input aria-label="Supplier payment reference" [(ngModel)]="paymentReference" [ngModelOptions]="{standalone:true}" [disabled]="paymentAmount <= 0 || paymentMethod === 'Credit'" maxlength="120" placeholder="Receipt, transaction ID or note" /></label>
+        </div>
+        <p class="payment-hint">@if (paymentMethod === 'Credit') { No payment is recorded now; the invoice remains payable. } @else { Leave the amount at 0 to pay later. Any overpayment is kept as supplier credit. }</p>
         <div class="purchase-total"><span>Purchase total</span><strong>Rs {{ purchaseTotal() | number:'1.2-2' }}</strong></div>
         <div class="purchase-submit-actions"><button type="button" class="primary" [disabled]="!canSubmit()" (click)="submit()">Receive purchase</button><button type="button" class="secondary" (click)="closed.emit()">Cancel</button></div>
       </section>

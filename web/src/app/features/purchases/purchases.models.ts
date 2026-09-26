@@ -10,6 +10,9 @@ export interface CreatePurchase {
   supplierId: number;
   supplierInvoice: string;
   lines: PurchaseLine[];
+  paymentAmount?: number;
+  paymentMethod?: string;
+  paymentReference?: string;
 }
 export interface PurchaseResult {
   id: number;

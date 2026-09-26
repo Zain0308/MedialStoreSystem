@@ -29,6 +29,7 @@
 .purchase-line-card { padding: 13px; border: 1px solid #e3ebe4; border-radius: 10px; background: #fbfcfb; }
 .purchase-line-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: #2b4434; font-size: 13px; }
 .line-total { display: block; margin-top: 8px; color: #596c60; font-size: 11px; }
+.payment-hint { margin-top: 6px; font-size: 11px; }
 .invoice-step { margin-bottom: 0; }
 .purchase-total { display: flex; align-items: center; justify-content: space-between; margin: 14px 0; padding: 12px 14px; border-radius: 9px; background: #f3f7f3; color: #65766d; font-size: 12px; }
 .purchase-total strong { color: #264d35; font-size: 16px; }

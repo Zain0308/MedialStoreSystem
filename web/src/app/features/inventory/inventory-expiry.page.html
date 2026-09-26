@@ -29,7 +29,7 @@
           @for (batch of visibleBatches(); track batch.id) {
             <tr>
               <td><strong>{{ batch.medicine }}</strong><small>Batch {{ batch.batch }}</small></td>
-              <td><span class="expiry-status" [class.expired]="status(batch) === 'Expired'">{{ status(batch) }}</span><small>{{ batch.expiryDate | date:'mediumDate' }} · {{ daysRemaining(batch) < 0 ? -daysRemaining(batch) + ' days ago' : daysRemaining(batch) + ' days left' }}</small></td>
+              <td><span class="expiry-status" [class.expired]="status(batch) === 'Expired'">{{ status(batch) }}</span><small>{{ batch.expiryDate | date:'mediumDate' }} · {{ daysRemaining(batch) < 0 ? -daysRemaining(batch) + ' days ago' : daysRemaining(batch) === 0 ? 'Expired today' : daysRemaining(batch) + ' days left' }}</small></td>
               <td>{{ batch.quantity }} units</td>
               <td>{{ batch.purchasedAt | date:'mediumDate' }}</td>
               <td><strong>{{ batch.supplier }}</strong><small>Invoice {{ batch.supplierInvoice }}</small></td>

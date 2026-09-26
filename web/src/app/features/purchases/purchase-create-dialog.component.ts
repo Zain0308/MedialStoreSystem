@@ -69,7 +69,8 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
   purchaseTotal(): number {
     return this.lines().reduce((sum, line) => sum + Number(line.quantity || 0) * Number(line.costPrice || 0), 0);
   }
-  readonly today = new Date().toISOString().slice(0, 10);
+  readonly today = this.dateKey(new Date());
+  readonly minimumExpiryDate = this.dateOffset(1);
   readonly canAddSupplier = computed(() => this.session.hasPermission('suppliers.manage'));
   readonly canAddMedicine = computed(() => this.session.hasPermission('medicines.manage'));
   private nextLineKey = 1;
@@ -177,10 +178,29 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
 
   canSubmit(): boolean {
     return !this.busy() && !!this.supplierId() && !!this.supplierInvoice.trim() && this.lines().length > 0 &&
-      this.lines().every(line => line.batchNumber.trim() && line.expiryDate >= this.today && line.quantity > 0 && line.costPrice >= 0 && line.salePrice >= 0);
+      this.paymentAmount >= 0 && (this.paymentAmount === 0 || (!!this.paymentMethod && this.paymentMethod !== 'Credit')) &&
+      this.lines().every(line => line.batchNumber.trim() && line.expiryDate > this.today && line.quantity > 0 && line.costPrice >= 0 && line.salePrice >= 0);
+  }
+
+  changePaymentMethod(method: string): void {
+    this.paymentMethod = method;
+    if (method === 'Credit') this.paymentAmount = 0;
   }
 
   supplierInvoice = '';
+  paymentAmount = 0;
+  paymentMethod = 'Cash';
+  paymentReference = '';
+
+  private dateOffset(days: number): string {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return this.dateKey(date);
+  }
+
+  private dateKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
 
   submit(): Promise<void> {
     if (!this.canSubmit()) return Promise.resolve();
@@ -188,6 +208,9 @@ export class PurchaseCreateDialogComponent extends PageFeedback implements OnIni
       const request: CreatePurchase = {
         supplierId: this.supplierId()!,
         supplierInvoice: this.supplierInvoice.trim(),
+        paymentAmount: Number(this.paymentAmount || 0),
+        paymentMethod: this.paymentMethod,
+        paymentReference: this.paymentReference.trim(),
         lines: this.lines().map(line => ({ medicineId: line.medicineId, batchNumber: line.batchNumber.trim(),
           expiryDate: line.expiryDate, quantity: Number(line.quantity), costPrice: Number(line.costPrice), salePrice: Number(line.salePrice) })),
       };

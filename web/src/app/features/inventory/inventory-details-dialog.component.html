@@ -34,7 +34,13 @@
               <article class="inventory-history-card">
                 <div class="history-card-heading"><div><strong>{{ purchase.supplier }}</strong><span>Invoice {{ purchase.supplierInvoice }}</span></div><span class="history-date">{{ purchase.purchasedAt | date:'mediumDate' }}</span></div>
                 <div class="history-card-grid"><div><span>Batch / expiry</span><strong>{{ purchase.batch }} · {{ purchase.expiryDate | date:'mediumDate' }}</strong></div><div><span>Purchased / returned</span><strong>{{ purchase.quantity }} / {{ purchase.returnedQuantity }} units</strong></div><div><span>On hand</span><strong>{{ purchase.onHand }} units</strong></div><div><span>Unit cost / sale price</span><strong>Rs {{ purchase.unitCost | number:'1.2-2' }} / Rs {{ purchase.salePrice | number:'1.2-2' }}</strong></div></div>
-                <div class="invoice-balance"><span>Full invoice: Rs {{ purchase.invoiceTotal | number:'1.2-2' }} total · Rs {{ purchase.invoicePaid | number:'1.2-2' }} paid</span><strong>Due Rs {{ purchase.invoiceTotal - purchase.invoicePaid - purchase.invoiceReturned | number:'1.2-2' }}</strong></div>
+                <div class="invoice-balance"><span>Invoice: Rs {{ purchase.invoiceTotal | number:'1.2-2' }} total · Rs {{ purchase.invoicePaid | number:'1.2-2' }} paid · Rs {{ purchase.invoiceReturned | number:'1.2-2' }} returned</span>
+                  @if (invoiceDue(purchase) >= 0) {
+                    <strong>Due Rs {{ invoiceDue(purchase) | number:'1.2-2' }}</strong>
+                  } @else {
+                    <strong class="supplier-credit">Supplier credit Rs {{ -invoiceDue(purchase) | number:'1.2-2' }}</strong>
+                  }
+                </div>
               </article>
             }</div>
             <app-table-pagination [page]="historyPage()" [total]="filteredPurchases().length" [pageSize]="pageSize" (pageChange)="historyPage.set($event)" />

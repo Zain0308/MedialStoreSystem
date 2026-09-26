@@ -48,16 +48,18 @@ export class InventoryExpiryPage extends PageFeedback implements OnInit {
 
   status(batch: ExpiryBatch): 'Expired' | 'Expiring soon' | 'Upcoming' {
     const today = this.dateKey(new Date());
-    if (batch.expiryDate < today) return 'Expired';
+    if (batch.expiryDate <= today) return 'Expired';
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + 60);
     return batch.expiryDate <= this.dateKey(cutoff) ? 'Expiring soon' : 'Upcoming';
   }
 
   daysRemaining(batch: ExpiryBatch): number {
-    const expiry = Date.parse(`${batch.expiryDate}T00:00:00Z`);
-    const today = Date.parse(`${this.dateKey(new Date())}T00:00:00Z`);
-    return Math.round((expiry - today) / 86_400_000);
+    const parseDateKey = (dateKey: string): number => {
+      const [year, month, day] = dateKey.split('-').map(Number);
+      return Date.UTC(year, month - 1, day);
+    };
+    return Math.round((parseDateKey(batch.expiryDate) - parseDateKey(this.dateKey(new Date()))) / 86_400_000);
   }
 
   clearFilters(): void {

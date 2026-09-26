@@ -14,8 +14,17 @@ public static class PurchaseEndpoints
         {
             if (string.IsNullOrWhiteSpace(input.SupplierInvoice) || input.Lines is null || input.Lines.Count == 0 ||
                 input.Lines.Any(x => x.Quantity <= 0 || x.CostPrice < 0 || x.SalePrice < 0 ||
-                    x.ExpiryDate < DateOnly.FromDateTime(DateTime.UtcNow) || string.IsNullOrWhiteSpace(x.BatchNumber)))
+                    x.ExpiryDate <= DateOnly.FromDateTime(DateTime.UtcNow) || string.IsNullOrWhiteSpace(x.BatchNumber)))
                 return Results.BadRequest("Invoice, lines, positive quantities, valid prices and future expiry are required.");
+            var paymentAmount = decimal.Round(input.PaymentAmount, 2);
+            var paymentMethod = input.PaymentMethod?.Trim();
+            var paymentMethods = new[] { "Cash", "Bank Transfer", "Credit" };
+            var normalizedPaymentMethod = paymentMethods.FirstOrDefault(x =>
+                string.Equals(x, paymentMethod, StringComparison.OrdinalIgnoreCase));
+            if (paymentAmount < 0 || paymentAmount > 0 && normalizedPaymentMethod is null)
+                return Results.BadRequest("Payment amount cannot be negative. Select a payment method when recording a payment.");
+            if (paymentAmount > 0 && normalizedPaymentMethod == "Credit")
+                return Results.BadRequest("Credit means no payment is being made now; enter a payment amount only for Cash or Bank Transfer.");
             if (!await db.Suppliers.AnyAsync(x => x.Id == input.SupplierId && x.IsActive)) return Results.BadRequest("Supplier not found or inactive.");
             var ids = input.Lines.Select(x => x.MedicineId).Distinct().ToArray();
             if (await db.Medicines.CountAsync(x => ids.Contains(x.Id) && x.IsActive) != ids.Length) return Results.BadRequest("Medicine not found or inactive.");
@@ -44,6 +53,9 @@ public static class PurchaseEndpoints
             db.Purchases.Add(purchase);
             await db.SaveChangesAsync();
             var supplierCreditApplied = Math.Min(purchase.Total, supplierCredit);
+            if (paymentAmount > 0)
+                db.SupplierPayments.Add(new SupplierPayment { PurchaseId = purchase.Id, Amount = paymentAmount,
+                    Method = normalizedPaymentMethod!, Reference = input.PaymentReference?.Trim() });
             if (supplierCreditApplied > 0)
                 db.SupplierPayments.Add(new SupplierPayment { PurchaseId = purchase.Id, Amount = supplierCreditApplied,
                     Method = "Supplier Credit", Reference = "Automatically applied from supplier credit" });
@@ -52,7 +64,8 @@ public static class PurchaseEndpoints
                     QuantityChange = line.Quantity, BalanceAfter = line.Quantity, Reason = $"Supplier invoice {purchase.SupplierInvoice}" });
             await db.SaveChangesAsync();
             await tx.CommitAsync();
-            return Results.Created($"/api/purchases/{purchase.Id}", new { purchase.Id, purchase.Total, supplierCreditApplied });
+            return Results.Created($"/api/purchases/{purchase.Id}", new { purchase.Id, purchase.Total,
+                paymentAmount, paymentMethod = normalizedPaymentMethod, supplierCreditApplied });
         }).RequireAuthorization(StorePermissions.PurchasesManage);
 
         api.MapGet("/purchases", async (StoreDb db) => Results.Ok(await db.Purchases.AsNoTracking()

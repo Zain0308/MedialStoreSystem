@@ -15,7 +15,7 @@ public static class MedicineEndpoints
             {
                 x.Id, x.Name, x.GenericName, x.Barcode, x.Strength, x.DosageForm, x.Manufacturer, x.Description,
                 x.RequiresPrescription, x.MinimumStock, x.IsActive,
-                stock = x.Batches.Where(b => b.ExpiryDate >= today).Sum(b => b.Quantity)
+                stock = x.Batches.Where(b => b.ExpiryDate > today).Sum(b => b.Quantity)
             }).ToListAsync());
         }).RequireAuthorization(StorePermissions.MedicinesRead);
 

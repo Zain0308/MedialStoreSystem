@@ -114,7 +114,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   paymentForm = { amount: 0, method: 'Cash', reference: '' };
   readonly overpaymentDialog = signal(false);
   readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
-  readonly today = new Date().toISOString().slice(0, 10);
+  readonly minimumExpiryDate = this.dateOffset(1);
   purchase = this.emptyForm(0);
   ngOnInit(): void {
     void this.perform(async () => {
@@ -271,6 +271,11 @@ export class PurchasesPage extends PageFeedback implements OnInit {
       costPrice: 0,
       salePrice: 0,
     };
+  }
+  private dateOffset(days: number): string {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
   searchSuppliers(value: string): void {
     this.supplierPickerSearch.set(value);

@@ -33,7 +33,7 @@ public static class SaleEndpoints
             if (medicines.Count != ids.Length || medicines.Any(x => !x.IsActive || x.RequiresPrescription))
                 return Results.BadRequest("Medicine is unavailable or requires a prescription workflow.");
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var batches = await db.Batches.Where(x => ids.Contains(x.MedicineId) && x.ExpiryDate >= today && x.Quantity > 0)
+            var batches = await db.Batches.Where(x => ids.Contains(x.MedicineId) && x.ExpiryDate > today && x.Quantity > 0)
                 .OrderBy(x => x.ExpiryDate).ThenBy(x => x.Id).ToListAsync();
             var isCash = string.Equals(method, "Cash", StringComparison.OrdinalIgnoreCase);
             Customer? customer = null;
@@ -146,7 +146,7 @@ public static class SaleEndpoints
                 if (!byId.TryGetValue(request.SaleLineId, out var line)) return Results.BadRequest("Sale line does not belong to this invoice.");
                 if (request.Quantity > line.Quantity - line.ReturnedQuantity)
                     return Results.Conflict("Return quantity exceeds the unreturned quantity sold.");
-                if (request.Restock && line.Batch.ExpiryDate < DateOnly.FromDateTime(DateTime.UtcNow))
+                if (request.Restock && line.Batch.ExpiryDate <= DateOnly.FromDateTime(DateTime.UtcNow))
                     return Results.Conflict("Expired stock cannot be returned to saleable inventory.");
             }
             var saleReturn = new SaleReturn { SaleId = id, Reason = input.Reason.Trim(), RefundMethod = refundMethod };

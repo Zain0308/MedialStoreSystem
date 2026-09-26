@@ -67,7 +67,8 @@ export class InventoryPage extends PageFeedback implements OnInit {
         medicine: this.medicineLabel({ medicine, genericName: representative?.genericName,
           strength: representative?.strength, dosageForm: representative?.dosageForm }),
         batches,
-        totalQuantity: batches.reduce((sum, batch) => sum + batch.quantity, 0),
+        totalQuantity: batches.reduce((sum, batch) => sum +
+          (this.status(batch) === 'Expired' ? 0 : batch.quantity), 0),
         statusCounts: batches.reduce<Record<string, number>>((counts, batch) => {
           const key = this.status(batch); counts[key] = (counts[key] ?? 0) + 1; return counts;
         }, {}),
@@ -192,12 +193,15 @@ export class InventoryPage extends PageFeedback implements OnInit {
     });
   }
   status(batch: Batch): string {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.dateKey(new Date());
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() + 60);
-    if (batch.expiryDate < today) return 'Expired';
+    if (batch.expiryDate <= today) return 'Expired';
     if (batch.quantity === 0) return 'Out of stock';
-    return batch.expiryDate <= cutoff.toISOString().slice(0, 10) ? 'Near expiry' : 'Available';
+    return batch.expiryDate <= this.dateKey(cutoff) ? 'Near expiry' : 'Available';
+  }
+  private dateKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
   private medicineLabel(batch: Pick<Batch, 'medicine' | 'genericName' | 'strength' | 'dosageForm'>): string {
     const details = [batch.genericName?.trim(), batch.strength?.trim(), batch.dosageForm?.trim()].filter(Boolean);

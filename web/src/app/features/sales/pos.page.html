@@ -112,7 +112,6 @@
 @if (receipt(); as savedReceipt) {
   <app-receipt [receipt]="savedReceipt" (closed)="receipt.set(null)" />
 }
-
 @if (addCustomerOpen()) {
   <div class="customer-modal-backdrop" (click)="closeAddCustomer()">
     <section class="customer-modal panel" role="dialog" aria-modal="true" aria-labelledby="add-customer-title" (click)="$event.stopPropagation()">

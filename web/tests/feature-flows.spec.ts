@@ -349,12 +349,15 @@ async function mockApi(page: Page) {
       const availableCredit = Math.max(0, externalPaid - netPreviousPurchases);
       const total = body.lines.reduce((sum: number, x: { quantity: number; costPrice: number }) => sum + x.quantity * x.costPrice, 0);
       const supplierCreditApplied = Math.min(total, availableCredit);
+      const paymentAmount = body.paymentAmount ?? 0;
       const purchase = { id: state.purchases.length + 1, supplier: state.suppliers.find(x => x.id === body.supplierId)!.name,
         supplierInvoice: body.supplierInvoice, createdAt: new Date().toISOString(),
-        total, returnedTotal: 0, paidTotal: supplierCreditApplied,
+        total, returnedTotal: 0, paidTotal: supplierCreditApplied + paymentAmount,
         lines: body.lines.map((line: { medicineId: number; batchNumber: string; quantity: number; costPrice: number }) => ({ id: state.purchases.length + 1, medicine: state.medicines.find(x => x.id === line.medicineId)!.name, batch: line.batchNumber, quantity: line.quantity, returnedQuantity: 0, unitCost: line.costPrice, onHand: line.quantity })),
         returns: [], corrections: [], payments: supplierCreditApplied > 0 ? [{ id: 1, amount: supplierCreditApplied,
           method: 'Supplier Credit', reference: 'Automatically applied from supplier credit', paidAt: new Date().toISOString() }] : [] };
+      if (paymentAmount > 0) purchase.payments.push({ id: purchase.payments.length + 1, amount: paymentAmount,
+        method: body.paymentMethod, reference: body.paymentReference, paidAt: new Date().toISOString() });
       state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total, supplierCreditApplied }, 201);
     }
     if (path === '/api/dashboard') return reply({ todaySales: state.subscriptionExpired ? 0 : state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.subscriptionExpired ? 0 : state.sales.length, medicineCount: state.subscriptionExpired ? 0 : state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionExpired ? null : state.subscriptionDaysRemaining, subscriptionExpiresAt: state.subscriptionExpiresAt, subscriptionExpired: state.subscriptionExpired });
@@ -592,13 +595,15 @@ test('expiry tracking shows purchase details and filters upcoming and expired ba
   const state = await mockApi(page);
   const expiryDate = (offset: number) => {
     const date = new Date(); date.setDate(date.getDate() + offset);
-    return date.toISOString().slice(0, 10);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   };
   state.expiryBatches.push(...Array.from({ length: 21 }, (_, index) => ({ id: index + 1, medicineId: 1,
     medicine: `Medicine ${String(index + 1).padStart(2, '0')}`, batch: `BATCH-${index + 1}`, expiryDate: expiryDate(25),
     quantity: 10, costPrice: 12, purchasedAt: '2026-08-20T12:00:00Z', supplier: 'Demo Pharma', supplierInvoice: `INV-${index + 1}` })));
   state.expiryBatches.push({ id: 22, medicineId: 1, medicine: 'Old medicine', batch: 'OLD-01', expiryDate: expiryDate(-5),
     quantity: 3, costPrice: 8, purchasedAt: '2026-07-01T12:00:00Z', supplier: 'Old Supplier', supplierInvoice: 'OLD-INV' });
+  state.expiryBatches.push({ id: 23, medicineId: 1, medicine: 'Expires today', batch: 'TODAY-01', expiryDate: expiryDate(0),
+    quantity: 2, costPrice: 8, purchasedAt: '2026-07-01T12:00:00Z', supplier: 'Old Supplier', supplierInvoice: 'TODAY-INV' });
   await signIn(page, '/inventory/expiry');
   await expect(page.getByRole('heading', { name: 'Medicine expiry' })).toBeVisible();
   await expect(page.getByRole('link', { name: /Expiry tracking/ })).toHaveClass(/active/);
@@ -614,12 +619,15 @@ test('expiry tracking shows purchase details and filters upcoming and expired ba
   await expect(table).toContainText('Old medicine');
   await expect(table).toContainText('Expired');
   await page.getByRole('button', { name: /Already expired/ }).click();
-  await page.getByLabel('Search expiry batches').fill('');
+  await page.getByLabel('Search expiry batches').fill('TODAY-01');
   await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('Expired today');
+  await page.getByLabel('Search expiry batches').fill('');
+  await expect(table.locator('tbody tr')).toHaveCount(2);
 });
 
 test('inventory purchase dialog adds and selects supplier and medicine inline', async ({ page }) => {
-  await mockApi(page);
+  const state = await mockApi(page);
   await signIn(page, '/inventory');
   await page.getByRole('button', { name: 'Purchase Paracetamol 500mg' }).click();
   const existingMedicineDialog = page.getByRole('dialog', { name: 'Create purchase' });
@@ -645,10 +653,20 @@ test('inventory purchase dialog adds and selects supplier and medicine inline', 
   await dialog.getByLabel('Amoxicillin 500mg unit cost').fill('12');
   await dialog.getByLabel('Amoxicillin 500mg sale price').fill('18');
   await expect(dialog.locator('.purchase-total')).toContainText('Rs 360.00');
+  await dialog.getByLabel('Supplier payment method').selectOption('Credit');
+  await expect(dialog.getByLabel('Supplier payment amount')).toBeDisabled();
+  await expect(dialog.getByText('No payment is recorded now; the invoice remains payable.')).toBeVisible();
+  await dialog.getByLabel('Supplier payment method').selectOption('Bank Transfer');
+  await expect(dialog.getByLabel('Supplier payment amount')).toBeEnabled();
+  await dialog.getByLabel('Supplier payment amount').fill('120');
+  await dialog.getByLabel('Supplier payment method').selectOption('Bank Transfer');
+  await dialog.getByLabel('Supplier payment reference').fill('TXN-120');
   await dialog.getByLabel('Purchase supplier invoice').fill('NEW-INV-1');
   await dialog.getByRole('button', { name: 'Receive purchase' }).click();
 
   await expect(dialog).toHaveCount(0);
+  expect(state.purchases[0].paidTotal).toBe(120);
+  expect(state.purchases[0].payments[0]).toMatchObject({ amount: 120, method: 'Bank Transfer', reference: 'TXN-120' });
   await expect(page.locator('.inventory-product-table')).toContainText('Amoxicillin 500mg');
   await expect(page.locator('.inventory-product-table')).toContainText('30');
 });

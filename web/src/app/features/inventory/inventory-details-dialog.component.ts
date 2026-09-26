@@ -70,6 +70,10 @@ export class InventoryDetailsDialogComponent implements OnChanges {
     return details.batches.reduce((total, batch) => total + batch.quantity, 0);
   }
 
+  invoiceDue(purchase: InventoryMedicineDetails['purchases'][number]): number {
+    return purchase.invoiceTotal - purchase.invoicePaid - purchase.invoiceReturned;
+  }
+
   private filterRows<T>(rows: T[], term: string, from: string, to: string,
     getDate: (row: T) => string, getSearchValues: ((row: T) => string)[]): T[] {
     return rows.filter(row => {
