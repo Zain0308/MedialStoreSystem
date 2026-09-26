@@ -25,17 +25,23 @@ public static class InventoryEndpoints
             var batches = await db.Batches.AsNoTracking().Where(x => x.MedicineId == medicineId)
                 .OrderBy(x => x.ExpiryDate).Select(x => new { x.Id, x.Number, x.ExpiryDate, x.CostPrice,
                     x.SalePrice, x.Quantity }).ToListAsync();
-            var purchaseLines = await db.PurchaseLines.AsNoTracking().Where(x => x.Batch.MedicineId == medicineId)
-                .OrderByDescending(x => x.Purchase.CreatedAt).Select(x => new
+            var purchaseLines = await (
+                from line in db.PurchaseLines.AsNoTracking()
+                join batch in db.Batches.AsNoTracking() on line.BatchId equals batch.Id
+                join purchase in db.Purchases.AsNoTracking() on line.PurchaseId equals purchase.Id
+                join supplier in db.Suppliers.AsNoTracking() on purchase.SupplierId equals supplier.Id
+                where batch.MedicineId == medicineId
+                orderby purchase.CreatedAt descending
+                select new
                 {
-                    purchaseId = x.PurchaseId, purchaseLineId = x.Id, batchId = x.BatchId, batch = x.Batch.Number,
-                    expiryDate = x.Batch.ExpiryDate, onHand = x.Batch.Quantity, salePrice = x.Batch.SalePrice,
-                    supplier = x.Purchase.Supplier.Name, supplierInvoice = x.Purchase.SupplierInvoice,
-                    purchasedAt = x.Purchase.CreatedAt, x.Quantity, x.ReturnedQuantity, x.UnitCost,
-                    invoiceTotal = x.Purchase.Total,
-                    invoicePaid = x.Purchase.Payments.Where(p => p.Method != "Supplier Credit")
+                    purchaseId = purchase.Id, purchaseLineId = line.Id, batchId = line.BatchId,
+                    batch = batch.Number, expiryDate = batch.ExpiryDate, onHand = batch.Quantity, salePrice = batch.SalePrice,
+                    supplier = supplier.Name, supplierInvoice = purchase.SupplierInvoice, purchasedAt = purchase.CreatedAt,
+                    line.Quantity, line.ReturnedQuantity, line.UnitCost, invoiceTotal = purchase.Total,
+                    invoicePaid = db.SupplierPayments.Where(p => p.PurchaseId == purchase.Id && p.Method != "Supplier Credit")
                         .Sum(p => (decimal?)p.Amount) ?? 0m,
-                    invoiceReturned = x.Purchase.Returns.Sum(r => (decimal?)r.Total) ?? 0m
+                    invoiceReturned = db.PurchaseReturns.Where(r => r.PurchaseId == purchase.Id)
+                        .Sum(r => (decimal?)r.Total) ?? 0m
                 }).ToListAsync();
             var purchaseIds = purchaseLines.Select(x => x.purchaseId).Distinct().ToArray();
             var payments = await db.SupplierPayments.AsNoTracking()
