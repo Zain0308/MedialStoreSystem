@@ -6,7 +6,9 @@
         <h3>Medicine inventory</h3>
         <p>Each medicine appears once. Open its details to see every received batch and purchase.</p>
       </div>
-      <span class="count">{{ filteredProducts().length }} medicines · {{ filteredBatches().length }} matching batches</span>
+      <div class="inventory-header-actions"><span class="count">{{ filteredProducts().length }} medicines · {{ filteredBatches().length }} matching batches</span>
+        @if (canCreatePurchase()) { <button type="button" class="primary" (click)="openPurchase()">＋ Create purchase</button> }
+      </div>
     </div>
     <div class="movement-filters"><label>Search inventory<input aria-label="Search batches" [ngModel]="batchSearch()" (ngModelChange)="batchSearch.set($event); batchPage.set(1)" placeholder="Medicine or batch number" /></label>
       <label>Status<select aria-label="Batch status filter" [ngModel]="batchStatus()" (ngModelChange)="batchStatus.set($event); batchPage.set(1)"><option value="all">All statuses</option><option value="Available">Available</option><option value="Near expiry">Near expiry</option><option value="Expired">Expired</option><option value="Out of stock">Out of stock</option></select></label>
@@ -15,7 +17,7 @@
     <div class="table-wrap">
       <table class="inventory-product-table">
         <thead>
-          <tr><th>Medicine</th><th>Total saleable units</th><th>Batch lots</th><th>Batch status</th><th>Details</th></tr>
+          <tr><th>Medicine</th><th>Total saleable units</th><th>Batch lots</th><th>Batch status</th>@if (canCreatePurchase()) { <th>Actions</th> }<th>Details</th></tr>
         </thead>
         <tbody>
           @for (product of visibleProducts(); track product.medicineId) {
@@ -31,6 +33,7 @@
                   }
                 }
               </td>
+              @if (canCreatePurchase()) { <td><button type="button" class="text-button" [attr.aria-label]="'Purchase ' + product.medicine" (click)="openPurchase(product.medicineId)">Purchase</button></td> }
               <td><button type="button" class="inventory-details-button" [disabled]="busy()"
                 [attr.aria-label]="'View details for ' + product.medicine"
                 title="View complete medicine history" (click)="toggleProductDetails(product)">ⓘ</button></td>
@@ -91,4 +94,8 @@
 @if (expandedMedicineId() !== null) {
   <app-inventory-details-dialog [productName]="selectedProductName()" [details]="productDetails()"
     [loading]="detailsLoading()" (closed)="closeProductDetails()" />
+}
+@if (purchaseDialogOpen()) {
+  <app-purchase-create-dialog [initialMedicineId]="purchaseMedicineId()"
+    (closed)="purchaseDialogOpen.set(false)" (completed)="onPurchaseCompleted($event)" />
 }

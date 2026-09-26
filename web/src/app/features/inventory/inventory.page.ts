@@ -10,6 +10,7 @@ import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/searc
 import { InventoryApi } from './inventory.api';
 import { Batch, InventoryMedicineDetails, StockMovement } from './inventory.models';
 import { InventoryDetailsDialogComponent } from './inventory-details-dialog.component';
+import { PurchaseCreateDialogComponent, PurchaseResult } from '../purchases/public-api';
 
 type InventoryProductGroup = {
   medicineId: number;
@@ -21,7 +22,7 @@ type InventoryProductGroup = {
 
 @Component({
   selector: 'app-inventory-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent, InventoryDetailsDialogComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent, InventoryDetailsDialogComponent, PurchaseCreateDialogComponent],
   templateUrl: './inventory.page.html',
   styleUrl: './inventory.page.css',
 })
@@ -64,6 +65,8 @@ export class InventoryPage extends PageFeedback implements OnInit {
   });
   readonly visibleProducts = computed(() => pageSlice(this.filteredProducts(), this.batchPage()));
   readonly pageSize = TABLE_PAGE_SIZE;
+  readonly purchaseDialogOpen = signal(false);
+  readonly purchaseMedicineId = signal(0);
   readonly expandedMedicineId = signal<number | null>(null);
   readonly selectedProductName = signal('');
   readonly productDetails = signal<InventoryMedicineDetails | null>(null);
@@ -101,6 +104,23 @@ export class InventoryPage extends PageFeedback implements OnInit {
   adjustment = { batchId: 0, quantity: 1, type: 'Damage' as 'Adjustment' | 'Damage', reason: '' };
   ngOnInit(): void {
     void this.perform(async () => this.refresh());
+  }
+  canCreatePurchase(): boolean {
+    return this.session.hasPermission('purchases.manage') && this.session.hasPermission('medicines.read') &&
+      this.session.hasPermission('suppliers.read');
+  }
+  openPurchase(medicineId = 0): void {
+    this.purchaseMedicineId.set(medicineId);
+    this.purchaseDialogOpen.set(true);
+  }
+  onPurchaseCompleted(result: PurchaseResult): void {
+    this.purchaseDialogOpen.set(false);
+    void this.perform(async () => {
+      await this.refresh();
+      this.message.set(result.supplierCreditApplied
+        ? `Purchase received. Rs ${result.supplierCreditApplied.toFixed(2)} supplier credit was applied.`
+        : 'Purchase received and inventory updated.');
+    });
   }
   private async refresh(): Promise<void> {
     const [batches, movements] = await Promise.all([this.api.list(), this.api.movements()]);

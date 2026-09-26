@@ -1,0 +1,35 @@
+.purchase-create-backdrop { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: rgba(17, 38, 29, .52); }
+.purchase-create-dialog { display: flex; flex-direction: column; width: min(100%, 1000px); max-height: calc(100vh - 36px); padding: 0; overflow: hidden; box-shadow: 0 24px 80px rgba(20, 40, 30, .32); }
+.purchase-create-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 24px 16px; border-bottom: 1px solid #edf1ed; }
+.purchase-create-header h2 { margin: 4px 0; color: #20372a; font-size: 21px; }
+.purchase-create-header p, .step-heading p { margin: 0; color: #728078; font-size: 12px; }
+.eyebrow { color: #548366; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.dialog-close { display: grid; flex: 0 0 36px; width: 36px; height: 36px; place-items: center; border: 1px solid #e4ebe5; border-radius: 50%; background: #fff; color: #486351; font-size: 23px; cursor: pointer; }
+.purchase-create-body { padding: 18px 24px 24px; overflow-y: auto; }
+.purchase-step { position: relative; margin-bottom: 18px; padding: 17px; border: 1px solid #e7eee8; border-radius: 12px; background: #fff; }
+.step-heading { display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }
+.step-heading > span { display: grid; flex: 0 0 28px; width: 28px; height: 28px; place-items: center; border-radius: 50%; background: #eaf3ec; color: #2c6845; font-size: 13px; font-weight: 800; }
+.step-heading h3 { margin: 0 0 3px; color: #263b2e; font-size: 15px; }
+.purchase-search-label, .purchase-form-grid label { display: grid; gap: 5px; color: #687a71; font-size: 11px; font-weight: 700; }
+.purchase-search-label input, .purchase-form-grid input { width: 100%; min-height: 37px; padding: 8px 10px; border: 1px solid #dfe8e1; border-radius: 8px; background: #fff; color: #24342c; font: inherit; }
+.purchase-search-results { position: relative; z-index: 5; display: grid; max-height: 220px; margin-top: 6px; overflow-y: auto; border: 1px solid #dae9df; border-radius: 8px; background: #fff; box-shadow: 0 8px 20px #17392c1c; }
+.purchase-search-results button { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 0; border-bottom: 1px solid #eef1ee; background: #fff; color: #203f36; text-align: left; cursor: pointer; }
+.purchase-search-results button { font-size: 12px; }
+.purchase-search-results button small { flex: 1; color: #829790; font-size: 11px; }
+.selected-record, .permission-hint { margin: 8px 0 0; color: #62776d; font-size: 12px; }
+.inline-create-button { margin-top: 8px; padding: 8px 11px; border: 1px dashed #84aa91; border-radius: 8px; background: #f5faf6; color: #2d6844; font: inherit; font-size: 12px; cursor: pointer; }
+.inline-create-form { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid #dfeae2; border-radius: 10px; background: #f9fcfa; }
+.inline-create-form h4 { margin: 0; color: #2e4737; font-size: 13px; }
+.purchase-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.purchase-form-grid .wide-field { grid-column: 1 / -1; }
+.prescription-check { display: flex !important; align-items: center; gap: 8px !important; }
+.prescription-check input { width: 16px; min-height: 16px; }
+.inline-actions, .purchase-submit-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.purchase-lines { display: grid; gap: 10px; margin-top: 14px; }
+.purchase-line-card { padding: 13px; border: 1px solid #e3ebe4; border-radius: 10px; background: #fbfcfb; }
+.purchase-line-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; color: #2b4434; font-size: 13px; }
+.line-total { display: block; margin-top: 8px; color: #596c60; font-size: 11px; }
+.invoice-step { margin-bottom: 0; }
+.purchase-total { display: flex; align-items: center; justify-content: space-between; margin: 14px 0; padding: 12px 14px; border-radius: 9px; background: #f3f7f3; color: #65766d; font-size: 12px; }
+.purchase-total strong { color: #264d35; font-size: 16px; }
+@media (max-width: 620px) { .purchase-create-backdrop { padding: 8px; }.purchase-create-dialog { max-height: calc(100vh - 16px); }.purchase-create-header { padding: 16px; }.purchase-create-body { padding: 12px; }.purchase-step { padding: 13px; }.purchase-form-grid { grid-template-columns: 1fr; }.purchase-form-grid .wide-field { grid-column: auto; } }

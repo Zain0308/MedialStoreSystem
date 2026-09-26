@@ -1,0 +1,104 @@
+<div class="purchase-create-backdrop" (click)="closed.emit()">
+  <section class="purchase-create-dialog panel" role="dialog" aria-modal="true" aria-labelledby="purchase-create-title" (click)="$event.stopPropagation()">
+    <header class="purchase-create-header">
+      <div><span class="eyebrow">INVENTORY</span><h2 id="purchase-create-title">Create purchase</h2><p>Add supplier and medicines here, then receive all batches together.</p></div>
+      <button type="button" class="dialog-close" aria-label="Close purchase form" (click)="closed.emit()">×</button>
+    </header>
+    <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+    <div class="purchase-create-body">
+      <section class="purchase-step">
+        <div class="step-heading"><span>1</span><div><h3>Supplier</h3><p>Search and select an active supplier.</p></div></div>
+        <label class="purchase-search-label">Search supplier
+          <input aria-label="Search purchase supplier" [ngModel]="supplierSearch()" [ngModelOptions]="{standalone:true}" (ngModelChange)="searchSupplier($event)" placeholder="Supplier name, contact, phone or email" autocomplete="off" />
+        </label>
+        @if (supplierResults().length) {
+          <div class="purchase-search-results" role="listbox" aria-label="Supplier search results">
+            @for (supplier of supplierResults(); track supplier.id) {
+              <button type="button" role="option" (click)="selectSupplier(supplier)"><strong>{{ supplier.name }}</strong><small>{{ supplier.contactPerson || supplier.phone || supplier.email || 'Supplier' }}</small></button>
+            }
+          </div>
+        }
+        @if (supplierId()) { <p class="selected-record">Selected: {{ supplierSearch() }} <button type="button" class="text-button" (click)="searchSupplier('')">Change</button></p> }
+        @if (supplierNotFound() && !supplierId()) {
+          @if (canAddSupplier()) { <button type="button" class="inline-create-button" (click)="startAddingSupplier()">＋ Add new supplier “{{ supplierSearch() }}”</button> }
+          @else { <p class="permission-hint">No matching supplier. You need the <strong>suppliers.manage</strong> permission to add one.</p> }
+        }
+        @if (addSupplierForm()) {
+          <div class="inline-create-form">
+            <h4>Add new supplier</h4>
+            <div class="purchase-form-grid">
+              <label>Supplier name<input aria-label="New supplier name" [(ngModel)]="newSupplier.name" [ngModelOptions]="{standalone:true}" required maxlength="200" /></label>
+              <label>Contact person<input aria-label="New supplier contact" [(ngModel)]="newSupplier.contactPerson" [ngModelOptions]="{standalone:true}" maxlength="120" /></label>
+              <label>Phone<input aria-label="New supplier phone" [(ngModel)]="newSupplier.phone" [ngModelOptions]="{standalone:true}" maxlength="40" /></label>
+              <label>Email<input aria-label="New supplier email" type="email" [(ngModel)]="newSupplier.email" [ngModelOptions]="{standalone:true}" maxlength="254" /></label>
+              <label class="wide-field">Address<input aria-label="New supplier address" [(ngModel)]="newSupplier.address" [ngModelOptions]="{standalone:true}" maxlength="300" /></label>
+            </div>
+            <div class="inline-actions"><button type="button" class="primary" [disabled]="busy() || !newSupplier.name.trim()" (click)="createSupplier()">Add and select supplier</button><button type="button" class="text-button" (click)="addSupplierForm.set(false)">Cancel</button></div>
+          </div>
+        }
+      </section>
+
+      <section class="purchase-step">
+        <div class="step-heading"><span>2</span><div><h3>Medicines</h3><p>Search existing medicines or add a new one. Add every batch needed for this invoice.</p></div></div>
+        <label class="purchase-search-label">Search medicine
+          <input aria-label="Search purchase medicine" [ngModel]="medicineSearch()" [ngModelOptions]="{standalone:true}" (ngModelChange)="searchMedicine($event)" placeholder="Name, generic, barcode or strength" autocomplete="off" [disabled]="!supplierId()" />
+        </label>
+        @if (!supplierId()) { <p class="permission-hint">Select a supplier first to search and add medicines.</p> }
+        @if (medicineResults().length) {
+          <div class="purchase-search-results" role="listbox" aria-label="Medicine search results">
+            @for (medicine of medicineResults(); track medicine.id) {
+              <button type="button" role="option" (click)="addMedicineLine(medicine)"><strong>{{ medicine.name }}</strong><small>{{ medicineDetails(medicine) }}</small><span>Add to purchase</span></button>
+            }
+          </div>
+        }
+        @if (medicineNotFound()) {
+          @if (canAddMedicine()) { <button type="button" class="inline-create-button" (click)="startAddingMedicine()">＋ Add new medicine “{{ medicineSearch() }}”</button> }
+          @else { <p class="permission-hint">No matching medicine. You need the <strong>medicines.manage</strong> permission to add one.</p> }
+        }
+        @if (addMedicineForm()) {
+          <div class="inline-create-form">
+            <h4>Add new medicine</h4>
+            <div class="purchase-form-grid">
+              <label>Medicine name<input aria-label="New medicine name" [(ngModel)]="newMedicine.name" [ngModelOptions]="{standalone:true}" required maxlength="200" /></label>
+              <label>Generic name<input aria-label="New medicine generic name" [(ngModel)]="newMedicine.genericName" [ngModelOptions]="{standalone:true}" maxlength="200" /></label>
+              <label>Strength<input aria-label="New medicine strength" [(ngModel)]="newMedicine.strength" [ngModelOptions]="{standalone:true}" maxlength="80" placeholder="Optional" /></label>
+              <label>Dosage form<input aria-label="New medicine dosage form" [(ngModel)]="newMedicine.dosageForm" [ngModelOptions]="{standalone:true}" maxlength="80" placeholder="Tablet, syrup, capsule" /></label>
+              <label>Manufacturer<input aria-label="New medicine manufacturer" [(ngModel)]="newMedicine.manufacturer" [ngModelOptions]="{standalone:true}" maxlength="160" /></label>
+              <label>Barcode<input aria-label="New medicine barcode" [(ngModel)]="newMedicine.barcode" [ngModelOptions]="{standalone:true}" maxlength="100" placeholder="Optional" /></label>
+              <label>Minimum stock<input aria-label="New medicine minimum stock" type="number" min="0" [(ngModel)]="newMedicine.minimumStock" [ngModelOptions]="{standalone:true}" /></label>
+              <label class="prescription-check"><input aria-label="New medicine prescription required" type="checkbox" [(ngModel)]="newMedicine.requiresPrescription" [ngModelOptions]="{standalone:true}" /> Prescription required</label>
+              <label class="wide-field">Description<input aria-label="New medicine description" [(ngModel)]="newMedicine.description" [ngModelOptions]="{standalone:true}" maxlength="1000" /></label>
+            </div>
+            <div class="inline-actions"><button type="button" class="primary" [disabled]="busy() || !newMedicine.name.trim()" (click)="createMedicine()">Add and select medicine</button><button type="button" class="text-button" (click)="addMedicineForm.set(false)">Cancel</button></div>
+          </div>
+        }
+        @if (lines().length) {
+          <div class="purchase-lines">
+            @for (line of lines(); track line.key) {
+              <article class="purchase-line-card">
+                <header><strong>{{ line.medicineName }}</strong><button type="button" class="text-button remove-line" [attr.aria-label]="'Remove ' + line.medicineName" (click)="removeLine(line.key)">Remove</button></header>
+                <div class="purchase-form-grid line-fields">
+                  <label>Batch number<input [attr.aria-label]="line.medicineName + ' batch number'" [(ngModel)]="line.batchNumber" [ngModelOptions]="{standalone:true}" required maxlength="100" /></label>
+                  <label>Expiry date<input [attr.aria-label]="line.medicineName + ' expiry date'" type="date" [min]="today" [(ngModel)]="line.expiryDate" [ngModelOptions]="{standalone:true}" required /></label>
+                  <label>Quantity (units)<input [attr.aria-label]="line.medicineName + ' quantity'" type="number" min="1" [(ngModel)]="line.quantity" [ngModelOptions]="{standalone:true}" required /></label>
+                  <label>Unit cost (Rs)<input [attr.aria-label]="line.medicineName + ' unit cost'" type="number" min="0" step="0.01" [(ngModel)]="line.costPrice" [ngModelOptions]="{standalone:true}" required /></label>
+                  <label>Sale price (Rs)<input [attr.aria-label]="line.medicineName + ' sale price'" type="number" min="0" step="0.01" [(ngModel)]="line.salePrice" [ngModelOptions]="{standalone:true}" required /></label>
+                </div>
+                <small class="line-total">Line total: Rs {{ line.quantity * line.costPrice | number:'1.2-2' }}</small>
+              </article>
+            }
+          </div>
+        }
+      </section>
+
+      <section class="purchase-step invoice-step">
+        <div class="step-heading"><span>3</span><div><h3>Invoice</h3><p>Enter this supplier’s invoice number to receive all listed batches.</p></div></div>
+        <label class="purchase-search-label">Supplier invoice
+          <input aria-label="Purchase supplier invoice" [(ngModel)]="supplierInvoice" [ngModelOptions]="{standalone:true}" maxlength="100" placeholder="e.g. INV-0042" required />
+        </label>
+        <div class="purchase-total"><span>Purchase total</span><strong>Rs {{ purchaseTotal() | number:'1.2-2' }}</strong></div>
+        <div class="purchase-submit-actions"><button type="button" class="primary" [disabled]="!canSubmit()" (click)="submit()">Receive purchase</button><button type="button" class="secondary" (click)="closed.emit()">Cancel</button></div>
+      </section>
+    </div>
+  </section>
+</div>
