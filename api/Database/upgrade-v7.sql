@@ -11,7 +11,11 @@ BEGIN
     WHERE dc.parent_object_id = OBJECT_ID(N'dbo.Customers') AND c.name = N'CreditLimit';
 
     IF @creditLimitDefault IS NOT NULL
-        EXEC(N'ALTER TABLE dbo.Customers DROP CONSTRAINT ' + QUOTENAME(@creditLimitDefault));
+    BEGIN
+        DECLARE @dropCreditLimit nvarchar(max) =
+            N'ALTER TABLE dbo.Customers DROP CONSTRAINT ' + QUOTENAME(@creditLimitDefault);
+        EXEC sys.sp_executesql @dropCreditLimit;
+    END;
 
     ALTER TABLE dbo.Customers DROP COLUMN CreditLimit;
 END;
