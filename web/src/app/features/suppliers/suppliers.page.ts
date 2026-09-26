@@ -10,10 +10,11 @@ import { AuthSession } from '../authentication/public-api';
 import { PurchasesApi, SupplierStatement } from '../purchases/public-api';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
 import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
+import { ConfirmDialogComponent } from '../../shared/ui/confirm-dialog.component';
 
 @Component({
   selector: 'app-suppliers-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, ConfirmDialogComponent],
   styleUrl: './suppliers.page.css',
   templateUrl: './suppliers.page.html',
 })
@@ -32,6 +33,7 @@ export class SuppliersPage extends PageFeedback implements OnInit {
   readonly pageSize = TABLE_PAGE_SIZE;
   readonly editingId = signal<number | null>(null);
   readonly statement = signal<SupplierStatement | null>(null);
+  readonly pendingStatusChange = signal<Supplier | null>(null);
   readonly visibleSuppliers = computed(() => {
     const query = this.searchText().trim().toLocaleLowerCase();
     return this.suppliers().filter(supplier => (this.statusFilter() === 'all' || (this.statusFilter() === 'active') === supplier.isActive) &&
@@ -72,11 +74,15 @@ export class SuppliersPage extends PageFeedback implements OnInit {
     };
   }
   cancelEdit(): void { this.editingId.set(null); this.supplierForm = this.emptyForm(); }
-  setActive(supplier: Supplier): Promise<void> {
+  setActive(supplier: Supplier): void { this.pendingStatusChange.set(supplier); }
+  confirmStatusChange(): Promise<void> {
+    const supplier = this.pendingStatusChange();
+    if (!supplier) return Promise.resolve();
     return this.perform(async () => {
       await this.api.setActive(supplier.id, !supplier.isActive);
       this.suppliers.set(await this.api.list());
       this.message.set(supplier.isActive ? 'Supplier deactivated.' : 'Supplier activated.');
+      this.pendingStatusChange.set(null);
     });
   }
   openLedger(supplier: Supplier): Promise<void> {

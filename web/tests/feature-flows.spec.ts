@@ -605,6 +605,7 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toBeVisible();
   await page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' }).getByRole('button', { name: 'Deactivate' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click();
   await expect(page.getByRole('row').filter({ hasText: 'Vitamin C 500mg' })).toContainText('Inactive');
 });
 
@@ -662,11 +663,11 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await expect(page.locator('.customer-ledger')).toContainText('Returned Rs 5.00');
   await customerRow.getByRole('button', { name: 'Deactivate' }).click();
   await expect(page.locator('.customer-ledger')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Deactivate customer' })).toBeVisible();
-  await page.getByRole('button', { name: 'Confirm deactivation' }).click();
+  await expect(page.getByRole('dialog', { name: 'Deactivate customer' })).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click();
   await expect(customerRow).toContainText('Inactive');
   await customerRow.getByRole('button', { name: 'Activate' }).click();
-  await page.getByRole('button', { name: 'Confirm activation' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Activate' }).click();
   await expect(customerRow).toContainText('Active');
   await navigate(page, /New sale/);
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
@@ -833,8 +834,10 @@ test('admins can create users, configure roles and deactivate access', async ({ 
   await mainStore.getByRole('button', { name: 'Save subscription' }).click();
   await expect.poll(() => state.stores[0].subscriptionStatus).toBe('Active');
   await mainStore.getByRole('button', { name: 'Deactivate store' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Deactivate store' }).click();
   expect(state.stores[0].isActive).toBe(false);
   await mainStore.getByRole('button', { name: 'Activate store' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Activate store' }).click();
   expect(state.stores[0].isActive).toBe(true);
   await page.getByLabel('Email', { exact: true }).fill('cashier@example.com');
   await page.getByLabel('Initial password').fill('ValidStrongPassword123!');
@@ -850,6 +853,7 @@ test('admins can create users, configure roles and deactivate access', async ({ 
   await userRow.getByRole('button', { name: 'Reset password' }).click();
   await expect(page.getByText('Password reset for cashier@example.com. Share the new password with them securely.')).toBeVisible();
   await userRow.getByRole('button', { name: 'Deactivate' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Deactivate account' }).click();
   await expect(userRow).toContainText('Inactive');
 
   await page.getByLabel('New role name').fill('Store Supervisor');

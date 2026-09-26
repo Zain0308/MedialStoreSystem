@@ -7,6 +7,7 @@ import { AuthenticationApi } from './authentication.api';
 import { StoreRole, StoreSummary, StoreUser } from './authentication.models';
 import { AuthSession } from './auth-session';
 import { pageSlice, TABLE_PAGE_SIZE, TablePaginationComponent } from '../../shared/ui/table-pagination.component';
+import { ConfirmDialogComponent } from '../../shared/ui/confirm-dialog.component';
 
 type SubscriptionDraft = {
   planName: string;
@@ -17,7 +18,7 @@ type SubscriptionDraft = {
 
 @Component({
   selector: 'app-user-management-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, ConfirmDialogComponent],
   templateUrl: './user-management.page.html',
   styleUrl: './user-management.page.css',
 })
@@ -39,6 +40,8 @@ export class UserManagementPage extends PageFeedback implements OnInit {
   readonly visibleUsers = computed(() => pageSlice(this.filteredUsers(), this.userPage()));
   readonly roles = signal<StoreRole[]>([]);
   readonly stores = signal<StoreSummary[]>([]);
+  readonly pendingUserStatus = signal<StoreUser | null>(null);
+  readonly pendingStoreStatus = signal<StoreSummary | null>(null);
   readonly roleSelections = signal<Record<string, string[]>>({});
   readonly permissionDrafts = signal<Record<string, string[]>>({});
   readonly storeDrafts = signal<Record<string, number[]>>({});
@@ -146,11 +149,17 @@ export class UserManagementPage extends PageFeedback implements OnInit {
     });
   }
 
-  setUserActive(user: StoreUser, isActive: boolean): Promise<void> {
+  setUserActive(user: StoreUser): void { this.pendingUserStatus.set(user); }
+
+  confirmUserStatus(): Promise<void> {
+    const user = this.pendingUserStatus();
+    if (!user) return Promise.resolve();
+    const isActive = !user.isActive;
     return this.perform(async () => {
       await this.api.setUserActive(user.id, isActive);
       await this.load();
       this.message.set(isActive ? 'User account activated.' : 'User account deactivated.');
+      this.pendingUserStatus.set(null);
     });
   }
 
@@ -168,11 +177,17 @@ export class UserManagementPage extends PageFeedback implements OnInit {
     });
   }
 
-  setStoreActive(store: StoreSummary, isActive: boolean): Promise<void> {
+  setStoreActive(store: StoreSummary): void { this.pendingStoreStatus.set(store); }
+
+  confirmStoreStatus(): Promise<void> {
+    const store = this.pendingStoreStatus();
+    if (!store) return Promise.resolve();
+    const isActive = !store.isActive;
     return this.perform(async () => {
       await this.api.setStoreActive(store.id, isActive);
       await this.load();
       this.message.set(isActive ? `${store.name} activated.` : `${store.name} deactivated; its users can no longer sign in.`);
+      this.pendingStoreStatus.set(null);
     });
   }
 

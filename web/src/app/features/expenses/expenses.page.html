@@ -1,4 +1,10 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+@if (pendingCategoryStatus(); as category) {
+  <app-confirm-dialog [title]="category.isActive ? 'Deactivate expense category' : 'Activate expense category'"
+    [message]="category.isActive ? category.name + ' will be unavailable for new expenses. Existing records will remain unchanged.' : category.name + ' will be available for new expenses.'"
+    [confirmLabel]="category.isActive ? 'Deactivate' : 'Activate'" [busy]="busy()"
+    (confirmed)="confirmCategoryStatus()" (cancelled)="pendingCategoryStatus.set(null)" />
+}
 <div class="page-content">
   @if (session.hasPermission('expenses.manage')) {
     <div class="expense-grid">

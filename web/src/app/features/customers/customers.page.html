@@ -25,13 +25,6 @@
     @if (!customers().length) {<p class="empty">No customers yet.</p>}
     @else if (!visibleCustomers().length) {<p class="empty">No customers match this filter.</p>}
   </section>
-  @if (activePanel() === 'status' && statusTarget(); as target) {
-    <section class="panel form-panel customer-status-confirmation">
-      <div class="panel-head"><div><h3>{{ target.isActive ? 'Deactivate customer' : 'Activate customer' }}</h3><p>{{ target.isActive ? 'This customer will no longer be available for new sales.' : 'This customer will be available for new sales again.' }}</p></div></div>
-      <p><strong>{{ target.name }}</strong></p>
-      <div class="form-actions"><button class="primary" [disabled]="busy()" (click)="confirmSetActive()">Confirm {{ target.isActive ? 'deactivation' : 'activation' }}</button><button class="text-button" (click)="cancelEdit()">Cancel</button></div>
-    </section>
-  }
   @if (activePanel() === 'ledger' && ledger(); as account) {<section class="panel customer-ledger">
     <div class="panel-head"><div><h3>{{ account.customer.name }} ledger</h3><p>Total paid: <strong>Rs {{ account.paidTotal | number:'1.2-2' }}</strong> · Amount due: <strong>Rs {{ account.receivable | number:'1.2-2' }}</strong></p></div><div class="form-actions"><button class="secondary" (click)="downloadLedger()">Download full ledger CSV</button><button class="text-button" (click)="closeLedger()">Close</button></div></div>
     @for (invoice of visibleLedgerInvoices(); track invoice.id) {<article class="invoice-ledger">
@@ -74,3 +67,9 @@
     }
   }
 </div>
+@if (activePanel() === 'status' && statusTarget(); as target) {
+  <app-confirm-dialog [title]="target.isActive ? 'Deactivate customer' : 'Activate customer'"
+    [message]="target.isActive ? target.name + ' will no longer be available for new sales.' : target.name + ' will be available for new sales again.'"
+    [confirmLabel]="target.isActive ? 'Deactivate' : 'Activate'" [busy]="busy()"
+    (confirmed)="confirmSetActive()" (cancelled)="cancelEdit()" />
+}

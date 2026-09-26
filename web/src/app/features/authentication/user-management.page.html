@@ -25,7 +25,7 @@
           </div>
           <div class="actions">
             <span class="badge" [class.bad]="!store.isActive">{{ store.isActive ? 'Store active' : 'Store inactive' }}</span>
-            <button class="text-button" [disabled]="busy()" (click)="setStoreActive(store, !store.isActive)">{{ store.isActive ? 'Deactivate store' : 'Activate store' }}</button>
+            <button class="text-button" [disabled]="busy()" (click)="setStoreActive(store)">{{ store.isActive ? 'Deactivate store' : 'Activate store' }}</button>
           </div>
         </div>
         <div class="owner-grid">
@@ -106,7 +106,7 @@
                 @if (user.id !== session.userId()) { <button class="text-button" [disabled]="busy()" (click)="saveUserStores(user)">Save stores</button> }
               </td>
               <td><span class="badge" [class.bad]="!user.isActive">{{ user.isActive ? 'Active' : 'Inactive' }}</span>
-                @if (user.id !== session.userId()) { <button class="text-button" [disabled]="busy()" (click)="setUserActive(user, !user.isActive)">{{ user.isActive ? 'Deactivate' : 'Activate' }}</button> }
+                @if (user.id !== session.userId()) { <button class="text-button" [disabled]="busy()" (click)="setUserActive(user)">{{ user.isActive ? 'Deactivate' : 'Activate' }}</button> }
               </td>
               <td>
                 @if (user.id !== session.userId()) {
@@ -144,3 +144,15 @@
     </div>
   </section>
 </div>
+@if (pendingStoreStatus(); as store) {
+  <app-confirm-dialog [title]="store.isActive ? 'Deactivate store' : 'Activate store'"
+    [message]="store.isActive ? store.name + ' and its users will lose access to the application.' : store.name + ' will be able to sign in again.'"
+    [confirmLabel]="store.isActive ? 'Deactivate store' : 'Activate store'" [busy]="busy()"
+    (confirmed)="confirmStoreStatus()" (cancelled)="pendingStoreStatus.set(null)" />
+}
+@if (pendingUserStatus(); as user) {
+  <app-confirm-dialog [title]="user.isActive ? 'Deactivate user account' : 'Activate user account'"
+    [message]="user.isActive ? user.email + ' will no longer be able to sign in.' : user.email + ' will be able to sign in again.'"
+    [confirmLabel]="user.isActive ? 'Deactivate account' : 'Activate account'" [busy]="busy()"
+    (confirmed)="confirmUserStatus()" (cancelled)="pendingUserStatus.set(null)" />
+}

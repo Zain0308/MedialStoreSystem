@@ -1,4 +1,10 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+@if (pendingStatusChange(); as supplier) {
+  <app-confirm-dialog [title]="supplier.isActive ? 'Deactivate supplier' : 'Activate supplier'"
+    [message]="supplier.isActive ? supplier.name + ' will be unavailable for new purchases.' : supplier.name + ' will be available for new purchases.'"
+    [confirmLabel]="supplier.isActive ? 'Deactivate' : 'Activate'" [busy]="busy()"
+    (confirmed)="confirmStatusChange()" (cancelled)="pendingStatusChange.set(null)" />
+}
 <div class="page-content">
   @if (session.hasPermission('suppliers.manage')) {
     <section class="panel form-panel">

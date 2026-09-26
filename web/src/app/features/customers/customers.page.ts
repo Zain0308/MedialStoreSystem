@@ -12,8 +12,9 @@ import { Receipt } from '../sales/sales.models';
 import { ReceiptComponent } from '../sales/receipt.component';
 import { downloadCsv, safeFilename } from '../../shared/utils/csv-download';
 import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/search-picker.component';
+import { ConfirmDialogComponent } from '../../shared/ui/confirm-dialog.component';
 
-@Component({ selector: 'app-customers-page', imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, ReceiptComponent, SearchPickerComponent],
+@Component({ selector: 'app-customers-page', imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, ReceiptComponent, SearchPickerComponent, ConfirmDialogComponent],
   styleUrl: './customers.page.css', templateUrl: './customers.page.html' })
 export class CustomersPage extends PageFeedback implements OnInit {
   private readonly api = inject(CustomersApi);

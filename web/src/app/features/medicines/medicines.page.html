@@ -1,4 +1,10 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+@if (pendingStatusChange(); as medicine) {
+  <app-confirm-dialog [title]="medicine.isActive ? 'Deactivate medicine' : 'Activate medicine'"
+    [message]="medicine.isActive ? medicine.name + ' will be hidden from new sales. Existing stock and history will be kept.' : medicine.name + ' will be available for new sales.'"
+    [confirmLabel]="medicine.isActive ? 'Deactivate' : 'Activate'" [busy]="busy()"
+    (confirmed)="confirmStatusChange()" (cancelled)="pendingStatusChange.set(null)" />
+}
 <div class="page-content">
   <div class="split wide-left">
     <section class="panel">
