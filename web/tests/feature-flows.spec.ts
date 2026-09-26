@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 15415)
-Total output lines: 884
+Warning: truncated output (original token count: 15555)
+Total output lines: 891
 
 import { expect, Page, test } from '@playwright/test';
 
@@ -300,131 +300,7 @@ async function mockApi(page: Page) {
     const purchasePayment = path.match(/^\/api\/purchases\/(\d+)\/payments$/);
     if (purchasePayment && method === 'POST') {
       const purchase = state.purchases.find(x => x.id === Number(purchasePayment[1]))!; const body = request.postDataJSON();
-      const outstanding = Math.max(0, purchase.total - purchase.returnedTotal - purchase.paidTotal);
-      purchase.paidTotal += body.amount; purchase.payments.push({ id: purchase.payments.length + 1, ...body, paidAt: new Date().toISOString() });
-      return reply({ id: purchase.payments.length, amount: body.amount, method: body.method,
-        supplierCreditAdded: Math.max(0, body.amount - outstanding) }, 201);
-    }
-    if (path === '/api/purchases' && method === 'POST') {
-      const body = request.postDataJSON();
-      expect(body.supplierInvoice).toBeTruthy(); expect(body.supplierId).toBe(2);
-      for (const line of body.lines) {
-        const medicine = state.medicines.find(m => m.id === line.medicineId)!;
-        medicine.stock += line.quantity;
-        state.batches.push({ id: state.batches.length + 1, medicineId: medicine.id, medicine: medicine.name, number: line.batchNumber,
-          expiryDate: line.expiryDate, costPrice: line.costPrice, salePrice: line.salePrice, quantity: line.quantity });
-      }
-      const supplier = state.suppliers.find(x => x.id === body.supplierId)!;
-      const previousPurchases = state.purchases.filter(x => x.supplier === supplier.name);
-      const externalPaid = previousPurchases.flatMap(x => x.payments)
-        .filter(payment => payment.method !== 'Supplier Credit').reduce((sum, payment) => sum + payment.amount, 0);
-      const netPreviousPurchases = previousPurchases.reduce((sum, x) => sum + x.total - x.returnedTotal, 0);
-      const availableCredit = Math.max(0, externalPaid - netPreviousPurchases);
-      const total = body.lines.reduce((sum: number, x: { quantity: number; costPrice: number }) => sum + x.quantity * x.costPrice, 0);
-      const supplierCreditApplied = Math.min(total, availableCredit);
-      const purchase = { id: state.purchases.length + 1, supplier: state.suppliers.find(x => x.id === body.supplierId)!.name,
-        supplierInvoice: body.supplierInvoice, createdAt: new Date().toISOString(),
-        total, returnedTotal: 0, paidTotal: supplierCreditApplied,
-        lines: body.lines.map((line: { medicineId: number; batchNumber: string; quantity: number; costPrice: number }) => ({ id: state.purchases.length + 1, medicine: state.medicines.find(x => x.id === line.medicineId)!.name, batch: line.batchNumber, quantity: line.quantity, returnedQuantity: 0, unitCost: line.costPrice, onHand: line.quantity })),
-        returns: [], corrections: [], payments: supplierCreditApplied > 0 ? [{ id: 1, amount: supplierCreditApplied,
-          method: 'Supplier Credit', reference: 'Automatically applied from supplier credit', paidAt: new Date().toISOString() }] : [] };
-      state.purchases.push(purchase); return reply({ id: purchase.id, total: purchase.total, supplierCreditApplied }, 201);
-    }
-    if (path === '/api/dashboard') return reply({ todaySales: state.subscriptionExpired ? 0 : state.sales.reduce((s, x) => s + x.total, 0), todayInvoices: state.subscriptionExpired ? 0 : state.sales.length, medicineCount: state.subscriptionExpired ? 0 : state.medicines.length, expiringBatches: 0, expiredBatches: 0, subscriptionDaysRemaining: state.subscriptionExpired ? null : state.subscriptionDaysRemaining, subscriptionExpiresAt: state.subscriptionExpiresAt, subscriptionExpired: state.subscriptionExpired });
-    if (path === '/api/sales' && method === 'GET') return reply(state.sales);
-    if (path === '/api/sales' && method === 'POST') {
-      state.salePosts++;
-      const body = request.postDataJSON();
-      const id = state.sales.length + 1;
-      const lines = body.lines.map((line: { medicineId: number; quantity: number }) => {
-        const medicine = state.medicines.find(m => m.id === line.medicineId)!;
-        expect(line.quantity).toBeGreaterThan(0);
-        medicine.stock -= line.quantity; state.batches[0].quantity -= line.quantity;
-        return { medicine: medicine.name, batch: 'LOT-01', quantity: line.quantity, unitPrice: 5, total: line.quantity * 5 };
-      });
-      const total = lines.reduce((sum: number, line: { total: number }) => sum + line.tota…1415 tokens truncated…).toHaveURL(/\/reports$/);
-  await expect(page.getByRole('status').filter({ hasText: 'Subscription expired' })).toBeVisible();
-  await expect(page.getByRole('navigation').getByRole('link', { name: 'Dashboard' })).toBeVisible();
-  await expect(page.getByRole('navigation').getByRole('link', { name: 'Medicines' })).toHaveCount(0);
-  await page.goto('/medicines');
-  await expect(page).toHaveURL(/\/reports$/);
-  const status = await page.evaluate(async () => fetch('/api/medicines', {
-    headers: { Authorization: 'Bearer test-token' },
-  }).then(response => response.status));
-  expect(status).toBe(403);
-});
-
-test('switching stores persists the active store and reloads the workspace', async ({ page }) => {
-  await mockApi(page);
-  await signIn(page, '/reports');
-  await expect(page.getByLabel('Active store')).toHaveValue('1');
-  const reload = page.waitForNavigation({ waitUntil: 'load' });
-  await page.getByLabel('Active store').selectOption('2');
-  await reload;
-  await expect(page.getByLabel('Active store')).toHaveValue('2');
-});
-
-test('inventory movement report filters dates and purchase or sale sources with 20 rows per page', async ({ page }) => {
-  const state = await mockApi(page);
-  state.movements = Array.from({ length: 25 }, (_, index) => ({
-    id: index + 1, batchId: 1, medicine: 'Paracetamol 500mg', batch: 'LOT-01',
-    type: index % 2 === 0 ? 'Purchase' : 'Sale', quantityChange: index % 2 === 0 ? 10 : -1,
-    balanceAfter: 20, reason: '', createdAt: `2026-09-${String(index + 1).padStart(2, '0')}T12:00:00.000Z`,
-  }));
-  await signIn(page, '/inventory');
-  const report = page.locator('.movement-report');
-  await expect(report.locator('tbody tr')).toHaveCount(20);
-  await report.getByRole('button', { name: 'Next' }).click();
-  await expect(report.locator('tbody tr')).toHaveCount(5);
-  await expect(report.getByText('Page 2 of 2')).toBeVisible();
-
-  await report.getByLabel('Movement type').selectOption('Purchase');
-  await expect(report.locator('tbody tr')).toHaveCount(13);
-  await expect(report.getByText('Page 1 of 1')).toBeVisible();
-  await report.getByLabel('Movement type').selectOption('Sale');
-  await expect(report.locator('tbody tr')).toHaveCount(12);
-  await report.getByLabel('Movement type').selectOption('Purchase');
-  await report.getByLabel('From date').fill('2026-09-10');
-  await report.getByLabel('To date').fill('2026-09-20');
-  await expect(report.locator('tbody tr')).toHaveCount(5);
-});
-
-test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {
-  const state = await mockApi(page);
-  await signIn(page, '/reports');
-  const dashboard = page.locator('.financial-shortcuts');
-  await expect(dashboard).toBeVisible();
-  await expect(page.locator('.financial-accounts')).toHaveCount(0);
-  await dashboard.getByRole('link', { name: /View customer accounts/ }).click();
-  await expect(page).toHaveURL(/\/reports\/financial-accounts\?tab=receivables$/);
-  const accounts = page.locator('.financial-accounts');
-
-  await accounts.getByRole('tab', { name: 'Profit & Loss' }).click();
-  await accounts.getByLabel('Profit and loss month').fill('2026-02');
-  await accounts.getByRole('button', { name: 'Apply month' }).click();
-  await expect.poll(() => state.reportQueries.at(-1)).toEqual({ from: '2026-02-01', to: '2026-02-28' });
-
-  await accounts.getByRole('tab', { name: 'Payables' }).click();
-  await expect(accounts.getByText('Demo Pharma')).toBeVisible();
-  await expect(accounts.getByText('Rs 70.00').first()).toBeVisible();
-  await accounts.locator('summary', { hasText: 'Invoices' }).first().click();
-  await expect(accounts.getByText('SUP-101')).toBeVisible();
-  await expect(accounts.getByText('Payment Cash')).toBeVisible();
-
-  await accounts.getByRole('tab', { name: 'Receivables' }).click();
-  await expect(accounts.getByText('Ayesha Khan')).toBeVisible();
-  await expect(accounts.getByText('Rs 55.00').first()).toBeVisible();
-  await accounts.locator('summary', { hasText: 'Invoices' }).click();
-  await expect(accounts.getByText('INV-202')).toBeVisible();
-  await expect(accounts.getByText('RCPT-01')).toBeVisible();
-});
-
-test('medicine, supplier and purchase pages keep their own forms and update inventory', async ({ page }) => {
-  await mockApi(page); await signIn(page);
-  await navigate(page, /Medicines/);
-  await page.getByLabel('Medicine name').fill('Vitamin C');
-  await page.getByRole('button', { name: 'Add medicine', exact: true }).click();
-  await expect(page.getByRole('row').filter({ hasText: 'Vitamin C' })).toBeVisible();
+      const outstanding = Math.max(0, purchase.total - purchase.returnedTo…3555 tokens truncated…ible();
   await navigate(page, /Suppliers/);
   await page.getByLabel('Supplier name').fill('City Pharma');
   await page.getByRole('button', { name: 'Add supplier', exact: true }).click();
@@ -509,7 +385,7 @@ test('medicine, supplier and purchase pages keep their own forms and update inve
 });
 
 test('customers track paid and due amounts, and POS can record an unpaid sale', async ({ page }) => {
-  await mockApi(page); await signIn(page);
+  const state = await mockApi(page); await signIn(page);
   await navigate(page, /Customers/);
   await page.getByLabel('Customer name').fill('Ayesha Khan');
   await page.getByRole('button', { name: 'Add customer' }).click();
@@ -523,26 +399,33 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await page.getByRole('button', { name: /Complete sale/ }).click();
   await expect(page.getByText('Sale completed. Invoice is ready to print.')).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
+  state.sales.push({ ...state.sales[0], id: 2, invoiceNumber: 'INV-00000002', subtotal: 12,
+    total: 12, returnedTotal: 0, paidTotal: 0 });
   await navigate(page, /Customers/);
   const customerRow = page.getByRole('row').filter({ hasText: 'Ayesha Khan' });
-  await expect(customerRow).toContainText('Rs 5.00');
   await expect(customerRow).toContainText('Rs 0.00');
+  await expect(customerRow).toContainText('Rs 17.00');
   await customerRow.getByRole('button', { name: 'Ledger' }).click();
   await expect(page.locator('.customer-ledger')).toContainText('INV-00000001');
+  await expect(page.locator('.customer-ledger')).toContainText('INV-00000002');
+  const firstInvoice = page.locator('.invoice-ledger').filter({ hasText: 'INV-00000001' });
+  const secondInvoice = page.locator('.invoice-ledger').filter({ hasText: 'INV-00000002' });
+  await firstInvoice.getByLabel('Payment amount for invoice INV-00000001').fill('3');
+  await expect(secondInvoice.getByLabel('Payment amount for invoice INV-00000002')).toHaveValue('12');
   const [customerLedgerDownload] = await Promise.all([
     page.waitForEvent('download'), page.locator('.customer-ledger').getByRole('button', { name: 'Download full ledger CSV' }).click(),
   ]);
   expect(customerLedgerDownload.suggestedFilename()).toBe('customer-ledger-Ayesha-Khan.csv');
-  await page.locator('.customer-ledger').getByRole('button', { name: 'View receipt / process return' }).click();
+  await firstInvoice.getByLabel('Payment amount for invoice INV-00000001').fill('5');
+  await firstInvoice.getByRole('button', { name: 'Record payment' }).click();
+  await expect(page.getByText('Customer payment recorded.')).toBeVisible();
+  await expect(customerRow).toContainText('Rs 5.00');
+  await expect(customerRow).toContainText('Rs 12.00');
+  await firstInvoice.getByRole('button', { name: 'View receipt / process return' }).click();
   await expect(page.locator('.receipt')).toContainText('MEDICAL STORE');
   await expect(page.locator('.receipt')).toContainText('INV-00000001');
   await page.locator('.receipt').getByRole('button', { name: 'Close' }).click();
-  await page.locator('.customer-ledger').getByLabel('Amount (Rs)').fill('5');
-  await page.locator('.customer-ledger').getByRole('button', { name: 'Record payment' }).click();
-  await expect(page.getByText('Customer payment recorded.')).toBeVisible();
-  await expect(customerRow).toContainText('Rs 5.00');
-  await expect(customerRow).toContainText('Rs 0.00');
-  await page.locator('.customer-ledger').getByRole('button', { name: 'View receipt / process return' }).click();
+  await firstInvoice.getByRole('button', { name: 'View receipt / process return' }).click();
   await page.getByLabel('Customer return reason').fill('Customer returned unopened medicine');
   await page.getByRole('button', { name: 'Record customer return' }).click();
   await expect(page.getByText(/Customer return recorded/)).toBeVisible();

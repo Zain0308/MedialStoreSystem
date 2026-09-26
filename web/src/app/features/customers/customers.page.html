@@ -31,10 +31,16 @@
       <div class="panel-head"><div><strong>{{ invoice.invoiceNumber }}</strong><small>{{ invoice.createdAt | date:'medium' }}</small></div><span>Sale Rs {{ invoice.total | number:'1.2-2' }} · Returned Rs {{ invoice.returned | number:'1.2-2' }} · Paid Rs {{ invoice.paid | number:'1.2-2' }} · Due <strong>Rs {{ due(invoice) | number:'1.2-2' }}</strong></span>@if (session.hasPermission('sales.read')) { <button class="text-button" (click)="viewReceipt(invoice.id)">View receipt / process return</button> }</div>
       @for (p of invoice.payments; track p.id) {<p class="payment-row">Payment: Rs {{ p.amount | number:'1.2-2' }} · {{ p.method }} · {{ p.paidAt | date:'medium' }} {{ p.reference }}</p>}
       @if (session.hasPermission('customers.manage') && due(invoice) > 0) {
-        <div class="payment-form"><label>Amount (Rs)<input type="number" min="0.01" [max]="due(invoice)" step="0.01" [(ngModel)]="payment.amount" (focus)="startPayment(invoice.id, due(invoice))" /></label>
-          <label>Method<select [(ngModel)]="payment.method">@for (m of methods; track m) {<option [value]="m">{{ m }}</option>}</select></label>
-          <label>Reference<input [(ngModel)]="payment.reference" placeholder="Optional" /></label>
-          <button class="secondary" (click)="payment.invoiceId = invoice.id; recordPayment()">Record payment</button>
+        <div class="payment-form"><label>Amount (Rs)<input type="number" min="0.01" [max]="due(invoice)" step="0.01"
+          [attr.aria-label]="'Payment amount for invoice ' + invoice.invoiceNumber" [ngModel]="paymentAmounts[invoice.id] ?? due(invoice)"
+          (ngModelChange)="paymentAmounts[invoice.id] = $event" /></label>
+          <label>Method<select [attr.aria-label]="'Payment method for invoice ' + invoice.invoiceNumber"
+            [ngModel]="paymentMethods[invoice.id] ?? 'Cash'" (ngModelChange)="paymentMethods[invoice.id] = $event">
+            @for (m of methods; track m) {<option [value]="m">{{ m }}</option>}</select></label>
+          <label>Reference<input [attr.aria-label]="'Payment reference for invoice ' + invoice.invoiceNumber"
+            placeholder="Optional" [ngModel]="paymentReferences[invoice.id] ?? ''"
+            (ngModelChange)="paymentReferences[invoice.id] = $event" /></label>
+          <button class="secondary" [disabled]="busy()" (click)="recordPayment(invoice.id, due(invoice))">Record payment</button>
         </div>
       }
     </article>}

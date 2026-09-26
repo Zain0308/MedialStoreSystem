@@ -41,7 +41,9 @@ export class CustomersPage extends PageFeedback implements OnInit {
   readonly pagedCustomers = computed(() => pageSlice(this.visibleCustomers(), this.tablePage()));
   readonly visibleLedgerInvoices = computed(() => pageSlice(this.ledger()?.invoices ?? [], this.ledgerPage()));
   form: SaveCustomer = this.emptyForm();
-  payment = { invoiceId: 0, amount: 0, method: 'Cash', reference: '' };
+  readonly paymentAmounts: Record<number, number> = {};
+  readonly paymentMethods: Record<number, string> = {};
+  readonly paymentReferences: Record<number, string> = {};
   readonly methods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
   returnForm = { saleLineId: 0, quantity: 1, restock: true, reason: '', refundMethod: 'Cash' };
   ngOnInit(): void { void this.perform(async () => this.customers.set(await this.api.list())); }
@@ -110,13 +112,15 @@ export class CustomersPage extends PageFeedback implements OnInit {
       this.message.set(`Customer return recorded. Refund: Rs ${result.totalRefund.toFixed(2)}.`);
     });
   }
-  startPayment(invoiceId: number, due: number): void { this.payment = { invoiceId, amount: due, method: 'Cash', reference: '' }; }
-  recordPayment(): Promise<void> {
-    const ledger = this.ledger(); if (!ledger || this.payment.invoiceId === 0) return Promise.resolve();
+  recordPayment(invoiceId: number, invoiceDue: number): Promise<void> {
+    const ledger = this.ledger();
+    const amount = this.paymentAmounts[invoiceId] ?? invoiceDue;
+    if (!ledger || amount <= 0 || amount > invoiceDue) return Promise.resolve();
     return this.perform(async () => {
-      await this.api.payment(ledger.customer.id, { saleId: this.payment.invoiceId, amount: +this.payment.amount,
-        method: this.payment.method, reference: this.payment.reference });
-      this.ledger.set(await this.api.ledger(ledger.customer.id)); await this.refresh(); this.payment.invoiceId = 0;
+      await this.api.payment(ledger.customer.id, { saleId: invoiceId, amount: +amount,
+        method: this.paymentMethods[invoiceId] ?? 'Cash', reference: this.paymentReferences[invoiceId] ?? '' });
+      this.ledger.set(await this.api.ledger(ledger.customer.id)); await this.refresh();
+      delete this.paymentAmounts[invoiceId]; delete this.paymentMethods[invoiceId]; delete this.paymentReferences[invoiceId];
       this.message.set('Customer payment recorded.');
     });
   }
