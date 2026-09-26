@@ -78,15 +78,15 @@
     </form>
   </section> }
   <section class="panel supplier-account-panel">
-    <div class="panel-head"><div><h3>Supplier accounts</h3><p>All invoices for each supplier, with returns and payments deducted from the amount due.</p></div>
+    <div class="panel-head"><div><h3>Supplier accounts</h3><p>Supplier credits carry forward and are automatically applied to that supplier’s next purchase.</p></div>
       <span class="count">{{ filteredSupplierAccounts().length }} of {{ supplierAccounts().length }} suppliers</span>
     </div>
     <div class="purchase-filters"><label>Search suppliers<input aria-label="Filter supplier accounts" [ngModel]="supplierSearch()" (ngModelChange)="supplierSearch.set($event); supplierPage.set(1)" placeholder="Supplier name" /></label><label>Balance<select aria-label="Supplier account balance filter" [ngModel]="supplierBalanceFilter()" (ngModelChange)="supplierBalanceFilter.set($event); supplierPage.set(1)"><option value="all">All balances</option><option value="due">Amount due</option><option value="credit">Supplier credit</option><option value="settled">Settled</option></select></label></div>
-    <div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoices</th><th>Purchased</th><th>Returned</th><th>Paid</th><th>Amount due</th><th></th></tr></thead>
+    <div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoices</th><th>Purchased</th><th>Returned</th><th>Paid</th><th>Balance (due / credit)</th><th></th></tr></thead>
       <tbody>@for (account of visibleSupplierAccounts(); track account.supplierId) {
         <tr><td><strong>{{ account.supplier }}</strong></td><td>{{ account.invoiceCount }}</td>
           <td>Rs {{ account.purchaseTotal | number:'1.2-2' }}</td><td>Rs {{ account.returnedTotal | number:'1.2-2' }}</td>
-          <td>Rs {{ account.paidTotal | number:'1.2-2' }}</td><td><strong>Rs {{ account.balance | number:'1.2-2' }}</strong></td>
+          <td>Rs {{ account.paidTotal | number:'1.2-2' }}</td><td><strong>@if (account.balance < 0) { Credit Rs {{ -account.balance | number:'1.2-2' }} } @else { Due Rs {{ account.balance | number:'1.2-2' }} }</strong></td>
           <td><button class="text-button" (click)="openSupplierStatement(account)">View statement</button></td>
         </tr>
       }</tbody>
@@ -138,9 +138,9 @@
         <button class="secondary" [disabled]="busy() || !returnForm.lineId">Save return</button>
       </form> }
       @if (session.hasPermission('purchases.manage')) {
-      <div class="list-row"><div><strong>Record supplier payment</strong><small>Payment cannot exceed invoice balance after returns.</small></div></div>
+      <div class="list-row"><div><strong>Record supplier payment</strong><small>Overpayments can be kept as supplier credit for the next purchase.</small></div></div>
       <form (ngSubmit)="submitPayment()">
-        <div class="form-grid"><label>Amount (Rs)<input name="payment-amount" type="number" min="0.01" step="0.01" [max]="balance(selected)" [(ngModel)]="paymentForm.amount" required /></label>
+        <div class="form-grid"><label>Amount (Rs)<input name="payment-amount" type="number" min="0.01" step="0.01" [(ngModel)]="paymentForm.amount" required /></label>
         <label>Method<select name="payment-method" [(ngModel)]="paymentForm.method">@for (method of paymentMethods; track method) { <option [value]="method">{{ method }}</option> }</select></label>
         <label>Reference<input name="payment-ref" [(ngModel)]="paymentForm.reference" placeholder="Optional transaction reference" /></label></div>
         <button class="primary" [disabled]="busy() || balance(selected) <= 0">Save payment</button>
@@ -153,3 +153,16 @@
     </section>
   }
 </div>
+
+@if (overpaymentDialog()) {
+  @if (selectedPurchase(); as purchase) {
+    <div class="supplier-overpayment-backdrop">
+      <section class="panel supplier-overpayment-dialog" role="dialog" aria-modal="true" aria-labelledby="supplier-overpayment-title">
+        <h3 id="supplier-overpayment-title">Confirm supplier overpayment</h3>
+        <p>You are paying <strong>Rs {{ paymentForm.amount | number:'1.2-2' }}</strong>, while this invoice has <strong>Rs {{ balance(purchase) | number:'1.2-2' }}</strong> due.</p>
+        <p>The extra <strong>Rs {{ paymentExcess | number:'1.2-2' }}</strong> will be saved as credit and automatically deducted from this supplier’s next purchase.</p>
+        <div class="form-actions"><button type="button" class="primary" [disabled]="busy()" (click)="confirmSupplierOverpayment()">Yes, continue</button><button type="button" class="text-button" (click)="overpaymentDialog.set(false)">Cancel</button></div>
+      </section>
+    </div>
+  }
+}

@@ -1,0 +1,27 @@
+.supplier-overpayment-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 38, 29, 0.48);
+}
+
+.supplier-overpayment-dialog {
+  width: min(100%, 480px);
+  box-shadow: 0 22px 70px rgba(20, 40, 30, 0.24);
+}
+
+.supplier-overpayment-dialog p {
+  color: #62776d;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.supplier-overpayment-dialog .form-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}

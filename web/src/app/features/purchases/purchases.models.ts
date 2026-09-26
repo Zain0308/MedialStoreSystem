@@ -14,6 +14,7 @@ export interface CreatePurchase {
 export interface PurchaseResult {
   id: number;
   total: number;
+  supplierCreditApplied?: number;
 }
 export interface PurchaseHistory {
   id: number; supplier: string; supplierInvoice: string; createdAt: string; total: number;

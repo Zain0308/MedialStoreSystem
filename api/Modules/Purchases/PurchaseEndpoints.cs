@@ -23,7 +23,17 @@ public static class PurchaseEndpoints
             if (await db.Purchases.AnyAsync(x => x.SupplierId == input.SupplierId && x.SupplierInvoice == invoice))
                 return Results.Conflict("Supplier invoice already received.");
 
-            await using var tx = await db.Database.BeginTransactionAsync();
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var previousPurchases = await db.Purchases.Where(x => x.SupplierId == input.SupplierId)
+                .SumAsync(x => (decimal?)x.Total) ?? 0m;
+            var previousReturns = await db.PurchaseReturns.Where(x => x.Purchase.SupplierId == input.SupplierId)
+                .SumAsync(x => (decimal?)x.Total) ?? 0m;
+            var previousPayments = await db.SupplierPayments.Where(x => x.Purchase.SupplierId == input.SupplierId)
+                .ToListAsync();
+            var supplierCredit = Math.Max(0m, previousPayments
+                .Where(x => !string.Equals(x.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase)).Sum(x => x.Amount)
+                - previousPurchases + previousReturns
+                - previousPayments.Where(x => string.Equals(x.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase)).Sum(x => x.Amount));
             var purchase = new Purchase { SupplierId = input.SupplierId, SupplierInvoice = invoice,
                 Total = decimal.Round(input.Lines.Sum(x => x.Quantity * x.CostPrice), 2) };
             foreach (var line in input.Lines)
@@ -34,12 +44,16 @@ public static class PurchaseEndpoints
             }
             db.Purchases.Add(purchase);
             await db.SaveChangesAsync();
+            var supplierCreditApplied = Math.Min(purchase.Total, supplierCredit);
+            if (supplierCreditApplied > 0)
+                db.SupplierPayments.Add(new SupplierPayment { PurchaseId = purchase.Id, Amount = supplierCreditApplied,
+                    Method = "Supplier Credit", Reference = "Automatically applied from supplier credit" });
             foreach (var line in purchase.Lines)
                 db.StockMovements.Add(new StockMovement { BatchId = line.BatchId, Type = "Purchase", ReferenceId = purchase.Id,
                     QuantityChange = line.Quantity, BalanceAfter = line.Quantity, Reason = $"Supplier invoice {purchase.SupplierInvoice}" });
             await db.SaveChangesAsync();
             await tx.CommitAsync();
-            return Results.Created($"/api/purchases/{purchase.Id}", new { purchase.Id, purchase.Total });
+            return Results.Created($"/api/purchases/{purchase.Id}", new { purchase.Id, purchase.Total, supplierCreditApplied });
         }).RequireAuthorization(StorePermissions.PurchasesManage);
 
         api.MapGet("/purchases", async (StoreDb db) => Results.Ok(await db.Purchases.AsNoTracking()
@@ -61,12 +75,13 @@ public static class PurchaseEndpoints
             var returns = await db.PurchaseReturns.AsNoTracking()
                 .Select(x => new { x.Purchase.SupplierId, x.Total }).ToListAsync();
             var payments = await db.SupplierPayments.AsNoTracking()
-                .Select(x => new { x.Purchase.SupplierId, x.Amount }).ToListAsync();
+                .Select(x => new { x.Purchase.SupplierId, x.Amount, x.Method }).ToListAsync();
             var purchaseTotals = purchases.GroupBy(x => x.SupplierId)
                 .ToDictionary(x => x.Key, x => x.Sum(item => item.Total));
             var returnTotals = returns.GroupBy(x => x.SupplierId)
                 .ToDictionary(x => x.Key, x => x.Sum(item => item.Total));
-            var paidTotals = payments.GroupBy(x => x.SupplierId)
+            var paidTotals = payments.Where(x => !string.Equals(x.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(x => x.SupplierId)
                 .ToDictionary(x => x.Key, x => x.Sum(item => item.Amount));
             var invoiceCounts = purchases.GroupBy(x => x.SupplierId)
                 .ToDictionary(x => x.Key, x => x.Count());
@@ -77,7 +92,7 @@ public static class PurchaseEndpoints
                 var returnedTotal = returnTotals.GetValueOrDefault(supplier.Id);
                 var paidTotal = paidTotals.GetValueOrDefault(supplier.Id);
                 return new SupplierAccountSummary(supplier.Id, supplier.Name, invoiceCounts.GetValueOrDefault(supplier.Id),
-                    purchaseTotal, returnedTotal, paidTotal, Math.Max(0m, purchaseTotal - returnedTotal - paidTotal));
+                    purchaseTotal, returnedTotal, paidTotal, purchaseTotal - returnedTotal - paidTotal);
             }));
         }).RequireAuthorization(StorePermissions.PurchasesRead);
 
@@ -148,14 +163,13 @@ public static class PurchaseEndpoints
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             var purchase = await db.Purchases.Include(x => x.Returns).Include(x => x.Payments).SingleOrDefaultAsync(x => x.Id == id);
             if (purchase is null) return Results.NotFound();
-            var outstanding = purchase.Total - purchase.Returns.Sum(x => x.Total) - purchase.Payments.Sum(x => x.Amount);
-            if (amount > outstanding) return Results.BadRequest($"Payment exceeds the outstanding balance of {Math.Max(0, outstanding):0.00}.");
+            var outstanding = Math.Max(0m, purchase.Total - purchase.Returns.Sum(x => x.Total) - purchase.Payments.Sum(x => x.Amount));
             var payment = new SupplierPayment { PurchaseId = id, Amount = amount, Method = method,
                 Reference = input.Reference?.Trim() };
             db.SupplierPayments.Add(payment);
             await db.SaveChangesAsync();
             await tx.CommitAsync();
-            return Results.Created($"/api/purchases/{id}/payments/{payment.Id}", new { payment.Id, payment.Amount, payment.Method });
+            return Results.Created($"/api/purchases/{id}/payments/{payment.Id}", new { payment.Id, payment.Amount, payment.Method, supplierCreditAdded = Math.Max(0m, amount - outstanding) });
         }).RequireAuthorization(StorePermissions.PurchasesManage);
     }
 }

@@ -17,6 +17,7 @@ import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/searc
 @Component({
   selector: 'app-purchases-page',
   imports: [CommonModule, FormsModule, RouterLink, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent],
+  styleUrl: './purchases.page.css',
   templateUrl: './purchases.page.html',
 })
 export class PurchasesPage extends PageFeedback implements OnInit {
@@ -108,6 +109,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   readonly visibleTransactions = computed(() => pageSlice(this.filteredTransactions(), this.transactionPage()));
   returnForm = { lineId: 0, quantity: 1, supplierReference: '', reason: '' };
   paymentForm = { amount: 0, method: 'Cash', reference: '' };
+  readonly overpaymentDialog = signal(false);
   readonly paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'Mobile Wallet'];
   readonly today = new Date().toISOString().slice(0, 10);
   purchase = this.emptyForm(0);
@@ -127,7 +129,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
     if (!this.purchase.supplierId || !this.purchase.medicineId) return Promise.resolve();
     return this.perform(async () => {
       const p = this.purchase;
-      await this.api.receive({
+      const result = await this.api.receive({
         supplierId: +p.supplierId,
         supplierInvoice: p.supplierInvoice,
         lines: [
@@ -144,7 +146,9 @@ export class PurchasesPage extends PageFeedback implements OnInit {
       this.purchase = this.emptyForm(p.supplierId);
       this.supplierPickerSearch.set(this.suppliers().find(supplier => supplier.id === p.supplierId)?.name ?? '');
       await this.refreshFinancials();
-      this.message.set('Purchase received; batch stock updated.');
+      this.message.set(result.supplierCreditApplied
+        ? `Purchase received; batch stock updated. Rs ${result.supplierCreditApplied.toFixed(2)} supplier credit was applied.`
+        : 'Purchase received; batch stock updated.');
     });
   }
   private async refreshPurchases(): Promise<void> { this.purchases.set(await this.api.list()); }
@@ -179,6 +183,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
         'Item / method / reference', 'Batch / reason', 'Quantity', 'Unit cost'], rows);
   }
   openStatementInvoice(purchase: PurchaseHistory): void {
+    this.overpaymentDialog.set(false);
     this.selectedPurchase.set(purchase);
     this.transactionSearch.set(''); this.transactionType.set('all'); this.transactionPage.set(1);
     const eligible = purchase.lines.find(line => line.quantity > line.returnedQuantity && line.onHand > 0);
@@ -190,6 +195,10 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   }
   openPayment(purchase: PurchaseHistory): void { this.openReturn(purchase); this.paymentForm.amount = this.balance(purchase); }
   balance(purchase: PurchaseHistory): number { return Math.max(0, purchase.total - purchase.returnedTotal - purchase.paidTotal); }
+  get paymentExcess(): number {
+    const purchase = this.selectedPurchase();
+    return purchase ? Math.max(0, +this.paymentForm.amount - this.balance(purchase)) : 0;
+  }
   submitReturn(): Promise<void> {
     const purchase = this.selectedPurchase(); if (!purchase || !this.returnForm.lineId) return Promise.resolve();
     return this.perform(async () => {
@@ -200,9 +209,24 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   }
   submitPayment(): Promise<void> {
     const purchase = this.selectedPurchase(); if (!purchase) return Promise.resolve();
+    if (+this.paymentForm.amount > this.balance(purchase)) {
+      this.overpaymentDialog.set(true);
+      return Promise.resolve();
+    }
+    return this.saveSupplierPayment(purchase);
+  }
+  confirmSupplierOverpayment(): Promise<void> {
+    const purchase = this.selectedPurchase(); if (!purchase) return Promise.resolve();
+    this.overpaymentDialog.set(false);
+    return this.saveSupplierPayment(purchase);
+  }
+  private saveSupplierPayment(purchase: PurchaseHistory): Promise<void> {
     return this.perform(async () => {
-      await this.api.paySupplier(purchase.id, { ...this.paymentForm, amount: +this.paymentForm.amount });
-      this.selectedPurchase.set(null); await this.refreshFinancials(); this.message.set('Supplier payment recorded.');
+      const result = await this.api.paySupplier(purchase.id, { ...this.paymentForm, amount: +this.paymentForm.amount });
+      this.selectedPurchase.set(null); await this.refreshFinancials();
+      this.message.set(result.supplierCreditAdded
+        ? `Supplier payment recorded. Rs ${result.supplierCreditAdded.toFixed(2)} added to supplier credit for the next purchase.`
+        : 'Supplier payment recorded.');
     });
   }
   private emptyForm(supplierId: number) {

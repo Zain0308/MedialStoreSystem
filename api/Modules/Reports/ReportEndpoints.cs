@@ -55,7 +55,9 @@ public static class ReportEndpoints
                 {
                     supplierId = x.SupplierId, x.Id, x.SupplierInvoice, x.CreatedAt, x.Total,
                     returned = x.Returns.Sum(r => (decimal?)r.Total) ?? 0,
-                    paid = x.Payments.Sum(p => (decimal?)p.Amount) ?? 0
+                    paid = x.Payments.Sum(p => (decimal?)p.Amount) ?? 0,
+                    externalPaid = x.Payments.Where(p => p.Method != "Supplier Credit")
+                        .Sum(p => (decimal?)p.Amount) ?? 0
                 }).ToListAsync();
             var invoiceIds = invoices.Select(x => x.Id).ToArray();
             var returns = await db.PurchaseReturns.AsNoTracking().Where(x => invoiceIds.Contains(x.PurchaseId))
@@ -69,7 +71,7 @@ public static class ReportEndpoints
                 var supplierInvoices = invoices.Where(x => x.supplierId == supplier.Id).ToList();
                 var purchaseTotal = supplierInvoices.Sum(x => x.Total);
                 var returnedTotal = supplierInvoices.Sum(x => x.returned);
-                var paidTotal = supplierInvoices.Sum(x => x.paid);
+                var paidTotal = supplierInvoices.Sum(x => x.externalPaid);
                 var balance = purchaseTotal - returnedTotal - paidTotal;
                 return new
                 {
@@ -79,7 +81,7 @@ public static class ReportEndpoints
                     invoices = supplierInvoices.Select(x => new
                     {
                         x.Id, x.SupplierInvoice, x.CreatedAt, x.Total, x.returned, x.paid,
-                        balance = x.Total - x.returned - x.paid,
+                        balance = Math.Max(0m, x.Total - x.returned - x.paid),
                         returns = returns.Where(r => r.PurchaseId == x.Id)
                             .Select(r => new { r.CreatedAt, r.SupplierReference, r.Reason, r.amount }).ToList(),
                         payments = payments.Where(p => p.PurchaseId == x.Id)
