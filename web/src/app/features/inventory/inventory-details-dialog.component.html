@@ -1,0 +1,51 @@
+<div class="inventory-details-backdrop" (click)="closed.emit()">
+  <section class="inventory-details-dialog panel" role="dialog" aria-modal="true" aria-labelledby="inventory-details-title" (click)="$event.stopPropagation()">
+    <header class="inventory-details-header">
+      <div><span class="eyebrow">MEDICINE DETAILS</span><h2 id="inventory-details-title">{{ productName }}</h2><p>Stock, supplier purchases and related records in one place.</p></div>
+      <button type="button" class="dialog-close" aria-label="Close medicine details" (click)="closed.emit()">×</button>
+    </header>
+    @if (loading) { <div class="inventory-details-loading"><span class="loading-dot"></span><p>Loading medicine history…</p></div> }
+    @else if (details; as item) {
+      <div class="inventory-detail-summary">
+        <div><span>Total on hand</span><strong>{{ stockTotal(item) }} units</strong></div>
+        <div><span>Batch lots</span><strong>{{ item.batches.length }}</strong></div>
+        <div><span>Strength &amp; form</span><strong>{{ item.medicine.strength || '—' }} · {{ item.medicine.dosageForm || '—' }}</strong></div>
+        <div><span>Manufacturer</span><strong>{{ item.medicine.manufacturer || '—' }}</strong></div>
+        @if (item.medicine.barcode) { <div><span>Barcode</span><strong>{{ item.medicine.barcode }}</strong></div> }
+        <div><span>Minimum stock</span><strong>{{ item.medicine.minimumStock }} units</strong></div>
+      </div>
+      @if (item.medicine.description) { <p class="inventory-medicine-description">{{ item.medicine.description }}</p> }
+      <nav class="inventory-detail-tabs" aria-label="Medicine history sections" role="tablist">
+        <button type="button" role="tab" [attr.aria-selected]="activeTab() === 'purchases'" [class.selected]="activeTab() === 'purchases'" (click)="activeTab.set('purchases')">Purchases <span>{{ item.purchases.length }}</span></button>
+        <button type="button" role="tab" [attr.aria-selected]="activeTab() === 'payments'" [class.selected]="activeTab() === 'payments'" (click)="activeTab.set('payments')">Payments <span>{{ item.payments.length }}</span></button>
+        <button type="button" role="tab" [attr.aria-selected]="activeTab() === 'returns'" [class.selected]="activeTab() === 'returns'" (click)="activeTab.set('returns')">Returns <span>{{ item.returns.length }}</span></button>
+        <button type="button" role="tab" [attr.aria-selected]="activeTab() === 'corrections'" [class.selected]="activeTab() === 'corrections'" (click)="activeTab.set('corrections')">Corrections <span>{{ item.corrections.length }}</span></button>
+      </nav>
+      <div class="inventory-detail-content">
+        @if (activeTab() === 'purchases') {
+          @if (item.purchases.length) {
+            <div class="inventory-history-list">@for (purchase of item.purchases; track purchase.purchaseLineId) {
+              <article class="inventory-history-card">
+                <div class="history-card-heading"><div><strong>{{ purchase.supplier }}</strong><span>Invoice {{ purchase.supplierInvoice }}</span></div><span class="history-date">{{ purchase.purchasedAt | date:'mediumDate' }}</span></div>
+                <div class="history-card-grid"><div><span>Batch / expiry</span><strong>{{ purchase.batch }} · {{ purchase.expiryDate | date:'mediumDate' }}</strong></div><div><span>Purchased / returned</span><strong>{{ purchase.quantity }} / {{ purchase.returnedQuantity }} units</strong></div><div><span>On hand</span><strong>{{ purchase.onHand }} units</strong></div><div><span>Unit cost / sale price</span><strong>Rs {{ purchase.unitCost | number:'1.2-2' }} / Rs {{ purchase.salePrice | number:'1.2-2' }}</strong></div></div>
+                <div class="invoice-balance"><span>Full invoice: Rs {{ purchase.invoiceTotal | number:'1.2-2' }} total · Rs {{ purchase.invoicePaid | number:'1.2-2' }} paid</span><strong>Due Rs {{ purchase.invoiceTotal - purchase.invoicePaid - purchase.invoiceReturned | number:'1.2-2' }}</strong></div>
+              </article>
+            }</div>
+          } @else { <p class="empty">No purchase history is linked to this medicine.</p> }
+        } @else if (activeTab() === 'payments') {
+          @if (item.payments.length) { <div class="inventory-history-list">@for (payment of item.payments; track payment.id) {
+            <article class="inventory-history-card history-compact"><div class="history-card-heading"><div><strong>{{ payment.supplier }}</strong><span>Invoice {{ payment.supplierInvoice }}</span></div><strong class="history-amount">Rs {{ payment.amount | number:'1.2-2' }}</strong></div><div class="history-card-grid"><div><span>Date &amp; method</span><strong>{{ payment.paidAt | date:'mediumDate' }} · {{ payment.method }}</strong></div><div><span>Reference</span><strong>{{ payment.reference || '—' }}</strong></div></div></article>
+          }</div> } @else { <p class="empty">No payments recorded for this medicine’s purchases.</p> }
+        } @else if (activeTab() === 'returns') {
+          @if (item.returns.length) { <div class="inventory-history-list">@for (ret of item.returns; track ret.id) {
+            <article class="inventory-history-card history-compact"><div class="history-card-heading"><div><strong>{{ ret.supplier }}</strong><span>Invoice {{ ret.supplierInvoice }} · Return {{ ret.supplierReference }}</span></div><strong class="history-amount">Rs {{ ret.total | number:'1.2-2' }}</strong></div><div class="history-card-grid"><div><span>Date &amp; quantity</span><strong>{{ ret.createdAt | date:'mediumDate' }} · {{ ret.quantity }} units</strong></div><div><span>Reason</span><strong>{{ ret.reason }}</strong></div></div></article>
+          }</div> } @else { <p class="empty">No supplier returns recorded for this medicine.</p> }
+        } @else {
+          @if (item.corrections.length) { <div class="inventory-history-list">@for (correction of item.corrections; track correction.id) {
+            <article class="inventory-history-card history-compact"><div class="history-card-heading"><div><strong>Invoice {{ correction.supplierInvoice }}</strong><span>Batch {{ correction.batch }}</span></div><span class="history-date">{{ correction.createdAt | date:'mediumDate' }}</span></div><div class="history-card-grid"><div><span>Quantity changed</span><strong>{{ correction.previousQuantity }} → {{ correction.correctedQuantity }} ({{ correction.quantityChange > 0 ? '+' : '' }}{{ correction.quantityChange }})</strong></div><div><span>Reason</span><strong>{{ correction.reason }}</strong></div></div></article>
+          }</div> } @else { <p class="empty">No purchase quantity corrections recorded.</p> }
+        }
+      </div>
+    } @else { <p class="empty">Could not load this medicine’s history. Close the window and try again.</p> }
+  </section>
+</div>

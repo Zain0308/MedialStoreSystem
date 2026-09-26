@@ -61,13 +61,6 @@
 }
 .inventory-details-button:hover { background: #f0f6f1; }
 .inventory-details-button:disabled { opacity: .55; cursor: wait; }
-.inventory-expanded-row > td { padding: 18px; background: #f8faf8; }
-.inventory-expanded-row h4 { margin: 20px 0 9px; color: #2c4435; }
-.inventory-detail-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
-.inventory-detail-summary > div { display: grid; gap: 5px; padding: 11px 13px; border: 1px solid #e5ece6; border-radius: 9px; background: #fff; }
-.inventory-detail-summary strong { color: #63766a; font-size: 11px; }
-.inventory-detail-summary span { color: #26382e; font-size: 12px; }
-.inventory-expanded-row table { min-width: 1000px; }
 
 @media (max-width: 620px) {
   .movement-filters {

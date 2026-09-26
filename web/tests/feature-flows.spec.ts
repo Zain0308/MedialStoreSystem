@@ -512,12 +512,16 @@ test('inventory lists one row per medicine and expands complete batch purchase d
   await expect(table.locator('tbody tr').first()).toContainText('28');
   await expect(table.locator('tbody tr').first()).toContainText('2');
   await page.getByRole('button', { name: 'View details for Paracetamol 500mg' }).click();
-  const details = page.locator('.inventory-expanded-row');
+  const details = page.getByRole('dialog', { name: 'Paracetamol 500mg' });
   await expect(details).toContainText('SUP-1');
   await expect(details).toContainText('SUP-2');
   await expect(details).toContainText('Demo Pharma');
   await expect(details).toContainText('LOT-01');
   await expect(details).toContainText('LOT-02');
+  await details.getByRole('tab', { name: /Payments/ }).click();
+  await expect(details).toContainText('No payments recorded');
+  await details.getByRole('button', { name: 'Close medicine details' }).click();
+  await expect(details).toHaveCount(0);
 });
 
 test('financial reports filter profit and loss by month and show supplier and customer balances', async ({ page }) => {

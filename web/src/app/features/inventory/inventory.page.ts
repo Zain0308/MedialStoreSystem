@@ -9,6 +9,7 @@ import { SearchPickerComponent, SearchPickerOption } from '../../shared/ui/searc
 
 import { InventoryApi } from './inventory.api';
 import { Batch, InventoryMedicineDetails, StockMovement } from './inventory.models';
+import { InventoryDetailsDialogComponent } from './inventory-details-dialog.component';
 
 type InventoryProductGroup = {
   medicineId: number;
@@ -20,7 +21,7 @@ type InventoryProductGroup = {
 
 @Component({
   selector: 'app-inventory-page',
-  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent],
+  imports: [CommonModule, FormsModule, PageNoticeComponent, TablePaginationComponent, SearchPickerComponent, InventoryDetailsDialogComponent],
   templateUrl: './inventory.page.html',
   styleUrl: './inventory.page.css',
 })
@@ -64,6 +65,7 @@ export class InventoryPage extends PageFeedback implements OnInit {
   readonly visibleProducts = computed(() => pageSlice(this.filteredProducts(), this.batchPage()));
   readonly pageSize = TABLE_PAGE_SIZE;
   readonly expandedMedicineId = signal<number | null>(null);
+  readonly selectedProductName = signal('');
   readonly productDetails = signal<InventoryMedicineDetails | null>(null);
   readonly detailsLoading = signal(false);
   private detailsRequest = 0;
@@ -120,17 +122,22 @@ export class InventoryPage extends PageFeedback implements OnInit {
   movementEnd(): number { return Math.min(this.movementPage() * this.pageSize, this.filteredMovements().length); }
   async toggleProductDetails(product: InventoryProductGroup): Promise<void> {
     if (this.expandedMedicineId() === product.medicineId) {
-      this.detailsRequest++; this.expandedMedicineId.set(null); this.productDetails.set(null); this.detailsLoading.set(false);
+      this.closeProductDetails();
       return;
     }
     this.detailsRequest++;
     const request = this.detailsRequest;
-    this.expandedMedicineId.set(product.medicineId); this.productDetails.set(null); this.detailsLoading.set(true);
+    this.expandedMedicineId.set(product.medicineId); this.selectedProductName.set(product.medicine);
+    this.productDetails.set(null); this.detailsLoading.set(true);
     await this.perform(async () => {
       const details = await this.api.medicineDetails(product.medicineId);
       if (this.detailsRequest === request) this.productDetails.set(details);
     });
     if (this.detailsRequest === request) this.detailsLoading.set(false);
+  }
+  closeProductDetails(): void {
+    this.detailsRequest++; this.expandedMedicineId.set(null); this.selectedProductName.set('');
+    this.productDetails.set(null); this.detailsLoading.set(false);
   }
   submitAdjustment(): Promise<void> {
     return this.perform(async () => {

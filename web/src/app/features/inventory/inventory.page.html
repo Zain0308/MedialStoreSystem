@@ -32,50 +32,9 @@
                 }
               </td>
               <td><button type="button" class="inventory-details-button" [disabled]="busy()"
-                [attr.aria-label]="(expandedMedicineId() === product.medicineId ? 'Hide' : 'View') + ' details for ' + product.medicine"
-                [attr.title]="expandedMedicineId() === product.medicineId ? 'Hide medicine details' : 'View complete medicine history'"
-                (click)="toggleProductDetails(product)">{{ expandedMedicineId() === product.medicineId ? '⌄' : 'ⓘ' }}</button></td>
+                [attr.aria-label]="'View details for ' + product.medicine"
+                title="View complete medicine history" (click)="toggleProductDetails(product)">ⓘ</button></td>
             </tr>
-            @if (expandedMedicineId() === product.medicineId) {
-              <tr class="inventory-expanded-row"><td colspan="5">
-                @if (detailsLoading()) { <p class="empty">Loading complete medicine history…</p> }
-                @else if (productDetails(); as details) {
-                  <div class="inventory-detail-summary">
-                    <div><strong>Medicine details</strong><span>{{ details.medicine.genericName || 'Generic not set' }} · {{ details.medicine.strength || 'Strength not set' }} · {{ details.medicine.dosageForm || 'Form not set' }}</span></div>
-                    <div><strong>Manufacturer / barcode</strong><span>{{ details.medicine.manufacturer || '—' }} · {{ details.medicine.barcode || '—' }}</span></div>
-                    <div><strong>Minimum stock</strong><span>{{ details.medicine.minimumStock }} units</span></div>
-                    @if (details.medicine.description) { <div><strong>Description</strong><span>{{ details.medicine.description }}</span></div> }
-                  </div>
-                  <h4>Purchase and batch history</h4>
-                  @if (details.purchases.length) {
-                    <div class="table-wrap"><table><thead><tr><th>Batch</th><th>Supplier</th><th>Supplier invoice</th><th>Received</th><th>Expiry</th><th>Purchased</th><th>Returned</th><th>On hand</th><th>Unit cost</th><th>Sale price</th><th>Invoice total / paid / returned / due</th></tr></thead>
-                      <tbody>@for (purchase of details.purchases; track purchase.purchaseLineId) {
-                        <tr><td>{{ purchase.batch }}</td><td>{{ purchase.supplier }}</td><td>{{ purchase.supplierInvoice }}</td><td>{{ purchase.purchasedAt | date:'mediumDate' }}</td>
-                          <td>{{ purchase.expiryDate | date:'mediumDate' }}</td><td>{{ purchase.quantity }}</td><td>{{ purchase.returnedQuantity }}</td>
-                          <td>{{ purchase.onHand }}</td><td>Rs {{ purchase.unitCost | number:'1.2-2' }}</td>
-                          <td>Rs {{ purchase.salePrice | number:'1.2-2' }}</td>
-                          <td>Rs {{ purchase.invoiceTotal | number:'1.2-2' }} / Rs {{ purchase.invoicePaid | number:'1.2-2' }} / Rs {{ purchase.invoiceReturned | number:'1.2-2' }} / Rs {{ purchase.invoiceTotal - purchase.invoicePaid - purchase.invoiceReturned | number:'1.2-2' }}</td></tr>
-                      }</tbody>
-                    </table></div>
-                  } @else { <p class="empty">No purchase history is linked to this medicine.</p> }
-                  @if (details.payments.length) {
-                    <h4>Supplier payments</h4><div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoice</th><th>Date</th><th>Amount</th><th>Method</th><th>Reference</th></tr></thead><tbody>
-                      @for (payment of details.payments; track payment.id) { <tr><td>{{ payment.supplier }}</td><td>{{ payment.supplierInvoice }}</td><td>{{ payment.paidAt | date:'mediumDate' }}</td><td>Rs {{ payment.amount | number:'1.2-2' }}</td><td>{{ payment.method }}</td><td>{{ payment.reference || '—' }}</td></tr> }
-                    </tbody></table></div>
-                  }
-                  @if (details.returns.length) {
-                    <h4>Supplier returns</h4><div class="table-wrap"><table><thead><tr><th>Supplier</th><th>Invoice</th><th>Return reference</th><th>Date</th><th>Quantity</th><th>Amount</th><th>Reason</th></tr></thead><tbody>
-                      @for (item of details.returns; track item.id) { <tr><td>{{ item.supplier }}</td><td>{{ item.supplierInvoice }}</td><td>{{ item.supplierReference }}</td><td>{{ item.createdAt | date:'mediumDate' }}</td><td>{{ item.quantity }}</td><td>Rs {{ item.total | number:'1.2-2' }}</td><td>{{ item.reason }}</td></tr> }
-                    </tbody></table></div>
-                  }
-                  @if (details.corrections.length) {
-                    <h4>Purchase quantity corrections</h4><div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Batch</th><th>Date</th><th>Previous qty</th><th>Corrected qty</th><th>Change</th><th>Reason</th></tr></thead><tbody>
-                      @for (correction of details.corrections; track correction.id) { <tr><td>{{ correction.supplierInvoice }}</td><td>{{ correction.batch }}</td><td>{{ correction.createdAt | date:'mediumDate' }}</td><td>{{ correction.previousQuantity }}</td><td>{{ correction.correctedQuantity }}</td><td>{{ correction.quantityChange }}</td><td>{{ correction.reason }}</td></tr> }
-                    </tbody></table></div>
-                  }
-                }
-              </td></tr>
-            }
           }
         </tbody>
       </table>
@@ -129,3 +88,7 @@
     }
   </section>
 </div>
+@if (expandedMedicineId() !== null) {
+  <app-inventory-details-dialog [productName]="selectedProductName()" [details]="productDetails()"
+    [loading]="detailsLoading()" (closed)="closeProductDetails()" />
+}

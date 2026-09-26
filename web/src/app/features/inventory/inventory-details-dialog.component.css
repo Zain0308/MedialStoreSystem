@@ -1,0 +1,39 @@
+.inventory-details-backdrop { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 18px; background: rgba(17, 38, 29, .5); }
+.inventory-details-dialog { display: flex; flex-direction: column; width: min(100%, 920px); max-height: calc(100vh - 36px); padding: 0; overflow: hidden; box-shadow: 0 24px 80px rgba(20, 40, 30, .3); }
+.inventory-details-header { display: flex; justify-content: space-between; gap: 20px; padding: 22px 24px 18px; border-bottom: 1px solid #edf1ed; }
+.inventory-details-header h2 { margin: 4px 0; color: #20372a; font-size: 21px; }
+.inventory-details-header p { margin: 0; color: #728078; font-size: 12px; }
+.eyebrow { color: #548366; font-size: 10px; font-weight: 800; letter-spacing: .1em; }
+.dialog-close { display: grid; flex: 0 0 36px; width: 36px; height: 36px; place-items: center; border: 1px solid #e4ebe5; border-radius: 50%; background: #fff; color: #486351; font-size: 23px; cursor: pointer; }
+.inventory-detail-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 9px; padding: 16px 24px; background: #fafcfb; }
+.inventory-detail-summary > div { display: grid; gap: 5px; padding: 10px 12px; border: 1px solid #e9efea; border-radius: 9px; background: #fff; }
+.inventory-detail-summary span, .history-card-grid span { color: #718078; font-size: 10px; }
+.inventory-detail-summary strong, .history-card-grid strong { color: #26382e; font-size: 12px; font-weight: 650; }
+.inventory-medicine-description { margin: 0; padding: 0 24px 12px; color: #586b60; font-size: 12px; }
+.inventory-detail-tabs { display: flex; gap: 5px; padding: 0 24px; border-bottom: 1px solid #e9efea; overflow-x: auto; }
+.inventory-detail-tabs button { display: flex; align-items: center; gap: 7px; padding: 12px 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #65766d; font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.inventory-detail-tabs button.selected { border-bottom-color: #48805c; color: #2b6543; font-weight: 750; }
+.inventory-detail-tabs button span { display: inline-grid; min-width: 20px; height: 20px; place-items: center; border-radius: 10px; background: #eef4ef; font-size: 10px; }
+.inventory-detail-content { min-height: 180px; padding: 18px 24px 24px; overflow-y: auto; }
+.inventory-history-list { display: grid; gap: 11px; }
+.inventory-history-card { padding: 14px 16px; border: 1px solid #e6ede7; border-radius: 11px; background: #fff; }
+.history-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 11px; border-bottom: 1px solid #eff3ef; }
+.history-card-heading > div { display: grid; gap: 3px; }
+.history-card-heading > div strong { color: #2b4434; font-size: 13px; }
+.history-card-heading > div span, .history-date { color: #738078; font-size: 11px; }
+.history-amount { color: #2c6845; font-size: 14px; }
+.history-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 12px; padding: 12px 0 2px; }
+.history-card-grid > div { display: grid; gap: 4px; }
+.invoice-balance { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #f5f8f5; color: #64756b; font-size: 11px; }
+.invoice-balance strong { color: #293d30; }
+.inventory-details-loading { display: grid; min-height: 230px; place-content: center; justify-items: center; color: #6d7e74; font-size: 13px; }
+.loading-dot { width: 22px; height: 22px; border: 3px solid #dfeae1; border-top-color: #4a855d; border-radius: 50%; animation: inventory-spin .8s linear infinite; }
+@keyframes inventory-spin { to { transform: rotate(360deg); } }
+@media (max-width: 620px) {
+  .inventory-details-backdrop { padding: 8px; }
+  .inventory-details-dialog { max-height: calc(100vh - 16px); }
+  .inventory-details-header, .inventory-detail-summary { padding-right: 16px; padding-left: 16px; }
+  .inventory-detail-tabs { padding: 0 12px; }
+  .inventory-detail-content { padding: 14px 14px 18px; }
+  .history-card-heading { flex-direction: column; }
+}
