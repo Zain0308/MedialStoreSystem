@@ -26,6 +26,8 @@ export class CustomersPage extends PageFeedback implements OnInit {
   readonly ledgerPage = signal(1);
   readonly pageSize = TABLE_PAGE_SIZE;
   readonly ledger = signal<CustomerLedger | null>(null);
+  readonly activePanel = signal<'form' | 'ledger' | 'status' | null>('form');
+  readonly statusTarget = signal<Customer | null>(null);
   readonly receipt = signal<Receipt | null>(null);
   readonly receiptSaleId = signal<number | null>(null);
   readonly returnLineOptions = computed<SearchPickerOption[]>(() => (this.receipt()?.lines ?? [])
@@ -51,21 +53,41 @@ export class CustomersPage extends PageFeedback implements OnInit {
     return this.perform(async () => {
       const id = this.editingId();
       if (id === null) await this.api.create(this.form); else await this.api.update(id, this.form);
-      this.form = this.emptyForm(); this.editingId.set(null); await this.refresh();
+      this.form = this.emptyForm(); this.editingId.set(null); this.activePanel.set(id === null ? 'form' : null); await this.refresh();
       this.message.set(id === null ? 'Customer added.' : 'Customer details updated.');
     });
   }
+  openAddForm(): void {
+    this.closeOtherPanels(); this.editingId.set(null); this.form = this.emptyForm(); this.activePanel.set('form');
+  }
   edit(customer: Customer): void {
+    this.closeOtherPanels();
     this.editingId.set(customer.id);
     this.form = { name: customer.name, phone: customer.phone ?? '', email: customer.email ?? '' };
+    this.activePanel.set('form');
   }
-  cancelEdit(): void { this.editingId.set(null); this.form = this.emptyForm(); }
-  setActive(customer: Customer): Promise<void> {
-    return this.perform(async () => { await this.api.setActive(customer.id, !customer.isActive); await this.refresh();
-      this.message.set(customer.isActive ? 'Customer deactivated.' : 'Customer activated.'); });
+  cancelEdit(): void {
+    this.editingId.set(null); this.form = this.emptyForm(); this.statusTarget.set(null);
+    this.ledger.set(null); this.receipt.set(null); this.receiptSaleId.set(null); this.activePanel.set(null);
   }
-  openLedger(customer: Customer): Promise<void> { this.ledgerPage.set(1); return this.perform(async () => this.ledger.set(await this.api.ledger(customer.id))); }
-  closeLedger(): void { this.ledger.set(null); this.ledgerPage.set(1); }
+  setActive(customer: Customer): void {
+    this.closeOtherPanels(); this.statusTarget.set(customer); this.activePanel.set('status');
+  }
+  confirmSetActive(): Promise<void> {
+    const customer = this.statusTarget();
+    if (!customer) return Promise.resolve();
+    return this.perform(async () => {
+      await this.api.setActive(customer.id, !customer.isActive); await this.refresh();
+      this.message.set(customer.isActive ? 'Customer deactivated.' : 'Customer activated.');
+      this.statusTarget.set(null); this.activePanel.set(null);
+    });
+  }
+  openLedger(customer: Customer): Promise<void> {
+    this.closeOtherPanels(); this.editingId.set(null); this.form = this.emptyForm(); this.ledger.set(null);
+    this.ledgerPage.set(1); this.activePanel.set('ledger');
+    return this.perform(async () => this.ledger.set(await this.api.ledger(customer.id)));
+  }
+  closeLedger(): void { this.ledger.set(null); this.ledgerPage.set(1); this.activePanel.set(null); }
   downloadLedger(): void {
     const account = this.ledger(); if (!account) return;
     const rows: (string | number | null | undefined)[][] = [
@@ -126,5 +148,9 @@ export class CustomersPage extends PageFeedback implements OnInit {
   }
   due(invoice: { total: number; returned: number; paid: number }): number { return Math.max(0, invoice.total - invoice.returned - invoice.paid); }
   private async refresh(): Promise<void> { this.customers.set(await this.api.list()); }
+  private closeOtherPanels(): void {
+    this.ledger.set(null); this.ledgerPage.set(1); this.receipt.set(null); this.receiptSaleId.set(null);
+    this.statusTarget.set(null);
+  }
   private emptyForm(): SaveCustomer { return { name: '', phone: '', email: '' }; }
 }

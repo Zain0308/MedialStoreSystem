@@ -1,18 +1,18 @@
 <app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
 <div class="page-content">
-  @if (session.hasPermission('customers.manage')) {
+  @if (session.hasPermission('customers.manage') && activePanel() === 'form') {
     <section class="panel">
       <div class="panel-head"><div><h3>{{ editingId() === null ? 'Add customer' : 'Edit customer' }}</h3><p>Manage customer contact details and account balance.</p></div></div>
       <form class="customer-form" (ngSubmit)="save()">
         <label>Customer name<input name="customer-name" [(ngModel)]="form.name" required maxlength="200" /></label>
         <label>Phone<input name="customer-phone" [(ngModel)]="form.phone" maxlength="40" /></label>
         <label>Email<input name="customer-email" type="email" [(ngModel)]="form.email" maxlength="254" /></label>
-        <div class="form-actions"><button class="secondary">{{ editingId() === null ? 'Add customer' : 'Save changes' }}</button>@if (editingId() !== null) {<button type="button" class="text-button" (click)="cancelEdit()">Cancel</button>}</div>
+        <div class="form-actions"><button class="secondary">{{ editingId() === null ? 'Add customer' : 'Save changes' }}</button><button type="button" class="text-button" (click)="cancelEdit()">Close</button></div>
       </form>
     </section>
   }
   <section class="panel">
-    <div class="panel-head"><div><h3>Customer accounts</h3><p>Paid totals include completed sales and payments recorded against unpaid invoices.</p></div><strong>{{ visibleCustomers().length }} customers</strong></div>
+    <div class="panel-head"><div><h3>Customer accounts</h3><p>Paid totals include completed sales and payments recorded against unpaid invoices.</p></div><div class="form-actions">@if (session.hasPermission('customers.manage') && activePanel() !== 'form') {<button class="secondary" (click)="openAddForm()">Add customer</button>}<strong>{{ visibleCustomers().length }} customers</strong></div></div>
     <div class="customer-table-filters"><label class="filter">Filter customers<input aria-label="Filter customers" [ngModel]="search()" (ngModelChange)="search.set($event); tablePage.set(1)" placeholder="Name, phone or email" /></label><label>Status<select aria-label="Customer status filter" [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event); tablePage.set(1)"><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div>
     <div class="table-wrap"><table><thead><tr><th>Customer</th><th>Contact</th><th>Total paid</th><th>Amount due</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>@for (customer of pagedCustomers(); track customer.id) {<tr>
@@ -25,7 +25,14 @@
     @if (!customers().length) {<p class="empty">No customers yet.</p>}
     @else if (!visibleCustomers().length) {<p class="empty">No customers match this filter.</p>}
   </section>
-  @if (ledger(); as account) {<section class="panel customer-ledger">
+  @if (activePanel() === 'status' && statusTarget(); as target) {
+    <section class="panel form-panel customer-status-confirmation">
+      <div class="panel-head"><div><h3>{{ target.isActive ? 'Deactivate customer' : 'Activate customer' }}</h3><p>{{ target.isActive ? 'This customer will no longer be available for new sales.' : 'This customer will be available for new sales again.' }}</p></div></div>
+      <p><strong>{{ target.name }}</strong></p>
+      <div class="form-actions"><button class="primary" [disabled]="busy()" (click)="confirmSetActive()">Confirm {{ target.isActive ? 'deactivation' : 'activation' }}</button><button class="text-button" (click)="cancelEdit()">Cancel</button></div>
+    </section>
+  }
+  @if (activePanel() === 'ledger' && ledger(); as account) {<section class="panel customer-ledger">
     <div class="panel-head"><div><h3>{{ account.customer.name }} ledger</h3><p>Total paid: <strong>Rs {{ account.paidTotal | number:'1.2-2' }}</strong> · Amount due: <strong>Rs {{ account.receivable | number:'1.2-2' }}</strong></p></div><div class="form-actions"><button class="secondary" (click)="downloadLedger()">Download full ledger CSV</button><button class="text-button" (click)="closeLedger()">Close</button></div></div>
     @for (invoice of visibleLedgerInvoices(); track invoice.id) {<article class="invoice-ledger">
       <div class="panel-head"><div><strong>{{ invoice.invoiceNumber }}</strong><small>{{ invoice.createdAt | date:'medium' }}</small></div><span>Sale Rs {{ invoice.total | number:'1.2-2' }} · Returned Rs {{ invoice.returned | number:'1.2-2' }} · Paid Rs {{ invoice.paid | number:'1.2-2' }} · Due <strong>Rs {{ due(invoice) | number:'1.2-2' }}</strong></span>@if (session.hasPermission('sales.read')) { <button class="text-button" (click)="viewReceipt(invoice.id)">View receipt / process return</button> }</div>
@@ -47,7 +54,7 @@
     @if (!account.invoices.length) {<p class="empty">This customer has no unpaid invoices.</p>}
     <app-table-pagination [page]="ledgerPage()" [total]="account.invoices.length" [pageSize]="pageSize" (pageChange)="ledgerPage.set($event)" />
   </section>}
-  @if (receipt(); as savedReceipt) {
+  @if (activePanel() === 'ledger' && receipt(); as savedReceipt) {
     <app-receipt [receipt]="savedReceipt" (closed)="closeReceipt()" />
     @if (session.hasPermission('sales.manage') && returnLineOptions().length) {
       <section class="panel form-panel">
