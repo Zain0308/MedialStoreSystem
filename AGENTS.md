@@ -1,12 +1,16 @@
 # Project architecture
 
-The user selected **Modular Monolith** for this project. Preserve this decision in future work.
+The application uses a **Modular Monolith**: one Node.js API deployment and one Angular application. Business capabilities stay organized by module.
 
-- Keep one ASP.NET Core API host, one SQL Server database and one Angular application.
-- Organize business code into Authentication, Medicines, Inventory, Purchases, Sales/POS, Customers, Suppliers, Expenses and Reports.
-- Backend modules live under `api/Modules/`; frontend features live under `web/src/app/features/`.
-- Each frontend feature owns its pages, models, API service, routes and business state. Do not move all feature state or requests into the root component or a shared store service.
-- Cross-feature frontend dependencies must use the feature's `public-api.ts`. Pages and internal state stores are private to their feature.
-- Keep `app.ts` as the Angular bootstrap outlet. Keep shared transport/layout in `core/` and reusable presentation helpers in `shared/`.
-- Record unfinished modules honestly; a folder does not imply a working feature.
-- Read `ARCHITECTURE.md` for ownership and validation instructions.
+- Active API: `api-node/src/modules/` (Node.js/Express).
+- Frontend: `web/src/app/features/` (Angular).
+- Turso control-plane database stores Application Owner accounts, store metadata, subscriptions, user assignments, roles and permissions.
+- Each medical-store client has a separate Turso database for that store's business data. A client has one store at present; do not add branch support.
+- Keep Turso platform tokens, database auth tokens, JWT secrets and encryption keys in backend environment variables. Never commit `.env` or credentials.
+- Business routes must use the authenticated store selected from the signed token and load only that store's database. Never accept a client-supplied database URL/token.
+- Keep stock and financial changes inside database transactions. Record stock movements for purchases, sales, returns and adjustments.
+- Preserve the existing Angular feature ownership: each feature owns its pages, models, API service, routes and state. Shared transport/layout belongs in `web/src/app/core/` and reusable presentation helpers in `shared/`.
+- `api/` contains the previous ASP.NET Core implementation as a migration reference while parity is verified. New backend work belongs in `api-node/`.
+- Record unfinished behavior honestly; a module folder does not mean all workflows are complete.
+
+Read `ARCHITECTURE.md` before changing tenant routing, authorization or persistence.

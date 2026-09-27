@@ -1,44 +1,51 @@
-# Architecture decision: Modular Monolith
+# Architecture: Medical Store SaaS
 
-This is the user-approved architecture for Medical Store. The system has one API deployment, one SQL Server database and one Angular frontend. Business capabilities are organized into modules inside those applications.
+The agreed design is a modular monolith: a Node.js/Express API, an Angular client and Turso databases. Every customer currently operates one medical store. Branches are out of scope.
 
-| Business module | Backend | Frontend | Current scope |
-| --- | --- | --- | --- |
-| Stores | `api/Modules/Stores` | Store selector and owner panel in `authentication` | Multiple isolated stores in one database, memberships, subscriptions, trials and store feature entitlements |
-| Authentication | `api/Modules/Authentication` | `web/src/app/features/authentication` | Login, owner-only tenant administration, user accounts, password resets, roles and permissions |
-| Medicines | `api/Modules/Medicines` | `web/src/app/features/medicines` | Catalogue metadata, editing and soft deactivation |
-| Inventory | `api/Modules/Inventory` | `web/src/app/features/inventory` | Batch quantities, expiry tracking, audited adjustments, damaged stock and movement history |
-| Purchases | `api/Modules/Purchases` | `web/src/app/features/purchases` | Receiving, history, audited quantity corrections, supplier returns and invoice payments |
-| Sales / POS | `api/Modules/Sales` | `web/src/app/features/sales` | Cart, discounts, multiple tenders, partial and unpaid sales, receipts, returns and sales history |
-| Customers | `api/Modules/Customers` | `web/src/app/features/customers` | Store-scoped records, paid/due totals, unpaid invoice ledger and payment collection |
-| Suppliers | `api/Modules/Suppliers` | `web/src/app/features/suppliers` | Supplier contact details, edit/deactivation, search and purchase ledger |
-| Expenses | `api/Modules/Expenses` | `web/src/app/features/expenses` | Store-scoped categories, expense entry and date/category filters |
-| Reports | `api/Modules/Reports` | `web/src/app/features/reports` | Month-filtered profit and loss, supplier payables/credits, customer receivables, inventory valuation and CSV exports |
+## Database ownership
 
-## Backend ownership
+| Data | Database |
+| --- | --- |
+| Application Owner, user accounts, store registry, subscriptions, user-store assignments, roles and permissions | One private control-plane database |
+| Medicines, batches, stock movements, purchases, sales, customers, suppliers, expenses and reports | One separate Turso database per medical-store client |
 
-Each module owns its endpoints, request records, entities and EF configurations. The shared `StoreDb` composes those mappings. `Program.cs` configures the host; `MedicalStoreModules.cs` registers routes. The current transport style is Minimal API.
+The API resolves the selected store from the signed access token, verifies the user's assignment and subscription, then loads that store's database credentials from the control plane. Database tokens are encrypted at rest with `DATABASE_TOKEN_ENCRYPTION_KEY`. The browser never receives database credentials or the Turso Platform API token.
 
-Business entities implement `IStoreScoped`. The active store comes from a signed token claim, is checked against the user's `UserStores` memberships, then enforced by EF Core query filters and `SaveChanges` stamping. Existing records and users are migrated into `Main Store`; new stores use separate `StoreId` partitions in the same SQL Server database.
+Store databases are provisioned using Turso's Platform API and initialized with `api-node/src/db/control-schema.js`. Schema changes must be versioned and applied to every existing tenant database. Keep cross-store reports in the control plane only when the report can be built without exposing tenant rows; the current API does not aggregate business data across stores.
 
-The Application Owner is identified by the configured `Bootstrap:Email` account and receives a signed `app_owner` claim. Only this identity can use the `/owner` panel and global store/user-management APIs. Store staff cannot grant themselves owner access through roles or permissions. Store subscription status and expiry are checked during login and token validation; store feature entitlements are checked alongside each user's role permissions. Existing stores are grandfathered as active by `upgrade-v4.sql`.
+## Backend module ownership
+
+The active Node backend lives in `api-node/src/modules/`:
+
+| Module | Responsibility |
+| --- | --- |
+| `authentication` | Login, sessions, store switching, owner-managed users, roles and permissions |
+| `stores` | Store provisioning, status, subscriptions and feature permissions |
+| `medicines` | Medicine catalogue, duplicates, edits and activation |
+| `inventory` | Batch stock, expiry, movements, adjustments and damages |
+| `purchases` | Supplier invoices, batches, payments, credits, returns and corrections |
+| `sales` | POS, FEFO allocation, discounts, payment status, receipts and returns |
+| `customers` | Customer accounts, ledgers, receivables and payments |
+| `suppliers` | Supplier records and activation |
+| `expenses` | Expense categories and entries |
+| `reports` | Dashboard, profit and loss, payable/receivable ledgers, exports |
+| `imports` | Spreadsheet template, preview and validated import |
+
+`api-node/src/server.js` owns the HTTP host and middleware. `src/db/` owns database setup and tenant selection. Module routes enforce both user permission and store feature permission. Stock and financial writes must remain transactional; POS stock consumption follows FEFO and updates the stock movement ledger in the same transaction.
+
+The prior ASP.NET Core project remains in `api/` as the API contract/reference while the Node port is checked. It is not the target runtime. Existing SQL Server rows are not automatically copied by this code; migrating the live data is a separate operation requiring source-database access and a tested export/import.
 
 ## Frontend ownership
 
-- `app.ts` renders the router outlet; `app.routes.ts` composes lazy feature routes.
-- `core/layout` provides the authenticated shell. `core/api` provides HTTP transport and error formatting.
-- Authentication owns the Application Owner panel and session state. The owner manages stores, trials/subscriptions, activation, store features, users, roles, user permissions and password resets. Permission policies are enforced by the API; the frontend also hides unavailable modules and management controls. Store Administrator access is fixed as a recovery role and does not grant Application Owner access.
-- Each feature has its own route file, page components, templates, models and API service. Signals hold asynchronous page data and feedback.
-- Public cross-feature dependencies go through `public-api.ts`, which exports API clients and models rather than pages or internal stores. For example, Purchases uses the public Medicines and Suppliers clients to populate its selectors.
-- `shared/ui` contains presentation helpers only; it does not own catalogue, purchase or sales data.
-- Sales owns the cart store and receipt component. The cart survives navigation and clears on logout or successful checkout. A receipt-loading failure after checkout must not leave a completed cart available for accidental resubmission.
-- Feature-specific styles stay with their component. Common controls and print rules stay in `src/styles.css`.
-- Customers and Expenses have separate lazy routes and store permissions; POS can look up active customers using its sales-create permission.
+- `app.ts` is the router outlet; `app.routes.ts` composes lazy feature routes.
+- `core/api` owns HTTP transport and runtime API URL resolution.
+- `core/layout` owns the authenticated shell.
+- Each feature owns its routes, pages, models, API client and business state.
+- Cross-feature dependencies use the feature's `public-api.ts`.
+- `public/app-config.json` contains `apiBaseUrl`. Leave it empty for same-origin proxying; set it to the deployed Node API origin when the API is hosted separately.
 
 ## Validation
 
-Run `npm ci`, `npm run build`, `npx playwright install chromium` and `npm run test:e2e` from `web/`. Browser tests use in-memory API fixtures to exercise routing, login, user/role administration, permission-based UI, business forms, cart, checkout and receipts. They do not verify the .NET API or SQL Server transaction behavior.
+From `api-node/`: run `npm ci`, `npm run check` and `npm test`. Tests validate both schemas and an atomic stock decrement locally. Runtime integration tests against Turso still require deployment credentials.
 
-At API startup, `EnsureCreated` creates a fresh SQL Server database if needed, then embedded idempotent `api/Database/upgrade-v*.sql` upgrades run in version order. The v2 upgrade adds feature columns/tables; v3 adds store memberships and `StoreId` to business tables, assigning existing rows/users to `Main Store`; v4 adds subscriptions, trial dates and store feature grants; v5 adds optional supplier contact details; v6 adds supplier activation, customer receivables and expense tables/permissions; v7 removes the retired customer credit limit; v8 adds audited purchase quantity corrections. Existing business rows are preserved.
-
-GitHub Actions builds the API and frontend and runs the browser tests. Runtime verification against SQL Server remains a separate step.
+From `web/`: run `npm ci`, `npm run build` and `npm run test:e2e`. Browser tests use API fixtures and do not verify live Turso transactions.

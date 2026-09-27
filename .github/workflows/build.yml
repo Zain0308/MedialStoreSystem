@@ -2,18 +2,24 @@ name: Build
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
-  api:
+  api-node:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-node@v4
         with:
-          dotnet-version: '10.0.x'
-      - run: dotnet build api/MedicalStore.Api.csproj --configuration Release
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: api-node/package-lock.json
+      - run: npm ci
+        working-directory: api-node
+      - run: npm run check
+        working-directory: api-node
+      - run: npm test
+        working-directory: api-node
 
   web:
     runs-on: ubuntu-latest
