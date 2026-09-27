@@ -189,13 +189,16 @@ export class FinancialAccountsPage extends PageFeedback implements OnInit {
       ['Account summary', '', '', '', '', customer.paidTotal, customer.amountDue],
     ];
     for (const invoice of customer.invoices) {
-      rows.push(['Invoice', invoice.invoiceNumber, invoice.createdAt, invoice.total, invoice.returned, invoice.paid, invoice.due]);
+      rows.push(['Invoice', invoice.invoiceNumber, invoice.createdAt, invoice.total, invoice.returned, invoice.paid, invoice.due, invoice.paymentMethod]);
+      for (const item of invoice.returns) rows.push([
+        'Return', invoice.invoiceNumber, item.createdAt, '', item.totalRefund, '', '', item.refundMethod, item.reason,
+      ]);
       for (const payment of invoice.payments) rows.push([
         'Payment', invoice.invoiceNumber, payment.paidAt, '', '', payment.amount, '', payment.method, payment.reference,
       ]);
     }
     downloadCsv(`customer-ledger-${safeFilename(customer.customer)}.csv`,
-      ['Record type', 'Invoice', 'Date', 'Sale total', 'Returned', 'Paid total', 'Due', 'Payment method', 'Payment reference'], rows);
+      ['Record type', 'Invoice', 'Date', 'Sale total', 'Returned / refund', 'Paid total', 'Due', 'Payment / refund method', 'Reference / reason'], rows);
   }
 
   download(type: string): Promise<void> {

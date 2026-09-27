@@ -1,0 +1,30 @@
+.import-intro h2 { margin: 0 0 5px; font-size: 21px; }
+.import-intro .panel-head { align-items: flex-start; }
+.import-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; padding: 0; list-style: none; }
+.import-steps li { display: grid; align-content: start; gap: 6px; min-height: 92px; padding: 14px; border-radius: 10px; background: #f5f9f6; color: #526b60; font-size: 12px; line-height: 1.5; }
+.import-steps strong { color: #244d3b; font-size: 13px; }
+.import-note { margin: 0; padding: 11px 13px; border-left: 3px solid #78a989; background: #f5f9f6; font-size: 12px; }
+.import-upload { display: grid; gap: 10px; }
+.import-upload > p { margin: 0; font-size: 12px; }
+.import-upload label { max-width: 600px; }
+.import-upload input[type=file] { height: auto; min-height: 42px; padding: 8px; }
+.selected-file { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 6px; color: #375f4b; font-size: 13px; }
+.import-counts { display: flex; flex-wrap: wrap; gap: 7px; }
+.import-counts span { padding: 6px 9px; border-radius: 16px; background: #edf3ef; color: #436253; font-size: 11px; font-weight: 700; }
+.import-counts .ready-count { background: #e8f6ed; color: #24633c; }
+.import-counts .error-count { background: #fff0ed; color: #a33225; }
+.import-preview table { min-width: 740px; }
+.import-status { display: inline-block; margin-bottom: 4px; color: #24633c; font-size: 11px; font-weight: 800; }
+.import-status.has-warnings { color: #9b701c; }
+.import-status.has-errors, .import-error { color: #a33225; }
+.import-error, .import-warning { display: block; white-space: normal; min-width: 250px; max-width: 520px; line-height: 1.4; }
+.import-warning { color: #8c671d; }
+.import-confirm { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; padding-top: 14px; border-top: 1px solid #edf0ed; color: #5f7168; font-size: 12px; }
+.import-success { border-color: #cfe4d4; background: #f9fcfa; }
+.import-success p { margin: 8px 0 16px; }
+@media (max-width: 700px) {
+  .import-steps { grid-template-columns: 1fr; }
+  .import-intro .panel-head, .import-confirm { align-items: stretch; flex-direction: column; }
+  .import-counts { margin-top: 8px; }
+  .selected-file { align-items: stretch; flex-direction: column; }
+}

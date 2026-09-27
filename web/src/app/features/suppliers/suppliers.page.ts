@@ -31,6 +31,7 @@ export class SuppliersPage extends PageFeedback implements OnInit {
   readonly ledgerFrom = signal('');
   readonly ledgerTo = signal('');
   readonly ledgerPage = signal(1);
+  readonly printingLedger = signal(false);
   readonly pageSize = TABLE_PAGE_SIZE;
   readonly editingId = signal<number | null>(null);
   readonly statement = signal<SupplierStatement | null>(null);
@@ -51,7 +52,7 @@ export class SuppliersPage extends PageFeedback implements OnInit {
       return (!term || invoice.supplierInvoice.toLocaleLowerCase().includes(term)) && (!from || date >= from) && (!to || date <= to);
     });
   });
-  readonly pagedLedgerInvoices = computed(() => pageSlice(this.filteredLedgerInvoices(), this.ledgerPage()));
+  readonly pagedLedgerInvoices = computed(() => this.printingLedger() ? (this.statement()?.invoices ?? []) : pageSlice(this.filteredLedgerInvoices(), this.ledgerPage()));
   supplierForm: CreateSupplier = this.emptyForm();
   ngOnInit(): void {
     void this.perform(async () => this.suppliers.set(await this.api.list()));
@@ -91,9 +92,21 @@ export class SuppliersPage extends PageFeedback implements OnInit {
     return this.perform(async () => this.statement.set(await this.purchasesApi.supplierStatement(supplier.id)));
   }
   closeLedger(): void { this.statement.set(null); }
+  async printLedger(): Promise<void> {
+    this.printingLedger.set(true);
+    document.body.classList.add('print-ledger');
+    const cleanup = () => { document.body.classList.remove('print-ledger'); this.printingLedger.set(false); };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    window.print();
+    setTimeout(cleanup, 1500);
+  }
   downloadLedger(): void {
     const account = this.statement(); if (!account) return;
-    const rows: (string | number | null | undefined)[][] = [];
+    const rows: (string | number | null | undefined)[][] = [
+      ['Account summary', '', '', account.purchaseTotal, account.returnedTotal, account.cashPaidTotal, account.payableAmount,
+        `Supplier credit: ${account.supplierCredit}`, '', '', ''],
+    ];
     for (const invoice of account.invoices) {
       rows.push(['Invoice', invoice.supplierInvoice, invoice.createdAt, invoice.total, invoice.returnedTotal,
         invoice.paidTotal, this.balance(invoice), '', '', '', '']);
@@ -110,7 +123,7 @@ export class SuppliersPage extends PageFeedback implements OnInit {
       }
     }
     downloadCsv(`supplier-ledger-${safeFilename(account.supplier)}.csv`,
-      ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance',
+      ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'External cash paid', 'Balance',
         'Item / method / reference', 'Batch / reason', 'Quantity', 'Unit cost'], rows);
   }
   balance(invoice: { total: number; returnedTotal: number; paidTotal: number }): number {

@@ -9,11 +9,12 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 | Medicines | Catalogue metadata, edit and soft deactivate/reactivate | Batch pricing is maintained through purchase lots |
 | Inventory | Batch stock/expiry, audited adjustment and damage write-off, movement report | Multi-location stock |
 | Purchases | Receive batches, history, supplier returns, invoice payments and supplier-wide statements | Reconciliation |
-| Sales | POS checkout, FEFO, discounts, cash/card/bank/mobile-wallet/Not Received tender, returns and receipts | Prescription workflow |
-| Customers | Store-scoped records, paid and receivable totals, unpaid invoice ledger, payment collection and account status | Customer-specific pricing |
+| Sales | POS checkout, FEFO, percentage discounts, cash/card/bank/mobile-wallet/Not Received tender, returns and printable receipts | Prescription workflow |
+| Customers | Store-scoped records, paid and receivable totals, full invoice/payment/return ledger, payment collection and account status | Customer-specific pricing |
 | Suppliers | Supplier records/contact details, edit/deactivate, search and purchase ledger | Reconciliation |
 | Expenses | Store-scoped categories, expense entries and date/category filters | Recurring expenses |
-| Reports | Dashboard, month-filtered profit and loss, supplier payables/credits, customer receivables, inventory valuation and CSV exports | PDF/Excel exports |
+| Reports | Dashboard, month-filtered profit and loss with return and stock-cost explanations, supplier payables/credits, customer receivables, inventory valuation and CSV ledger exports | PDF/Excel exports |
+| Imports | Permission-gated Excel-compatible CSV/XLSX preview and import for medicines, suppliers and opening batches; validates duplicate matches, missing details, expiry and prices before commit | Larger workbooks and configurable field mapping |
 
 ## File ownership
 
@@ -24,9 +25,3 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 - `Program.cs` owns host setup, dependency registration and middleware.
 
 The endpoint style is Minimal API. The current Angular client consumes the same API routes. Every customer, payment, category and expense record is store-scoped. A Not Received checkout requires a selected active customer and adds the unpaid invoice balance to that customer's receivables.
-
-
-Bootstrap__Email
-owner@yourstore.com
-Bootstrap__Password
-Owner@123456

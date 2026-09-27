@@ -28,21 +28,22 @@
     @if (supplierAccounts().length === 0) { <p class="empty">Add a supplier to start tracking its account.</p> }
   </section>
   @if (selectedSupplierStatement(); as statement) {
-    <section class="panel supplier-statement">
-      <div class="panel-head"><div><h3>{{ statement.supplier }} account statement</h3><p>Invoice totals include the recorded returns and supplier payments shown below each invoice.</p></div>
-        <div class="form-actions"><button class="secondary" (click)="downloadSupplierLedger()">Download full ledger CSV</button><button class="text-button" (click)="closeSupplierStatement()">Close statement</button></div>
+    <section class="panel supplier-statement printable-ledger">
+      <div class="panel-head"><div><h3>{{ statement.supplier }} account statement</h3><p>Purchased Rs {{ statement.purchaseTotal | number:'1.2-2' }} · Returns Rs {{ statement.returnedTotal | number:'1.2-2' }} · Cash paid Rs {{ statement.cashPaidTotal | number:'1.2-2' }} · Payable Rs {{ statement.payableAmount | number:'1.2-2' }} · Supplier credit Rs {{ statement.supplierCredit | number:'1.2-2' }}</p></div>
+        <div class="form-actions no-print"><button class="secondary" (click)="printSupplierLedger()">Print / save as PDF</button><button class="secondary" (click)="downloadSupplierLedger()">Download full ledger CSV</button><button class="text-button" (click)="closeSupplierStatement()">Close statement</button></div>
       </div>
-      <div class="purchase-filters"><label>Search invoice<input aria-label="Statement invoice filter" [ngModel]="statementSearch()" (ngModelChange)="statementSearch.set($event); statementPage.set(1)" placeholder="Supplier invoice" /></label><label>From date<input type="date" aria-label="Statement from date" [ngModel]="statementFrom()" (ngModelChange)="statementFrom.set($event); statementPage.set(1)" /></label><label>To date<input type="date" aria-label="Statement to date" [ngModel]="statementTo()" (ngModelChange)="statementTo.set($event); statementPage.set(1)" /></label></div>
-      <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Purchase</th><th>Returned</th><th>Paid</th><th>Remaining</th><th></th></tr></thead>
+      <p class="no-print">Invoice applied amount can include supplier credit. The account totals count cash/bank payments once and show available supplier credit separately.</p>
+      <div class="purchase-filters no-print"><label>Search invoice<input aria-label="Statement invoice filter" [ngModel]="statementSearch()" (ngModelChange)="statementSearch.set($event); statementPage.set(1)" placeholder="Supplier invoice" /></label><label>From date<input type="date" aria-label="Statement from date" [ngModel]="statementFrom()" (ngModelChange)="statementFrom.set($event); statementPage.set(1)" /></label><label>To date<input type="date" aria-label="Statement to date" [ngModel]="statementTo()" (ngModelChange)="statementTo.set($event); statementPage.set(1)" /></label></div>
+      <div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Purchase</th><th>Returned</th><th>Applied to invoice</th><th>Remaining</th><th class="no-print"></th></tr></thead>
         <tbody>@for (invoice of visibleStatementInvoices(); track invoice.id) {
           <tr><td>{{ invoice.supplierInvoice }}</td><td>{{ invoice.createdAt | date:'mediumDate' }}</td>
             <td>Rs {{ invoice.total | number:'1.2-2' }}</td><td>Rs {{ invoice.returnedTotal | number:'1.2-2' }}</td>
             <td>Rs {{ invoice.paidTotal | number:'1.2-2' }}</td><td><strong>Rs {{ balance(invoice) | number:'1.2-2' }}</strong></td>
-            <td><button class="text-button" (click)="openStatementInvoice(invoice)">Invoice details</button></td>
+            <td class="no-print"><button class="text-button" (click)="openStatementInvoice(invoice)">Invoice details</button></td>
           </tr>
         }</tbody>
       </table></div>
-      <app-table-pagination [page]="statementPage()" [total]="filteredStatementInvoices().length" [pageSize]="pageSize" (pageChange)="statementPage.set($event)" />
+      <app-table-pagination class="no-print" [page]="statementPage()" [total]="filteredStatementInvoices().length" [pageSize]="pageSize" (pageChange)="statementPage.set($event)" />
       @if (statement.invoices.length === 0) { <p class="empty">No purchase invoices for this supplier.</p> }
     </section>
   }

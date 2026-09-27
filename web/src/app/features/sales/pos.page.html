@@ -76,7 +76,10 @@
           <span>Subtotal <small>Final price follows FEFO batches</small></span
           ><strong>Rs {{ estimate | number: '1.2-2' }}</strong>
         </div>
-        <label>Discount (Rs)<input aria-label="Discount" type="number" min="0" [max]="estimate" step="0.01" [(ngModel)]="discountAmount" /></label>
+        <label>Discount (%)<input aria-label="Discount percentage" type="number" min="0" max="100" step="0.01" [(ngModel)]="discountPercent" /></label>
+        @if (discountPercent > 0 && discountPercent <= 100) {
+          <p class="field-hint">{{ discountPercent }}% discount · Rs {{ discountAmount | number:'1.2-2' }} off</p>
+        }
         <div class="estimate"><span>Amount due</span><strong>Rs {{ due | number:'1.2-2' }}</strong></div>
         <label>Payment method<select aria-label="Payment method" [(ngModel)]="paymentMethod">
           @for (method of paymentMethods; track method) { <option [value]="method">{{ method }}</option> }
@@ -99,7 +102,7 @@
         <button
           class="primary full"
           [disabled]="
-            busy() || cart.items().length === 0 || discountAmount < 0 || discountAmount > estimate || (paymentMethod === 'Cash' && cart.cashReceived() < due && !customerId) || (paymentMethod === 'Not Received' && !customerId) || (paidNow < due && !customerId) || (paymentMethod !== 'Cash' && paymentMethod !== 'Not Received' && ((amountPaid ?? due) < 0 || (amountPaid ?? due) > due)) || !validCart
+            busy() || cart.items().length === 0 || discountPercent < 0 || discountPercent > 100 || (paymentMethod === 'Cash' && cart.cashReceived() < due && !customerId) || (paymentMethod === 'Not Received' && !customerId) || (paidNow < due && !customerId) || (paymentMethod !== 'Cash' && paymentMethod !== 'Not Received' && ((amountPaid ?? due) < 0 || (amountPaid ?? due) > due)) || !validCart
           "
           (click)="completeSale()"
         >

@@ -38,6 +38,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
   readonly statementFrom = signal('');
   readonly statementTo = signal('');
   readonly statementPage = signal(1);
+  readonly printingStatement = signal(false);
   readonly purchaseSearch = signal('');
   readonly purchaseFrom = signal('');
   readonly purchaseTo = signal('');
@@ -64,7 +65,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
       return (!term || invoice.supplierInvoice.toLocaleLowerCase().includes(term)) && (!from || date >= from) && (!to || date <= to);
     });
   });
-  readonly visibleStatementInvoices = computed(() => pageSlice(this.filteredStatementInvoices(), this.statementPage()));
+  readonly visibleStatementInvoices = computed(() => this.printingStatement() ? (this.selectedSupplierStatement()?.invoices ?? []) : pageSlice(this.filteredStatementInvoices(), this.statementPage()));
   readonly filteredPurchases = computed(() => {
     const term = this.purchaseSearch().trim().toLocaleLowerCase();
     const from = this.purchaseFrom(); const to = this.purchaseTo();
@@ -113,9 +114,21 @@ export class PurchasesPage extends PageFeedback implements OnInit {
     return this.perform(async () => this.selectedSupplierStatement.set(await this.api.supplierStatement(account.supplierId)));
   }
   closeSupplierStatement(): void { this.selectedSupplierStatement.set(null); }
+  async printSupplierLedger(): Promise<void> {
+    this.printingStatement.set(true);
+    document.body.classList.add('print-ledger');
+    const cleanup = () => { document.body.classList.remove('print-ledger'); this.printingStatement.set(false); };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    window.print();
+    setTimeout(cleanup, 1500);
+  }
   downloadSupplierLedger(): void {
     const account = this.selectedSupplierStatement(); if (!account) return;
-    const rows: (string | number | null | undefined)[][] = [];
+    const rows: (string | number | null | undefined)[][] = [
+      ['Account summary', '', '', account.purchaseTotal, account.returnedTotal, account.cashPaidTotal, account.payableAmount,
+        `Supplier credit: ${account.supplierCredit}`, '', '', ''],
+    ];
     for (const invoice of account.invoices) {
       rows.push(['Invoice', invoice.supplierInvoice, invoice.createdAt, invoice.total, invoice.returnedTotal,
         invoice.paidTotal, this.balance(invoice), '', '', '', '']);
@@ -132,7 +145,7 @@ export class PurchasesPage extends PageFeedback implements OnInit {
       }
     }
     downloadCsv(`supplier-ledger-${safeFilename(account.supplier)}.csv`,
-      ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'Paid', 'Balance',
+      ['Record type', 'Supplier invoice', 'Date', 'Purchase amount', 'Returned', 'External cash paid', 'Balance',
         'Item / method / reference', 'Batch / reason', 'Quantity', 'Unit cost'], rows);
   }
   openStatementInvoice(purchase: PurchaseHistory, mode: 'details' | 'return' | 'payment' = 'details'): Promise<void> {

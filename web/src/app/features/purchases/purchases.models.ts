@@ -41,6 +41,11 @@ export interface SupplierAccountSummary {
 export interface SupplierStatement {
   supplierId: number;
   supplier: string;
+  purchaseTotal: number;
+  returnedTotal: number;
+  cashPaidTotal: number;
+  payableAmount: number;
+  supplierCredit: number;
   invoices: PurchaseHistory[];
 }
 export interface PurchaseCorrectionHistory {

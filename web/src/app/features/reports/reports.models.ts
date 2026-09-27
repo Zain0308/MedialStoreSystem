@@ -34,7 +34,8 @@ export interface ReceivablesReport {
     customerId: number; customer: string; phone?: string; email?: string; isActive: boolean;
     paidTotal: number; amountDue: number; invoiceCount: number;
     invoices: {
-      id: number; invoiceNumber: string; createdAt: string; total: number; returned: number; paid: number; due: number;
+      id: number; invoiceNumber: string; createdAt: string; total: number; paymentMethod: string; returned: number; paid: number; due: number;
+      returns: { createdAt: string; totalRefund: number; refundMethod: string; reason: string }[];
       payments: { paidAt: string; amount: number; method: string; reference?: string }[];
     }[];
   }[];

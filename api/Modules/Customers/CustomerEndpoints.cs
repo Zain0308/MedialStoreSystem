@@ -71,20 +71,26 @@ public static class CustomerEndpoints
                 }).ToListAsync();
             var paidTotal = customerSales.Sum(x => NotReceivedMethods.Contains(x.PaymentMethod)
                 ? Math.Min(x.Paid, Math.Max(0, x.Total - x.Returned)) : Math.Max(0, x.Total - x.Returned));
-            var unpaidSales = customerSales.Where(x => NotReceivedMethods.Contains(x.PaymentMethod)).ToList();
-            var saleIds = unpaidSales.Select(x => x.Id).ToArray();
+            var saleIds = customerSales.Select(x => x.Id).ToArray();
             var payments = await db.CustomerPayments.AsNoTracking().Where(x => saleIds.Contains(x.SaleId))
                 .OrderByDescending(x => x.PaidAt)
                 .Select(x => new { x.Id, x.SaleId, x.Amount, x.Method, x.Reference, x.PaidAt }).ToListAsync();
-            var invoices = unpaidSales.Select(x => new
+            var returns = await db.SaleReturns.AsNoTracking().Where(x => saleIds.Contains(x.SaleId))
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => new { x.Id, x.SaleId, x.CreatedAt, x.Reason, x.RefundMethod, x.TotalRefund }).ToListAsync();
+            var invoices = customerSales.Select(x => new
             {
-                x.Id, x.InvoiceNumber, x.CreatedAt, x.Total,
+                x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.PaymentMethod,
                 returned = x.Returned,
-                paid = x.Paid,
+                paid = NotReceivedMethods.Contains(x.PaymentMethod)
+                    ? Math.Min(x.Paid, Math.Max(0, x.Total - x.Returned)) : Math.Max(0, x.Total - x.Returned),
+                due = NotReceivedMethods.Contains(x.PaymentMethod) ? Math.Max(0, x.Total - x.Returned - x.Paid) : 0m,
+                returns = returns.Where(r => r.SaleId == x.Id)
+                    .Select(r => new { r.Id, r.CreatedAt, r.Reason, r.RefundMethod, r.TotalRefund }).ToList(),
                 payments = payments.Where(p => p.SaleId == x.Id)
                     .Select(p => new { p.Id, p.Amount, p.Method, p.Reference, p.PaidAt }).ToList()
             }).ToList();
-            return Results.Ok(new { customer, invoices, paidTotal, receivable = invoices.Sum(x => Math.Max(0, x.Total - x.returned - x.paid)) });
+            return Results.Ok(new { customer, invoices, paidTotal, receivable = invoices.Sum(x => x.due) });
         }).RequireAuthorization(StorePermissions.CustomersRead);
 
         api.MapPost("/customers/{id:long}/payments", async (long id, CustomerPaymentRequest input, StoreDb db) =>

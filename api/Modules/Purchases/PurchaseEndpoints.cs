@@ -130,9 +130,17 @@ public static class PurchaseEndpoints
             var corrections = await db.PurchaseCorrections.AsNoTracking().Where(x => invoiceIds.Contains(x.PurchaseId))
                 .Include(x => x.Lines).ThenInclude(x => x.PurchaseLine).ThenInclude(x => x.Batch).ThenInclude(x => x.Medicine)
                 .OrderByDescending(x => x.CreatedAt).ToListAsync();
+            var purchaseTotal = invoices.Sum(x => x.Total);
+            var returnedTotal = invoices.Sum(x => x.returnedTotal);
+            var cashPaidTotal = invoices.SelectMany(x => x.payments)
+                .Where(payment => !string.Equals(payment.Method, "Supplier Credit", StringComparison.OrdinalIgnoreCase))
+                .Sum(payment => payment.Amount);
+            var accountBalance = purchaseTotal - returnedTotal - cashPaidTotal;
             return Results.Ok(new
             {
                 supplierId = supplier.Id, supplier = supplier.Name,
+                purchaseTotal, returnedTotal, cashPaidTotal,
+                payableAmount = Math.Max(0m, accountBalance), supplierCredit = Math.Max(0m, -accountBalance),
                 invoices = invoices.Select(invoice => new
                 {
                     invoice.Id, invoice.supplier, invoice.SupplierInvoice, invoice.CreatedAt, invoice.Total,

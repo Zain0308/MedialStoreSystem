@@ -25,6 +25,7 @@ export class CustomersPage extends PageFeedback implements OnInit {
   readonly statusFilter = signal('all');
   readonly tablePage = signal(1);
   readonly ledgerPage = signal(1);
+  readonly printingLedger = signal(false);
   readonly pageSize = TABLE_PAGE_SIZE;
   readonly ledger = signal<CustomerLedger | null>(null);
   readonly activePanel = signal<'form' | 'ledger' | 'status' | null>('form');
@@ -42,7 +43,7 @@ export class CustomersPage extends PageFeedback implements OnInit {
       (!term || [x.name, x.phone, x.email].some(v => v?.toLocaleLowerCase().includes(term))));
   });
   readonly pagedCustomers = computed(() => pageSlice(this.visibleCustomers(), this.tablePage()));
-  readonly visibleLedgerInvoices = computed(() => pageSlice(this.ledger()?.invoices ?? [], this.ledgerPage()));
+  readonly visibleLedgerInvoices = computed(() => this.printingLedger() ? (this.ledger()?.invoices ?? []) : pageSlice(this.ledger()?.invoices ?? [], this.ledgerPage()));
   form: SaveCustomer = this.emptyForm();
   readonly paymentAmounts: Record<number, number> = {};
   readonly paymentMethods: Record<number, string> = {};
@@ -95,13 +96,25 @@ export class CustomersPage extends PageFeedback implements OnInit {
       ['Account summary', '', '', '', '', account.paidTotal, account.receivable],
     ];
     for (const invoice of account.invoices) {
-      rows.push(['Invoice', invoice.invoiceNumber, invoice.createdAt, invoice.total, invoice.returned, invoice.paid, this.due(invoice)]);
+      rows.push(['Invoice', invoice.invoiceNumber, invoice.createdAt, invoice.total, invoice.returned, invoice.paid, invoice.due, invoice.paymentMethod]);
+      for (const item of invoice.returns) rows.push([
+        'Return', invoice.invoiceNumber, item.createdAt, '', item.totalRefund, '', '', item.refundMethod, item.reason,
+      ]);
       for (const payment of invoice.payments) rows.push([
         'Payment', invoice.invoiceNumber, payment.paidAt, '', '', payment.amount, '', payment.method, payment.reference,
       ]);
     }
     downloadCsv(`customer-ledger-${safeFilename(account.customer.name)}.csv`,
-      ['Record type', 'Invoice', 'Date', 'Sale total', 'Returned', 'Paid total', 'Due', 'Payment method', 'Payment reference'], rows);
+      ['Record type', 'Invoice', 'Date', 'Sale total', 'Returned / refund', 'Paid total', 'Due', 'Payment / refund method', 'Reference / reason'], rows);
+  }
+  async printLedger(): Promise<void> {
+    this.printingLedger.set(true);
+    document.body.classList.add('print-ledger');
+    const cleanup = () => { document.body.classList.remove('print-ledger'); this.printingLedger.set(false); };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    window.print();
+    setTimeout(cleanup, 1500);
   }
   viewReceipt(saleId: number): Promise<void> {
     return this.perform(async () => {
@@ -147,7 +160,7 @@ export class CustomersPage extends PageFeedback implements OnInit {
       this.message.set('Customer payment recorded.');
     });
   }
-  due(invoice: { total: number; returned: number; paid: number }): number { return Math.max(0, invoice.total - invoice.returned - invoice.paid); }
+  due(invoice: { due: number }): number { return invoice.due; }
   private async refresh(): Promise<void> { this.customers.set(await this.api.list()); }
   private closeOtherPanels(): void {
     this.ledger.set(null); this.ledgerPage.set(1); this.receipt.set(null); this.receiptSaleId.set(null);

@@ -106,7 +106,7 @@ export class InventoryPage extends PageFeedback implements OnInit {
       const term = this.movementSearch().trim().toLocaleLowerCase();
       if (term && ![movement.medicine, movement.batch, movement.reason, this.movementActivityLabel(movement.type)]
         .some(value => value.toLocaleLowerCase().includes(term))) return false;
-      if (type === 'Purchase') return movement.type === 'Purchase' || movement.type === 'PurchaseCorrection' || movement.type === 'PurchaseReturn';
+      if (type === 'Purchase') return movement.type === 'Purchase' || movement.type === 'PurchaseCorrection' || movement.type === 'PurchaseReturn' || movement.type === 'OpeningStock';
       if (type === 'Sale') return movement.type === 'Sale' || movement.type === 'SaleReturn' || movement.type === 'DamagedReturn';
       if (type === 'Adjustment') return movement.type === 'Adjustment' || movement.type === 'Damage';
       return true;
@@ -164,6 +164,7 @@ export class InventoryPage extends PageFeedback implements OnInit {
   movementActivityLabel(type: string): string {
     const labels: Record<string, string> = {
       Purchase: 'Purchase received', PurchaseCorrection: 'Purchase correction', PurchaseReturn: 'Returned to supplier',
+      OpeningStock: 'Opening stock added',
       Sale: 'Sale completed', SaleReturn: 'Customer return', DamagedReturn: 'Damaged customer return',
       Adjustment: 'Stock count correction', Damage: 'Damaged / written off',
     };

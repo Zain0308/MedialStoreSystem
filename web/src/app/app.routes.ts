@@ -33,6 +33,12 @@ export const APP_ROUTES: Routes = [
           import('./features/medicines/medicines.routes').then((m) => m.MEDICINES_ROUTES),
       },
       {
+        path: 'imports',
+        canActivate: [permissionGuard],
+        data: { permissions: ['medicines.manage', 'suppliers.manage', 'inventory.manage'], title: 'Excel data import' },
+        loadComponent: () => import('./features/imports/imports.page').then(m => m.ImportsPage),
+      },
+      {
         path: 'inventory',
         canActivate: [permissionGuard],
         data: { permissions: ['inventory.read'] },

@@ -19,6 +19,9 @@
         <a routerLink="/sales/pos" routerLinkActive="active"><span>▣</span> New sale <em>POS</em></a>
       }
       @if (!session.subscriptionExpired() && session.hasPermission('medicines.read')) { <a routerLink="/medicines" routerLinkActive="active"><span>✚</span> Medicines</a> }
+      @if (!session.subscriptionExpired() && session.hasPermission('medicines.manage') && session.hasPermission('suppliers.manage') && session.hasPermission('inventory.manage')) {
+        <a routerLink="/imports" routerLinkActive="active"><span>⇧</span> Excel import</a>
+      }
       @if (!session.subscriptionExpired() && session.hasPermission('inventory.read')) { <a routerLink="/inventory" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"><span>▦</span> Inventory</a> }
       @if (!session.subscriptionExpired() && session.hasPermission('inventory.read')) { <a routerLink="/inventory/expiry" routerLinkActive="active"><span>◷</span> Expiry tracking</a> }
       @if (!session.subscriptionExpired() && (session.hasPermission('suppliers.read') || session.hasPermission('purchases.read'))) {

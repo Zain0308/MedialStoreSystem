@@ -19,7 +19,7 @@ export interface ExpiryBatch {
   expiryDate: string;
   quantity: number;
   costPrice: number;
-  purchasedAt: string;
+  purchasedAt: string | null;
   supplier: string;
   supplierInvoice: string;
 }

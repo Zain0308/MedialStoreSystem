@@ -38,7 +38,7 @@ export class PosPage extends PageFeedback implements OnInit {
   });
   readonly receipt = signal<Receipt | null>(null);
   search = '';
-  discountAmount = 0;
+  discountPercent = 0;
   amountPaid: number | null = null;
   paymentMethod = 'Cash';
   readonly addCustomerOpen = signal(false);
@@ -125,7 +125,11 @@ export class PosPage extends PageFeedback implements OnInit {
   get estimate(): number {
     return this.cart.items().reduce((sum, row) => sum + row.quantity * this.price(row.medicine), 0);
   }
-  get due(): number { return Math.max(0, this.estimate - Number(this.discountAmount || 0)); }
+  get discountAmount(): number {
+    const percent = Math.max(0, Math.min(100, Number(this.discountPercent || 0)));
+    return Math.round(this.estimate * percent) / 100;
+  }
+  get due(): number { return Math.max(0, this.estimate - this.discountAmount); }
   get paidNow(): number {
     if (this.paymentMethod === 'Not Received') return 0;
     if (this.paymentMethod === 'Cash') return Math.min(this.cart.cashReceived(), this.due);
@@ -149,7 +153,7 @@ export class PosPage extends PageFeedback implements OnInit {
       });
       // A successful POST has already committed the sale. Clear the cart before loading its receipt.
       this.cart.clear();
-      this.discountAmount = 0; this.paymentMethod = 'Cash'; this.amountPaid = null;
+      this.discountPercent = 0; this.paymentMethod = 'Cash'; this.amountPaid = null;
       this.customerId = null;
       this.customerSearch.set('');
       this.receipt.set(null);

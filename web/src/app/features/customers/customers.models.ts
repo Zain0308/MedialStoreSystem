@@ -3,7 +3,8 @@ export interface Customer {
 }
 export interface SaveCustomer { name: string; phone: string; email: string; }
 export interface CustomerInvoice {
-  id: number; invoiceNumber: string; createdAt: string; total: number; returned: number; paid: number;
+  id: number; invoiceNumber: string; createdAt: string; total: number; returned: number; paid: number; due: number; paymentMethod: string;
+  returns: { id: number; createdAt: string; reason: string; refundMethod: string; totalRefund: number }[];
   payments: { id: number; amount: number; method: string; reference?: string; paidAt: string }[];
 }
 export interface CustomerLedger {

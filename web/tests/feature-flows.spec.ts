@@ -15,6 +15,8 @@ async function mockApi(page: Page) {
     expiryBatches: [] as { id: number; medicineId: number; medicine: string; batch: string; expiryDate: string; quantity: number; costPrice: number; purchasedAt: string; supplier: string; supplierInvoice: string }[],
     sales: [] as { id: number; invoiceNumber: string; createdAt: string; subtotal: number; discountAmount: number; total: number; paymentMethod: string; returnedTotal: number; customerId?: number | null; paidTotal?: number }[],
     receipts: {} as Record<number, unknown>,
+    customerPayments: {} as Record<number, { id: number; amount: number; method: string; reference?: string; paidAt: string }[]>,
+    saleReturns: {} as Record<number, { id: number; createdAt: string; reason: string; refundMethod: string; totalRefund: number }[]>,
     purchases: [] as { id: number; supplier: string; supplierInvoice: string; createdAt: string; total: number; returnedTotal: number; paidTotal: number; lines: { id: number; medicine: string; batch: string; quantity: number; returnedQuantity: number; unitCost: number; onHand: number }[]; returns: { id: number; supplierReference: string; reason: string; createdAt: string; total: number }[]; payments: { id: number; amount: number; method: string; reference: string; paidAt: string }[]; corrections: { id: number; reason: string; createdAt: string; previousTotal: number; correctedTotal: number; lines: { purchaseLineId: number; medicine: string; batch: string; previousQuantity: number; correctedQuantity: number; quantityChange: number }[] }[] }[],
     movements: [] as { id: number; batchId: number; medicine: string; batch: string; type: string; quantityChange: number; balanceAfter: number; reason: string; createdAt: string }[],
     users: [
@@ -159,15 +161,22 @@ async function mockApi(page: Page) {
       if (customerPath[2] === 'status' && method === 'PUT') { customer.isActive = request.postDataJSON().isActive; return reply(customer); }
       if (customerPath[2] === 'ledger' && method === 'GET') {
         const customerSales = state.sales.filter(x => x.customerId === customer.id);
-        const invoices = customerSales.filter(x => ['Not Received', 'Credit'].includes(x.paymentMethod)).map(x => ({ ...x,
-          returned: x.returnedTotal, paid: x.paidTotal ?? 0, payments: [] }));
+        const invoices = customerSales.map(x => ({ ...x,
+          returned: x.returnedTotal, paid: ['Not Received', 'Credit'].includes(x.paymentMethod)
+            ? Math.min(x.paidTotal ?? 0, Math.max(0, x.total - x.returnedTotal)) : Math.max(0, x.total - x.returnedTotal),
+          due: ['Not Received', 'Credit'].includes(x.paymentMethod) ? Math.max(0, x.total - x.returnedTotal - (x.paidTotal ?? 0)) : 0,
+          returns: state.saleReturns[x.id] ?? [], payments: state.customerPayments[x.id] ?? [] }));
         const paidTotal = customerSales.reduce((sum, x) => sum + (['Not Received', 'Credit'].includes(x.paymentMethod)
           ? Math.min(x.paidTotal ?? 0, Math.max(0, x.total - x.returnedTotal)) : Math.max(0, x.total - x.returnedTotal)), 0);
-        return reply({ customer, invoices, paidTotal, receivable: invoices.reduce((sum, x) => sum + Math.max(0, x.total - x.returned - x.paid), 0) });
+        return reply({ customer, invoices, paidTotal, receivable: invoices.reduce((sum, x) => sum + x.due, 0) });
       }
       if (customerPath[2] === 'payments' && method === 'POST') {
         const body = request.postDataJSON(); const sale = state.sales.find(x => x.id === body.saleId)!;
-        sale.paidTotal = (sale.paidTotal ?? 0) + body.amount; return reply({ id: 1, amount: body.amount }, 201);
+        sale.paidTotal = (sale.paidTotal ?? 0) + body.amount;
+        const payment = { id: (state.customerPayments[sale.id]?.length ?? 0) + 1, amount: body.amount,
+          method: body.method, reference: body.reference, paidAt: new Date().toISOString() };
+        (state.customerPayments[sale.id] ??= []).push(payment);
+        return reply({ id: payment.id, amount: body.amount }, 201);
       }
       if (!customerPath[2] && method === 'PUT') { Object.assign(customer, request.postDataJSON()); return reply(customer); }
     }
@@ -197,6 +206,24 @@ async function mockApi(page: Page) {
       return reply({ sales: [], inventory: [], expenses: [], netSales: 0, costOfGoods: 0, expenseTotal: 0,
         netProfit: 0, returnedTotal: 0, inventoryCostValue: 0, inventorySaleValue: 0 });
     }
+    if (path === '/api/imports/template' && method === 'GET')
+      return route.fulfill({ status: 200, contentType: 'text/csv; charset=utf-8', body: 'MedicineName,SupplierName,OpeningQuantity\n' });
+    if (path === '/api/imports/preview' && method === 'POST') {
+      const payload = request.postDataJSON();
+      expect(payload.fileContentBase64).toBeTruthy();
+      if (payload.fileName.includes('missing')) return reply({ rowCount: 1, readyCount: 0, errorCount: 1, rows: [
+        { rowNumber: 2, medicineName: '', supplierName: '', openingQuantity: 5,
+          errors: ['Enter a medicine name or supplier name.', 'Enter a medicine name for opening stock.'], warnings: [] },
+      ] });
+      return reply({ rowCount: 2, readyCount: 2, errorCount: 0, rows: [
+        { rowNumber: 2, medicineName: 'Paracetamol 500mg', supplierName: 'Demo Pharma', openingQuantity: 10,
+          errors: [], warnings: ['Matching medicine already exists; its catalogue record will be reused.', 'Matching supplier already exists; its contact record will be reused.'] },
+        { rowNumber: 3, medicineName: 'New medicine', supplierName: 'New supplier', openingQuantity: 5,
+          errors: [], warnings: [] },
+      ] });
+    }
+    if (path === '/api/imports/commit' && method === 'POST')
+      return reply({ createdMedicines: 1, createdSuppliers: 1, openingBatches: 2, unitsAdded: 15 });
     if (path === '/api/reports/payables' && method === 'GET') return reply({
       payableTotal: 70, supplierCreditTotal: 0,
       suppliers: [{ supplierId: 1, supplier: 'Demo Pharma', invoiceCount: 1, purchaseTotal: 100, returnedTotal: 20, paidTotal: 10,
@@ -209,7 +236,7 @@ async function mockApi(page: Page) {
     if (path === '/api/reports/receivables' && method === 'GET') return reply({
       totalReceivable: 55,
       customers: [{ customerId: 1, customer: 'Ayesha Khan', phone: '03000000000', email: '', isActive: true, paidTotal: 5, amountDue: 55, invoiceCount: 1,
-        invoices: [{ id: 2, invoiceNumber: 'INV-202', createdAt: '2026-09-04T12:00:00Z', total: 60, returned: 0, paid: 5, due: 55,
+        invoices: [{ id: 2, invoiceNumber: 'INV-202', createdAt: '2026-09-04T12:00:00Z', total: 60, paymentMethod: 'Credit', returned: 0, paid: 5, due: 55, returns: [],
           payments: [{ paidAt: '2026-09-05T12:00:00Z', amount: 5, method: 'Cash', reference: 'RCPT-01' }] }]
       }],
     });
@@ -291,8 +318,14 @@ async function mockApi(page: Page) {
     if (supplierStatement && method === 'GET') {
       const supplier = state.suppliers.find(item => item.id === Number(supplierStatement[1]));
       if (!supplier) return reply({}, 404);
-      return reply({ supplierId: supplier.id, supplier: supplier.name,
-        invoices: state.purchases.filter(purchase => purchase.supplier === supplier.name) });
+      const invoices = state.purchases.filter(purchase => purchase.supplier === supplier.name);
+      const purchaseTotal = invoices.reduce((sum, item) => sum + item.total, 0);
+      const returnedTotal = invoices.reduce((sum, item) => sum + item.returnedTotal, 0);
+      const cashPaidTotal = invoices.flatMap(item => item.payments)
+        .filter(payment => payment.method !== 'Supplier Credit').reduce((sum, payment) => sum + payment.amount, 0);
+      const balance = purchaseTotal - returnedTotal - cashPaidTotal;
+      return reply({ supplierId: supplier.id, supplier: supplier.name, purchaseTotal, returnedTotal,
+        cashPaidTotal, payableAmount: Math.max(0, balance), supplierCredit: Math.max(0, -balance), invoices });
     }
     const purchaseReturn = path.match(/^\/api\/purchases\/(\d+)\/returns$/);
     if (purchaseReturn && method === 'POST') {
@@ -407,6 +440,8 @@ async function mockApi(page: Page) {
       line.returnedQuantity += requestLine.quantity;
       const refund = requestLine.quantity * (line.unitPrice - line.discountAmount / line.quantity);
       receipt.returnedTotal += refund; state.sales.find(x => x.id === id)!.returnedTotal = receipt.returnedTotal;
+      (state.saleReturns[id] ??= []).push({ id: (state.saleReturns[id]?.length ?? 0) + 1, createdAt: new Date().toISOString(),
+        reason: body.reason, refundMethod: body.refundMethod, totalRefund: refund });
       if (requestLine.restock) state.batches[0].quantity += requestLine.quantity;
       return reply({ id: 1, totalRefund: refund, refundMethod: body.refundMethod }, 201);
     }
@@ -783,6 +818,7 @@ test('supplier purchases stay under the supplier workspace and update inventory'
   await accountRow.getByRole('button', { name: 'View statement' }).click();
   const statement = page.locator('.supplier-statement');
   await expect(statement).toContainText('SUP-002');
+  await expect(statement).toContainText('Cash paid Rs 24.00');
   const [supplierLedgerDownload] = await Promise.all([
     page.waitForEvent('download'), statement.getByRole('button', { name: 'Download full ledger CSV' }).click(),
   ]);
@@ -828,14 +864,18 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await page.getByRole('button', { name: 'Close' }).click();
   state.sales.push({ ...state.sales[0], id: 2, invoiceNumber: 'INV-00000002', subtotal: 12,
     total: 12, returnedTotal: 0, paidTotal: 0 });
+  state.sales.push({ ...state.sales[0], id: 3, invoiceNumber: 'INV-PAID', subtotal: 10,
+    total: 10, returnedTotal: 0, paymentMethod: 'Cash', paidTotal: 10 });
   await navigate(page, /Customers/);
   const customerRow = page.getByRole('row').filter({ hasText: 'Ayesha Khan' });
-  await expect(customerRow).toContainText('Rs 0.00');
+  await expect(customerRow).toContainText('Rs 10.00');
   await expect(customerRow).toContainText('Rs 17.00');
   await customerRow.getByRole('button', { name: 'Ledger' }).click();
   await expect(page.locator('.customer-form')).toHaveCount(0);
   await expect(page.locator('.customer-ledger')).toContainText('INV-00000001');
   await expect(page.locator('.customer-ledger')).toContainText('INV-00000002');
+  await expect(page.locator('.customer-ledger')).toContainText('INV-PAID');
+  await expect(page.locator('.invoice-ledger').filter({ hasText: 'INV-PAID' })).toContainText('Due Rs 0.00');
   await customerRow.getByRole('button', { name: 'Edit' }).click();
   await expect(page.locator('.customer-ledger')).toHaveCount(0);
   await expect(page.getByLabel('Customer name')).toHaveValue('Ayesha Khan');
@@ -852,7 +892,7 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await firstInvoice.getByLabel('Payment amount for invoice INV-00000001').fill('5');
   await firstInvoice.getByRole('button', { name: 'Record payment' }).click();
   await expect(page.getByText('Customer payment recorded.')).toBeVisible();
-  await expect(customerRow).toContainText('Rs 5.00');
+  await expect(customerRow).toContainText('Rs 15.00');
   await expect(customerRow).toContainText('Rs 12.00');
   await firstInvoice.getByRole('button', { name: 'View receipt / process return' }).click();
   await expect(page.locator('.receipt')).toContainText('MEDICAL STORE');
@@ -863,6 +903,7 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
   await page.getByRole('button', { name: 'Record customer return' }).click();
   await expect(page.getByText(/Customer return recorded/)).toBeVisible();
   await expect(page.locator('.customer-ledger')).toContainText('Returned Rs 5.00');
+  await expect(firstInvoice).toContainText('Customer returned unopened medicine');
   await customerRow.getByRole('button', { name: 'Deactivate' }).click();
   await expect(page.locator('.customer-ledger')).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: 'Deactivate customer' })).toBeVisible();
@@ -885,7 +926,8 @@ test('customers track paid and due amounts, and POS can record an unpaid sale', 
 test('POS can add a customer without losing the current sale or payment details', async ({ page }) => {
   const state = await mockApi(page); await signIn(page, '/sales/pos');
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
-  await page.getByLabel('Discount').fill('1');
+  await page.getByLabel('Discount percentage').fill('20');
+  await expect(page.getByText('20% discount · Rs 1.00 off')).toBeVisible();
   await page.getByLabel('Payment method').selectOption('Not Received');
   await expect(page.getByRole('button', { name: /Complete sale/ })).toBeDisabled();
   await page.getByRole('button', { name: /Add customer/ }).click();
@@ -896,7 +938,7 @@ test('POS can add a customer without losing the current sale or payment details'
   await dialog.getByRole('button', { name: 'Add and select' }).click();
   await expect(dialog).toBeHidden();
   await expect(page.locator('.cart-row')).toContainText('Paracetamol 500mg');
-  await expect(page.getByLabel('Discount')).toHaveValue('1');
+  await expect(page.getByLabel('Discount percentage')).toHaveValue('20');
   await expect(page.getByText('Selected: Sara Ahmed')).toBeVisible();
   await expect(page.getByRole('button', { name: /Complete sale/ })).toBeEnabled();
   await page.getByRole('button', { name: /Complete sale/ }).click();
@@ -1002,7 +1044,7 @@ test('POS survives navigation, posts once, prints receipt and clears on logout',
   await page.getByRole('button', { name: /Paracetamol 500mg/ }).click();
   await navigate(page, /Suppliers/); await navigate(page, /New sale/);
   await expect(page.locator('.cart-row')).toHaveCount(1);
-  await page.getByLabel('Discount').fill('1');
+  await page.getByLabel('Discount percentage').fill('20');
   await page.getByLabel('Payment method').selectOption('Card');
   await page.getByRole('button', { name: /Complete sale/ }).click();
   await expect(page.locator('.receipt-paper')).toContainText('INV-00000001');
@@ -1159,4 +1201,35 @@ test('POS medicine search finds medicines by manufacturer and shows distinguishi
   const result = page.getByRole('button', { name: /BrandX/ });
   await expect(result).toContainText('250 mg');
   await expect(result).toContainText('Syrup');
+});
+
+test('Excel import previews duplicate reuse before committing medicines, suppliers and opening stock', async ({ page }) => {
+  await mockApi(page); await signIn(page);
+  await navigate(page, /Excel import/);
+  const [template] = await Promise.all([
+    page.waitForEvent('download'), page.getByRole('button', { name: 'Download Excel template' }).click(),
+  ]);
+  expect(template.suggestedFilename()).toBe('medical-store-import-template.csv');
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'store-opening-stock.csv', mimeType: 'text/csv',
+    buffer: Buffer.from('MedicineName,SupplierName,OpeningQuantity\nParacetamol,Demo,10'),
+  });
+  await page.getByRole('button', { name: 'Preview import' }).click();
+  await expect(page.locator('.import-preview')).toContainText('2 rows');
+  await expect(page.locator('.import-preview')).toContainText('Matching medicine already exists');
+  await expect(page.getByRole('button', { name: 'Import 2 rows' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Import 2 rows' }).click();
+  await expect(page.getByRole('status')).toContainText('1 new medicines');
+  await expect(page.getByRole('status')).toContainText('15 opening units');
+});
+
+test('Excel import lists missing required details and blocks an invalid import', async ({ page }) => {
+  await mockApi(page); await signIn(page);
+  await navigate(page, /Excel import/);
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'missing-details.csv', mimeType: 'text/csv', buffer: Buffer.from('MedicineName,OpeningQuantity\n,5'),
+  });
+  await page.getByRole('button', { name: 'Preview import' }).click();
+  await expect(page.locator('.import-preview')).toContainText('Enter a medicine name or supplier name.');
+  await expect(page.getByRole('button', { name: 'Import 1 rows' })).toBeDisabled();
 });

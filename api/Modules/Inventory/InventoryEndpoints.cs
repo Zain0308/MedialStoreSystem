@@ -18,7 +18,7 @@ public static class InventoryEndpoints
 
         api.MapGet("/inventory/expiry", async (StoreDb db) =>
         {
-            var batches = await (
+            var purchasedBatches = await (
                 from batch in db.Batches.AsNoTracking()
                 join line in db.PurchaseLines.AsNoTracking() on batch.Id equals line.BatchId
                 join purchase in db.Purchases.AsNoTracking() on line.PurchaseId equals purchase.Id
@@ -29,9 +29,16 @@ public static class InventoryEndpoints
                 {
                     batch.Id, medicineId = batch.MedicineId, medicine = batch.Medicine.Name,
                     batch = batch.Number, batch.ExpiryDate, batch.Quantity, batch.CostPrice,
-                    purchasedAt = purchase.CreatedAt, supplier = supplier.Name, purchase.SupplierInvoice
+                    purchasedAt = (DateTimeOffset?)purchase.CreatedAt, supplier = supplier.Name, supplierInvoice = purchase.SupplierInvoice
                 }).ToListAsync();
-
+            var linkedBatchIds = await db.PurchaseLines.AsNoTracking().Select(line => line.BatchId).Distinct().ToListAsync();
+            var openingBatches = await db.Batches.AsNoTracking().Where(batch => batch.Quantity > 0 && !linkedBatchIds.Contains(batch.Id))
+                .OrderBy(batch => batch.ExpiryDate).ThenBy(batch => batch.Medicine.Name).ThenBy(batch => batch.Number)
+                .Select(batch => new { batch.Id, medicineId = batch.MedicineId, medicine = batch.Medicine.Name,
+                    batch = batch.Number, batch.ExpiryDate, batch.Quantity, batch.CostPrice, purchasedAt = (DateTimeOffset?)null,
+                    supplier = "Opening stock", supplierInvoice = "Opening stock" }).ToListAsync();
+            var batches = purchasedBatches.Concat(openingBatches).OrderBy(batch => batch.ExpiryDate)
+                .ThenBy(batch => batch.medicine).ThenBy(batch => batch.batch).ToList();
             return Results.Ok(batches);
         }).RequireAuthorization(StorePermissions.InventoryRead);
 

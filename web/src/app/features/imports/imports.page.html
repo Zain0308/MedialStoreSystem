@@ -1,0 +1,61 @@
+<app-page-notice [message]="message()" [error]="hasError()" [busy]="busy()" />
+<div class="page-content import-page">
+  <section class="panel import-intro">
+    <div class="panel-head"><div><h2>Import store data</h2>
+      <p>Add medicines, suppliers and opening stock from one spreadsheet.</p></div>
+      <button type="button" class="secondary" [disabled]="busy()" (click)="downloadTemplate()">Download Excel template</button>
+    </div>
+    <ol class="import-steps">
+      <li><strong>1. Fill the template</strong><span>Use one row per medicine batch. Repeat a medicine or supplier on later rows when needed.</span></li>
+      <li><strong>2. Preview the file</strong><span>We check required fields, duplicates, expiry dates and prices before saving anything.</span></li>
+      <li><strong>3. Confirm import</strong><span>Rows with errors must be fixed first. Matching medicines and suppliers are reused.</span></li>
+    </ol>
+    <p class="import-note">Opening stock is recorded as an opening inventory movement. It does not create a supplier invoice or payment. Existing medicine and supplier details are not overwritten.</p>
+  </section>
+
+  <section class="panel import-upload">
+    <h3>Choose spreadsheet</h3>
+    <p>Excel workbook (.xlsx) or Excel-compatible CSV · up to 8 MB and 5,000 rows.</p>
+    <label>Spreadsheet file
+      <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" (change)="onFileChange($event)" [disabled]="busy()" />
+    </label>
+    @if (selectedFile(); as file) { <div class="selected-file"><span>{{ file.name }}</span><button type="button" class="primary" [disabled]="busy()" (click)="previewImport()">Preview import</button></div> }
+  </section>
+
+  @if (preview(); as result) {
+    <section class="panel import-preview">
+      <div class="panel-head"><div><h3>Import preview</h3><p>Review each row before adding it to this store.</p></div>
+        <div class="import-counts"><span>{{ result.rowCount }} rows</span><span class="ready-count">{{ result.readyCount }} ready</span>
+          @if (result.errorCount) { <span class="error-count">{{ result.errorCount }} need changes</span> }
+        </div>
+      </div>
+      <div class="table-filters"><label>Find rows<input aria-label="Search import preview" [ngModel]="search()" (ngModelChange)="search.set($event); page.set(1)" placeholder="Medicine, supplier or issue" /></label>
+        @if (search()) { <button type="button" class="text-button" (click)="search.set(''); page.set(1)">Clear search</button> }
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Row</th><th>Medicine</th><th>Supplier</th><th>Opening units</th><th>Status / checks</th></tr></thead>
+        <tbody>@for (row of visibleRows(); track row.rowNumber) {
+          <tr><td>{{ row.rowNumber }}</td><td>{{ row.medicineName || '—' }}</td><td>{{ row.supplierName || '—' }}</td><td>{{ row.openingQuantity }}</td>
+            <td><span class="import-status" [class.has-errors]="row.errors.length" [class.has-warnings]="!row.errors.length && row.warnings.length">{{ rowStatus(row) }}</span>
+              @for (issue of row.errors; track issue) { <small class="import-error">{{ issue }}</small> }
+              @for (warning of row.warnings; track warning) { <small class="import-warning">{{ warning }}</small> }
+              @if (!row.errors.length && !row.warnings.length) { <small>Required fields look good.</small> }
+            </td>
+          </tr>
+        }</tbody>
+      </table></div>
+      @if (!filteredRows().length) { <p class="empty">No import rows match this search.</p> }
+      <app-table-pagination [page]="page()" [total]="filteredRows().length" [pageSize]="pageSize" (pageChange)="page.set($event)" />
+      <div class="import-confirm"><span>@if (result.errorCount) { Fix the errors in Excel and preview the corrected file. } @else { All rows passed validation. You can import them now. }</span>
+        <button type="button" class="primary" [disabled]="busy() || result.errorCount > 0" (click)="confirmImport()">Import {{ result.rowCount }} rows</button>
+      </div>
+    </section>
+  }
+
+  @if (importResult(); as result) {
+    <section class="panel import-success" role="status">
+      <h3>Import completed</h3>
+      <p>{{ result.createdMedicines }} new medicines · {{ result.createdSuppliers }} new suppliers · {{ result.openingBatches }} batches · {{ result.unitsAdded }} opening units</p>
+      <button type="button" class="secondary" (click)="importResult.set(null)">Import another file</button>
+    </section>
+  }
+</div>

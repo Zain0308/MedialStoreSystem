@@ -375,6 +375,39 @@ label.check {
   margin: 0 0 20px;
 }
 @media print {
+  body.print-ledger {
+    page: ledger;
+  }
+  @page ledger {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  body.print-ledger .page-content {
+    display: block !important;
+  }
+  body.print-ledger .page-content > :not(.printable-ledger) {
+    display: none !important;
+  }
+  body.print-ledger .printable-ledger {
+    display: block !important;
+    border: 0;
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    color: #111;
+  }
+  body.print-ledger .printable-ledger button,
+  body.print-ledger .printable-ledger input,
+  body.print-ledger .printable-ledger select,
+  body.print-ledger .printable-ledger textarea,
+  body.print-ledger .printable-ledger app-table-pagination,
+  body.print-ledger .printable-ledger .no-print {
+    display: none !important;
+  }
+  body.print-ledger .printable-ledger th,
+  body.print-ledger .printable-ledger td {
+    color: #111;
+  }
   .sidebar,
   .topbar,
   app-page-notice,

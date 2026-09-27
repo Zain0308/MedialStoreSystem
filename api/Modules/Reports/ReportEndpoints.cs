@@ -113,6 +113,9 @@ public static class ReportEndpoints
             var payments = await db.CustomerPayments.AsNoTracking().Where(x => saleIds.Contains(x.SaleId))
                 .OrderByDescending(x => x.PaidAt)
                 .Select(x => new { x.SaleId, x.PaidAt, x.Amount, x.Method, x.Reference }).ToListAsync();
+            var returns = await db.SaleReturns.AsNoTracking().Where(x => saleIds.Contains(x.SaleId))
+                .OrderByDescending(x => x.CreatedAt)
+                .Select(x => new { x.SaleId, x.CreatedAt, x.TotalRefund, x.RefundMethod, x.Reason }).ToListAsync();
             var unpaidMethods = new[] { "Not Received", "Credit" };
             var accounts = customers.Select(customer =>
             {
@@ -120,11 +123,13 @@ public static class ReportEndpoints
                 var paidTotal = customerSales.Sum(x => unpaidMethods.Contains(x.PaymentMethod)
                     ? Math.Min(x.paid, Math.Max(0m, x.Total - x.returned))
                     : Math.Max(0m, x.Total - x.returned));
-                var unpaidSales = customerSales.Where(x => unpaidMethods.Contains(x.PaymentMethod)).ToList();
-                var invoices = unpaidSales.Select(x => new
+                var invoices = customerSales.Select(x => new
                 {
-                    x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.returned, x.paid,
-                    due = Math.Max(0m, x.Total - x.returned - x.paid),
+                    x.Id, x.InvoiceNumber, x.CreatedAt, x.Total, x.PaymentMethod, x.returned,
+                    paid = unpaidMethods.Contains(x.PaymentMethod) ? Math.Min(x.paid, Math.Max(0m, x.Total - x.returned)) : Math.Max(0m, x.Total - x.returned),
+                    due = unpaidMethods.Contains(x.PaymentMethod) ? Math.Max(0m, x.Total - x.returned - x.paid) : 0m,
+                    returns = returns.Where(r => r.SaleId == x.Id)
+                        .Select(r => new { r.CreatedAt, r.TotalRefund, r.RefundMethod, r.Reason }).ToList(),
                     payments = payments.Where(p => p.SaleId == x.Id)
                         .Select(p => new { p.PaidAt, p.Amount, p.Method, p.Reference }).ToList()
                 }).ToList();

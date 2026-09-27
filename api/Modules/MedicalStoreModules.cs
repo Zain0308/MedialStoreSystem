@@ -8,6 +8,7 @@ using MedicalStore.Api.Modules.Reports;
 using MedicalStore.Api.Modules.Stores;
 using MedicalStore.Api.Modules.Customers;
 using MedicalStore.Api.Modules.Expenses;
+using MedicalStore.Api.Modules.Imports;
 
 namespace MedicalStore.Api.Modules;
 
@@ -34,6 +35,7 @@ public static class MedicalStoreModules
         api.MapReportEndpoints();
         api.MapCustomerEndpoints();
         api.MapExpenseEndpoints();
+        api.MapDataImportEndpoints();
         api.MapStoreEndpoints();
     }
 }
