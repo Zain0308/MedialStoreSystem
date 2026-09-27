@@ -24,3 +24,9 @@ This backend uses the agreed business module structure inside a single ASP.NET C
 - `Program.cs` owns host setup, dependency registration and middleware.
 
 The endpoint style is Minimal API. The current Angular client consumes the same API routes. Every customer, payment, category and expense record is store-scoped. A Not Received checkout requires a selected active customer and adds the unpaid invoice balance to that customer's receivables.
+
+
+Bootstrap__Email
+owner@yourstore.com
+Bootstrap__Password
+Owner@123456
