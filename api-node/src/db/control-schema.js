@@ -94,7 +94,8 @@ export const tenantSchema = [
   )`,
   `CREATE TABLE IF NOT EXISTS purchase_corrections (
     id INTEGER PRIMARY KEY AUTOINCREMENT, purchase_id INTEGER NOT NULL REFERENCES purchases(id),
-    reason TEXT NOT NULL, actor_email TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    reason TEXT NOT NULL, actor_id TEXT, previous_total REAL, corrected_total REAL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS purchase_correction_lines (
     id INTEGER PRIMARY KEY AUTOINCREMENT, correction_id INTEGER NOT NULL REFERENCES purchase_corrections(id) ON DELETE CASCADE,

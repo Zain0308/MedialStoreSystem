@@ -2,6 +2,7 @@ import { createClient } from '@libsql/client';
 import { tenantSchema } from './control-schema.js';
 import { decryptSecret } from '../security/secrets.js';
 import { controlDb } from './control.js';
+import { upgradeTenantSchema } from './tenant-migrations.js';
 
 const clients = new Map();
 
@@ -28,6 +29,7 @@ export async function getTenantDb(store) {
     sql: 'INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, ?)',
     args: [new Date().toISOString()],
   });
+  await upgradeTenantSchema(client);
   clients.set(Number(store.id), client);
   return client;
 }

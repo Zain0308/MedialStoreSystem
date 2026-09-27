@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createClient } from '@libsql/client';
 import { controlSchema, tenantSchema } from '../src/db/control-schema.js';
+import { upgradeTenantSchema } from '../src/db/tenant-migrations.js';
 
 async function databaseWith(schema) {
   const db = createClient({ url: 'file::memory:' });
@@ -41,5 +42,26 @@ test('tenant schema supports an atomic sale stock decrement and records stock mo
     assert.equal(second.rows.length, 0);
     const movements = await db.execute('SELECT COUNT(*) AS count FROM stock_movements');
     assert.equal(Number(movements.rows[0].count), 1);
+  } finally { await db.close(); }
+});
+
+test('tenant migration upgrades existing purchase correction records for the API schema', async () => {
+  const db = createClient({ url: 'file::memory:' });
+  try {
+    await db.execute('CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
+    await db.execute(`CREATE TABLE purchase_corrections (
+      id INTEGER PRIMARY KEY, actor_email TEXT NOT NULL, reason TEXT NOT NULL
+    )`);
+    await db.execute("INSERT INTO purchase_corrections(id,actor_email,reason) VALUES(1,'owner@example.com','legacy row')");
+    await upgradeTenantSchema(db);
+    const { rows } = await db.execute('PRAGMA table_info(purchase_corrections)');
+    const names = rows.map((column) => column.name);
+    assert.ok(names.includes('actor_id'));
+    assert.ok(names.includes('previous_total'));
+    assert.ok(names.includes('corrected_total'));
+    const correction = await db.execute('SELECT actor_id FROM purchase_corrections WHERE id=1');
+    assert.equal(correction.rows[0].actor_id, 'owner@example.com');
+    const migration = await db.execute('SELECT version FROM schema_migrations WHERE version=2');
+    assert.equal(migration.rows.length, 1);
   } finally { await db.close(); }
 });
