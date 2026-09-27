@@ -20,7 +20,7 @@ export async function createTenantDatabase(databaseName) {
     const client = createClient({ url: dbUrl, authToken });
     try {
       await client.execute('PRAGMA foreign_keys = ON');
-      for (const statement of tenantSchema) await client.execute(statement);
+      await client.batch(tenantSchema.map((sql) => ({ sql })), 'write');
       await client.execute({ sql: 'INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, ?)', args: [new Date().toISOString()] });
     } finally { await client.close(); }
     return { databaseName, databaseUrl: dbUrl, databaseTokenCiphertext: encryptSecret(authToken) };

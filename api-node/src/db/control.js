@@ -14,7 +14,7 @@ export async function initializeControlDatabase() {
     throw new Error('The control database and first store database must be different databases.');
   }
   await controlDb.execute('PRAGMA foreign_keys = ON');
-  for (const statement of controlSchema) await controlDb.execute(statement);
+  await controlDb.batch(controlSchema.map((sql) => ({ sql })), 'write');
   await controlDb.execute({
     sql: 'INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, ?)',
     args: [new Date().toISOString()],
